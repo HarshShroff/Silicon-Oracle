@@ -260,6 +260,43 @@ def get_relative_strength():
     return jsonify(strength)
 
 
+@api_bp.route("/oracle/ai-interpretation/<ticker>")
+def get_oracle_ai_interpretation(ticker):
+    """Get AI interpretation of Oracle factors."""
+    from flask_app.services.gemini_service import GeminiService
+    from utils.ticker_utils import normalize_ticker
+
+    ticker = normalize_ticker(ticker)
+
+    # Get Oracle score first
+    oracle_service = EnhancedOracleService(get_config())
+    oracle_data = oracle_service.calculate_enhanced_oracle_score(ticker)
+
+    # Get AI interpretation
+    gemini_service = GeminiService(get_config())
+    interpretation = gemini_service.get_factor_interpretation(ticker, oracle_data)
+
+    if interpretation == "Gemini API Key Required":
+        return jsonify({"locked": True, "interpretation": None})
+
+    return jsonify({"locked": False, "interpretation": interpretation})
+
+
+@api_bp.route("/oracle/pattern-analysis/<ticker>")
+def get_oracle_pattern_analysis(ticker):
+    """Get AI pattern analysis for a ticker."""
+    from flask_app.services.gemini_service import GeminiService
+    from utils.ticker_utils import normalize_ticker
+
+    gemini_service = GeminiService(get_config())
+    pattern_analysis = gemini_service.get_pattern_analysis(normalize_ticker(ticker))
+
+    if pattern_analysis == "Gemini API Key Required":
+        return jsonify({"locked": True, "pattern_analysis": None})
+
+    return jsonify({"locked": False, "pattern_analysis": pattern_analysis})
+
+
 # ============================================
 # SCANNER ENDPOINTS
 # ============================================

@@ -1,3 +1,7 @@
+**A personal full-stack financial engineering project demonstrating Cloud Architecture, Python, and Generative AI.**
+
+---
+
 #  Silicon Oracle
 
 **AI-Powered Stock Analysis & Paper Trading Platform**
@@ -8,6 +12,8 @@
 [![Flask](https://img.shields.io/badge/Flask-3.0+-green.svg)](https://flask.palletsprojects.com/)
 
 > A professional trading platform combining real-time market data, AI-powered analysis, and paper trading in a sleek, modern interface. Built with Flask, powered by Gemini AI, and deployed for free on Render.
+
+**DISCLAIMER:** This is an educational project for portfolio demonstration purposes. Not financial advice. See [DISCLAIMER.md](DISCLAIMER.md) for full details.
 
 ---
 

@@ -98,168 +98,104 @@
     <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
 
         <!-- Total Portfolio Value -->
-        <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5 card-interactive">
-            <div class="flex items-center justify-between mb-2 md:mb-3">
+        <div class="glass rounded-xl md:rounded-2xl p-3 md:p-5 card-interactive flex flex-col justify-between aspect-square md:aspect-auto">
+            <div class="flex items-center justify-between mb-2">
                 <span class="text-xs md:text-sm text-gray-400 font-medium">Total Value</span>
-                <div class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-br from-oracle-primary/20 to-oracle-secondary/20 flex items-center justify-center">
-                    <svg class="w-4 h-4 md:w-5 md:h-5 text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-br from-oracle-primary/20 to-oracle-secondary/20 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 md:w-5 md:h-5 text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </div>
             </div>
             <div class="flex items-baseline gap-2">
                 <template x-if="loading">
-                    <div class="loading-skeleton h-7 md:h-8 w-24 md:w-32"></div>
+                    <div class="loading-skeleton h-7 md:h-8 w-20 md:w-32"></div>
                 </template>
                 <template x-if="!loading">
-                    <span class="text-xl md:text-2xl font-bold value-transition" x-text="formatCurrency(summary.total_value)">$0.00</span>
+                    <span class="text-lg md:text-2xl font-bold value-transition" x-text="formatCurrency(summary.total_value)">$0.00</span>
                 </template>
             </div>
-            <div class="mt-1 md:mt-2 text-xs md:text-sm text-gray-500">
+            <div class="mt-auto text-xs md:text-sm text-gray-500">
                 <span x-text="summary.position_count || 0"></span> positions
             </div>
         </div>
 
         <!-- Unrealized P&L -->
-        <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5 card-interactive">
-            <div class="flex items-center justify-between mb-2 md:mb-3">
+        <div class="glass rounded-xl md:rounded-2xl p-3 md:p-5 card-interactive flex flex-col justify-between aspect-square md:aspect-auto">
+            <div class="flex items-center justify-between mb-2">
                 <span class="text-xs md:text-sm text-gray-400 font-medium">P&L</span>
-                <div class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center"
+                <div class="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0"
                      :class="summary.total_pnl >= 0 ? 'bg-green-500/20' : 'bg-red-500/20'">
-                    <svg class="w-4 h-4 md:w-5 md:h-5" :class="summary.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-3.5 h-3.5 md:w-5 md:h-5" :class="summary.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
                     </svg>
                 </div>
             </div>
             <div class="flex items-baseline gap-2">
                 <template x-if="loading">
-                    <div class="loading-skeleton h-7 md:h-8 w-24 md:w-32"></div>
+                    <div class="loading-skeleton h-7 md:h-8 w-20 md:w-32"></div>
                 </template>
                 <template x-if="!loading">
-                    <span class="text-xl md:text-2xl font-bold value-transition"
+                    <span class="text-lg md:text-2xl font-bold value-transition"
                           :class="summary.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'"
                           x-text="formatCurrency(summary.total_pnl)">$0.00</span>
                 </template>
             </div>
-            <div class="mt-1 md:mt-2 text-xs md:text-sm" :class="summary.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'">
+            <div class="mt-auto text-xs md:text-sm" :class="summary.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'">
                 <span x-text="formatPercent(summary.total_pnl_percent)"></span>
             </div>
         </div>
 
         <!-- Active Alerts -->
-        <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5 card-interactive"
+        <div class="glass rounded-xl md:rounded-2xl p-3 md:p-5 card-interactive flex flex-col justify-between aspect-square md:aspect-auto"
              :class="summary.active_alerts > 0 ? 'border-red-500/50 glow-danger' : ''">
-            <div class="flex items-center justify-between mb-2 md:mb-3">
+            <div class="flex items-center justify-between mb-2">
                 <span class="text-xs md:text-sm text-gray-400 font-medium">Alerts</span>
-                <div class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center"
+                <div class="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0"
                      :class="summary.active_alerts > 0 ? 'bg-red-500/20' : 'bg-gray-500/20'">
-                    <svg class="w-4 h-4 md:w-5 md:h-5" :class="summary.active_alerts > 0 ? 'text-red-400 animate-pulse' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-3.5 h-3.5 md:w-5 md:h-5" :class="summary.active_alerts > 0 ? 'text-red-400 animate-pulse' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
                     </svg>
                 </div>
             </div>
             <div class="flex items-baseline gap-2">
                 <template x-if="loading">
-                    <div class="loading-skeleton h-7 md:h-8 w-12 md:w-16"></div>
+                    <div class="loading-skeleton h-7 md:h-8 w-10 md:w-16"></div>
                 </template>
                 <template x-if="!loading">
-                    <span class="text-xl md:text-2xl font-bold"
+                    <span class="text-lg md:text-2xl font-bold"
                           :class="summary.active_alerts > 0 ? 'text-red-400' : 'text-gray-400'"
                           x-text="summary.active_alerts || 0">0</span>
                 </template>
             </div>
-            <div class="mt-1 md:mt-2 text-xs md:text-sm text-gray-500">
+            <div class="mt-auto text-xs md:text-sm text-gray-500">
                 <span x-show="summary.active_alerts > 0" class="text-red-400">Action needed</span>
                 <span x-show="!summary.active_alerts">All clear</span>
             </div>
         </div>
 
         <!-- Last Sync Time -->
-        <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5 card-interactive">
-            <div class="flex items-center justify-between mb-2 md:mb-3">
+        <div class="glass rounded-xl md:rounded-2xl p-3 md:p-5 card-interactive flex flex-col justify-between aspect-square md:aspect-auto">
+            <div class="flex items-center justify-between mb-2">
                 <span class="text-xs md:text-sm text-gray-400 font-medium">Last Sync</span>
-                <div class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-oracle-card flex items-center justify-center">
-                    <svg class="w-4 h-4 md:w-5 md:h-5 text-gray-400" :class="syncing ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-oracle-card flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 md:w-5 md:h-5 text-gray-400" :class="syncing ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                     </svg>
                 </div>
             </div>
             <div class="flex items-baseline gap-2">
-                <span class="text-xl md:text-2xl font-bold text-gray-300" x-text="lastSyncDisplay">--:--</span>
+                <span class="text-lg md:text-2xl font-bold text-gray-300" x-text="lastSyncDisplay">--:--</span>
             </div>
-            <div class="mt-1 md:mt-2 text-xs md:text-sm text-gray-500">
+            <div class="mt-auto text-xs md:text-sm text-gray-500">
                 <span x-show="autoRefresh">Next: <span x-text="refreshCountdown"></span>s</span>
                 <span x-show="!autoRefresh" class="text-yellow-500">Auto-refresh off</span>
             </div>
         </div>
     </div>
 
-    <!-- Control Row: Sync + Add Position -->
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
-
-        <!-- Control Panel (Compact) -->
-        <div class="lg:col-span-1 glass rounded-xl md:rounded-2xl p-4 md:p-5">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm md:text-base font-semibold flex items-center gap-2">
-                    <span></span>
-                    <span class="hidden sm:inline">Controls</span>
-                </h3>
-                <!-- Connection Status -->
-                <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full"
-                          :class="connected ? 'bg-green-400 live-indicator' : 'bg-red-400'"></span>
-                    <span class="text-xs text-gray-400" x-text="connected ? 'Live' : 'Offline'"></span>
-                </div>
-            </div>
-
-            <div class="space-y-3">
-                <!-- Force Sync Button -->
-                <button @click="forceSync()"
-                        :disabled="syncing"
-                        class="w-full btn-success px-4 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
-                    <svg x-show="syncing" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span x-show="!syncing"></span>
-                    <span x-text="syncing ? 'Syncing...' : 'Force Sync'"></span>
-                </button>
-
-                <!-- Test Alert Button -->
-                <button @click="testAlert()"
-                        :disabled="testingAlert"
-                        class="w-full bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-4 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
-                    <span x-show="testingAlert">⌛</span>
-                    <span x-text="testingAlert ? 'Sending Test...' : 'Test Email Alert'"></span>
-                </button>
-
-                <!-- Auto-refresh toggle -->
-                <div class="flex items-center justify-between p-3 rounded-xl bg-oracle-card/50">
-                    <span class="text-xs md:text-sm text-gray-400">Auto-refresh</span>
-                    <button @click="autoRefresh = !autoRefresh"
-                            :class="autoRefresh ? 'bg-oracle-primary' : 'bg-gray-600'"
-                            class="relative w-11 h-6 rounded-full transition-colors">
-                        <span :class="autoRefresh ? 'translate-x-5' : 'translate-x-1'"
-                              class="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform"></span>
-                    </button>
-                </div>
-
-                <!-- NEW: Starting Capital Input -->
-                <div class="p-3 rounded-xl bg-oracle-card/50">
-                     <label class="block text-xs font-medium text-gray-400 mb-1.5">Starting Capital ($)</label>
-                     <div class="flex gap-2">
-                        <input type="number" 
-                               x-model="settings.starting_capital"
-                               @change="updateSettings()"
-                               step="10"
-                               class="w-full px-2 py-1.5 rounded bg-gray-700 border border-gray-600 text-sm text-white focus:outline-none focus:border-oracle-primary">
-                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Add Position Card -->
-        <div class="lg:col-span-3 glass rounded-xl md:rounded-2xl p-4 md:p-5">
+    <!-- Add Position Card -->
+    <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm md:text-base font-semibold flex items-center gap-2">
                     <span></span>
@@ -324,7 +260,6 @@
                     </div>
                 </form>
             </div>
-        </div>
     </div>
 
     <!-- Sentinel Performance Chart -->
@@ -338,9 +273,9 @@
                 <span x-show="lastSyncDisplay" class="text-[10px] text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Live</span>
             </div>
             <div class="flex gap-0.5 md:gap-1">
-                <button @click="chartPeriod = '1D'; loadChart()" :class="chartPeriod === '1D' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">1D</button>
-                <button @click="chartPeriod = '1W'; loadChart()" :class="chartPeriod === '1W' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">1W</button>
-                <button @click="chartPeriod = '1M'; loadChart()" :class="chartPeriod === '1M' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">1M</button>
+                <button @click="setPeriod('1D')" :class="chartPeriod === '1D' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">1D</button>
+                <button @click="setPeriod('1W')" :class="chartPeriod === '1W' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">1W</button>
+                <button @click="setPeriod('1M')" :class="chartPeriod === '1M' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">1M</button>
             </div>
         </div>
         <div class="h-48 md:h-64 relative">
@@ -1008,6 +943,11 @@ function sentinelDashboard() {
             setTimeout(() => {
                 this.toast.show = false;
             }, 4000);
+        },
+
+        setPeriod(period) {
+            this.chartPeriod = period;
+            this.loadChart();
         }
     }
 }

@@ -112,7 +112,7 @@ function appLayout() {
 
         /* Mobile-first responsive design */
         @media (max-width: 768px) {
-            .grid-cols-2 { grid-template-columns: 1fr; }
+            /* Removed grid-cols-2 override - Tailwind handles responsive grids */
             .grid-cols-3 { grid-template-columns: 1fr; }
             .grid-cols-4 { grid-template-columns: repeat(2, 1fr); }
             .grid-cols-5 { grid-template-columns: repeat(2, 1fr); }
@@ -674,14 +674,25 @@ function appLayout() {
 
         <!-- Logo -->
         <div class="p-4 border-b border-oracle-border">
-            <a href="/" class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-oracle-primary to-oracle-secondary flex items-center justify-center">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            <div class="flex items-center justify-between">
+                <a href="/" class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-oracle-primary to-oracle-secondary flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <span x-show="sidebarOpen" class="font-bold text-lg gradient-text">Silicon Oracle</span>
+                </a>
+                <!-- Close button (mobile only) -->
+                <button @click="toggleSidebar()"
+                        class="md:hidden p-2 rounded-lg bg-oracle-card hover:bg-oracle-border transition-colors"
+                        aria-label="Close menu"
+                        x-show="sidebarOpen">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
-                </div>
-                <span x-show="sidebarOpen" class="font-bold text-lg gradient-text">Silicon Oracle</span>
-            </a>
+                </button>
+            </div>
         </div>
 
         <!-- Navigation -->

@@ -72,6 +72,8 @@ class EnhancedOracleService(BaseOracle):
                     "signal": sector_score["signal"],
                     "detail": sector_score["detail"],
                     "points": sector_score["points"],
+                    "max_points": 0.5,
+                    "has_data": True,
                 }
             )
 
@@ -86,6 +88,8 @@ class EnhancedOracleService(BaseOracle):
                     "signal": beta_score["signal"],
                     "detail": beta_score["detail"],
                     "points": beta_score["points"],
+                    "max_points": 0.5,
+                    "has_data": True,
                 }
             )
 
@@ -100,6 +104,8 @@ class EnhancedOracleService(BaseOracle):
                     "signal": macd_score["signal"],
                     "detail": macd_score["detail"],
                     "points": macd_score["points"],
+                    "max_points": 0.5,
+                    "has_data": True,
                 }
             )
 
@@ -110,6 +116,8 @@ class EnhancedOracleService(BaseOracle):
                 "max_score": max_score,
                 "confidence": (score / max_score * 100) if max_score > 0 else 0,
                 "factors": factors,
+                "available_factors": sum(1 for f in factors if f.get("has_data", False)),
+                "total_factors": len(factors),
             }
         )
 

@@ -75,11 +75,12 @@ def analysis(ticker="NVDA"):
 
     try:
         stock_service = StockService(config)
-        oracle_service = OracleService(config)
+        from flask_app.services.enhanced_oracle_service import EnhancedOracleService
+        oracle_service = EnhancedOracleService(config)
 
         # Get complete data
         stock_data = stock_service.get_complete_data(ticker)
-        oracle_result = oracle_service.calculate_oracle_score(ticker)
+        oracle_result = oracle_service.calculate_enhanced_oracle_score(ticker)
     except Exception as e:
         # Provide empty data on error
         stock_data = {"ticker": ticker, "error": str(e)}

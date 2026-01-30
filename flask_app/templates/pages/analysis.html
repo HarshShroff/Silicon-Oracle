@@ -127,11 +127,11 @@
             <div x-show="activeTab === 'chart' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
                 <div class="flex items-center justify-between mb-3 md:mb-4">
                     <h3 class="text-base md:text-lg font-semibold">Price Chart</h3>
-                    <div class="flex gap-0.5 md:gap-1">
+                    <div class="flex gap-1 md:gap-2">
                         {% for period in ['1D', '5D', '1M', '3M', '1Y'] %}
                         <button @click="loadChart('{{ period }}')"
                                 :class="chartPeriod === '{{ period }}' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
-                                class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">
+                                class="px-2 py-1 md:px-4 md:py-2 rounded text-xs md:text-sm font-medium transition-colors min-w-[32px] md:min-w-[48px]">
                             {{ period }}
                         </button>{% endfor %}
                     </div>
@@ -174,8 +174,10 @@
                     </div>
                     <div class="text-center p-2 md:p-3 bg-oracle-card rounded-lg">
                         <p class="text-gray-500 text-xs mb-1">Trend</p>
-                        <p class="text-sm md:text-base font-bold {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 and stock_data.technicals.price > stock_data.technicals.sma_50 %}text-green-400{% else %}text-red-400{% endif %}">
-                            {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 %}{% if stock_data.technicals.price > stock_data.technicals.sma_50 %}{% else %}{% endif %}{% else %}--{% endif %}
+                        <p class="text-lg md:text-xl font-bold {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 and stock_data.technicals.price > stock_data.technicals.sma_50 %}text-green-400{% else %}text-red-400{% endif %}">
+                            {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 %}
+                                {% if stock_data.technicals.price > stock_data.technicals.sma_50 %}↑{% else %}↓{% endif %}
+                            {% else %}--{% endif %}
                         </p>
                     </div>
                 </div>
@@ -280,7 +282,7 @@
                             </defs>
                         </svg>
                         <div class="absolute inset-0 flex flex-col items-center justify-center">
-                            <span class="text-2xl md:text-3xl font-bold">{{ oracle.confidence }}%</span>
+                            <span class="text-2xl md:text-3xl font-bold">{{ "%.2f"|format(oracle.confidence) }}%</span>
                         </div>
                     </div>
                     <div class="text-center">
@@ -323,15 +325,15 @@
                 {% set latest = stock_data.recommendations[0] %}
                 {% set total = (latest.strongBuy|default(0)) + (latest.buy|default(0)) + (latest.hold|default(0)) + (latest.sell|default(0)) + (latest.strongSell|default(0)) %}
                 {% if total > 0 %}
-                {% set bullish_pct = ((latest.strongBuy|default(0) + latest.buy|default(0)) / total * 100)|round %}
+                {% set bullish_pct = ((latest.strongBuy|default(0) + latest.buy|default(0)) / total * 100)|round(2) %}
                 <div class="flex items-center gap-4">
                     <div class="flex-1">
                         <div class="h-3 rounded-full bg-oracle-card overflow-hidden flex">
-                            <div class="bg-green-500 h-full" style="width: {{ ((latest.strongBuy|default(0)) / total * 100)|round }}%"></div>
-                            <div class="bg-green-400 h-full" style="width: {{ ((latest.buy|default(0)) / total * 100)|round }}%"></div>
-                            <div class="bg-yellow-500 h-full" style="width: {{ ((latest.hold|default(0)) / total * 100)|round }}%"></div>
-                            <div class="bg-orange-500 h-full" style="width: {{ ((latest.sell|default(0)) / total * 100)|round }}%"></div>
-                            <div class="bg-red-500 h-full" style="width: {{ ((latest.strongSell|default(0)) / total * 100)|round }}%"></div>
+                            <div class="bg-green-500 h-full" style="width: {{ ((latest.strongBuy|default(0)) / total * 100)|round(2) }}%"></div>
+                            <div class="bg-green-400 h-full" style="width: {{ ((latest.buy|default(0)) / total * 100)|round(2) }}%"></div>
+                            <div class="bg-yellow-500 h-full" style="width: {{ ((latest.hold|default(0)) / total * 100)|round(2) }}%"></div>
+                            <div class="bg-orange-500 h-full" style="width: {{ ((latest.sell|default(0)) / total * 100)|round(2) }}%"></div>
+                            <div class="bg-red-500 h-full" style="width: {{ ((latest.strongSell|default(0)) / total * 100)|round(2) }}%"></div>
                         </div>
                         <div class="flex justify-between text-xs text-gray-400 mt-1">
                             <span>Buy: {{ latest.strongBuy|default(0) + latest.buy|default(0) }}</span>
@@ -340,7 +342,7 @@
                         </div>
                     </div>
                     <div class="text-center">
-                        <span class="text-xl font-bold {% if bullish_pct >= 60 %}text-green-400{% elif bullish_pct >= 40 %}text-yellow-400{% else %}text-red-400{% endif %}">{{ bullish_pct }}%</span>
+                        <span class="text-xl font-bold {% if bullish_pct >= 60 %}text-green-400{% elif bullish_pct >= 40 %}text-yellow-400{% else %}text-red-400{% endif %}">{{ "%.2f"|format(bullish_pct) }}%</span>
                         <p class="text-xs text-gray-400">Bullish</p>
                     </div>
                 </div>

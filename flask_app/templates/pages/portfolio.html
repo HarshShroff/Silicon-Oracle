@@ -3,55 +3,93 @@
 {% block title %}Portfolio - Silicon Oracle{% endblock %}
 {% block page_title %}Portfolio{% endblock %}
 
+{% block extra_head %}
+<style>
+    /* Live indicator pulse animation */
+    @keyframes livePulse {
+        0%, 100% {
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+        }
+        50% {
+            opacity: 0.8;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);
+        }
+    }
+
+    .live-indicator {
+        animation: livePulse 2s ease-in-out infinite;
+    }
+
+    /* Enhanced card hover effects */
+    .position-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .position-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div x-data="portfolioPage()" x-init="init()" class="space-y-4 md:space-y-6">
 
     <!-- Account Overview -->
     {% if account %}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="glass rounded-xl p-3 md:p-4">
-            <div class="flex items-center gap-2 mb-1">
-                <div class="w-6 h-6 rounded-lg bg-oracle-primary/20 flex items-center justify-center">
-                    <svg class="w-3 h-3 text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="glass rounded-xl p-3 md:p-5 flex flex-col justify-between aspect-square md:aspect-auto">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs md:text-sm text-gray-400 font-medium">Portfolio</span>
+                <div class="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-oracle-primary/20 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 md:w-5 md:h-5 text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </div>
-                <span class="text-xs text-gray-400">Portfolio</span>
             </div>
-            <p class="text-lg md:text-2xl font-bold">${{ "{:,.0f}".format(account.portfolio_value) }}</p>
+            <div class="mt-auto">
+                <p class="text-lg md:text-2xl font-bold">${{ "{:,.0f}".format(account.portfolio_value) }}</p>
+            </div>
         </div>
-        <div class="glass rounded-xl p-3 md:p-4">
-            <div class="flex items-center gap-2 mb-1">
-                <div class="w-6 h-6 rounded-lg bg-green-500/20 flex items-center justify-center">
-                    <svg class="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="glass rounded-xl p-3 md:p-5 flex flex-col justify-between aspect-square md:aspect-auto">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs md:text-sm text-gray-400 font-medium">Buying Power</span>
+                <div class="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 md:w-5 md:h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
                     </svg>
                 </div>
-                <span class="text-xs text-gray-400">Buying Power</span>
             </div>
-            <p class="text-lg md:text-2xl font-bold text-green-400">${{ "{:,.0f}".format(account.buying_power) }}</p>
+            <div class="mt-auto">
+                <p class="text-lg md:text-2xl font-bold text-green-400">${{ "{:,.0f}".format(account.buying_power) }}</p>
+            </div>
         </div>
-        <div class="glass rounded-xl p-3 md:p-4">
-            <div class="flex items-center gap-2 mb-1">
-                <div class="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                    <svg class="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="glass rounded-xl p-3 md:p-5 flex flex-col justify-between aspect-square md:aspect-auto">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs md:text-sm text-gray-400 font-medium">Cash</span>
+                <div class="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 md:w-5 md:h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
                     </svg>
                 </div>
-                <span class="text-xs text-gray-400">Cash</span>
             </div>
-            <p class="text-lg md:text-2xl font-bold">${{ "{:,.0f}".format(account.cash) }}</p>
+            <div class="mt-auto">
+                <p class="text-lg md:text-2xl font-bold">${{ "{:,.0f}".format(account.cash) }}</p>
+            </div>
         </div>
-        <div class="glass rounded-xl p-3 md:p-4">
-            <div class="flex items-center gap-2 mb-1">
-                <div class="w-6 h-6 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                    <svg class="w-3 h-3 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="glass rounded-xl p-3 md:p-5 flex flex-col justify-between aspect-square md:aspect-auto">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs md:text-sm text-gray-400 font-medium">Equity</span>
+                <div class="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 md:w-5 md:h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                     </svg>
                 </div>
-                <span class="text-xs text-gray-400">Equity</span>
             </div>
-            <p class="text-lg md:text-2xl font-bold">${{ "{:,.0f}".format(account.equity) }}</p>
+            <div class="mt-auto">
+                <p class="text-lg md:text-2xl font-bold">${{ "{:,.0f}".format(account.equity) }}</p>
+            </div>
         </div>
     </div>
     {% else %}
@@ -106,60 +144,79 @@
         </div>
 
         {% if positions %}
-        <!-- Mobile: Card Layout -->
-        <div class="md:hidden divide-y divide-oracle-border">
+        <!-- Unified Card View (Mobile & Desktop) -->
+        <div class="p-3 md:p-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
             {% for pos in positions %}
-            <div class="p-4">
-                <div class="flex items-center justify-between mb-2">
-                    <a href="{{ url_for('main.analysis', ticker=pos.ticker) }}" class="font-bold text-oracle-primary">{{ pos.ticker }}</a>
-                    <span class="text-sm {% if pos.unrealized_pl >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
-                        {{ "%+.2f"|format(pos.unrealized_plpc) }}%
-                    </span>
+            <div class="position-card glass rounded-xl p-4 hover:bg-oracle-card/50 transition-all">
+
+                <!-- Header Row: Ticker + Status -->
+                <div class="flex items-start justify-between gap-3 mb-3">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <a href="{{ url_for('main.analysis', ticker=pos.ticker) }}"
+                               class="text-lg font-bold text-white hover:text-oracle-primary">
+                                {{ pos.ticker }}
+                            </a>
+                            <!-- Live Indicator -->
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/20 text-green-400 border border-green-500/30">
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-400 live-indicator"></span>
+                                LIVE
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="badge badge-success text-xs">Active</span>
+                        <button @click="closePosition('{{ pos.ticker }}')"
+                                class="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-                <div class="flex items-center justify-between text-sm text-gray-400">
-                    <span>{{ "%.2f"|format(pos.shares) }} shares @ ${{ "%.2f"|format(pos.avg_price) }}</span>
-                    <span class="{% if pos.unrealized_pl >= 0 %}text-green-400{% else %}text-red-400{% endif %}">${{ "%+.2f"|format(pos.unrealized_pl) }}</span>
+
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-3">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Shares</span>
+                        <span class="text-gray-300 font-medium">{{ "%.2f"|format(pos.shares) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Avg Entry</span>
+                        <span class="text-gray-400">${{ "%.2f"|format(pos.avg_price) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Live Price</span>
+                        <span class="font-semibold {% if pos.current_price >= pos.avg_price %}text-green-400{% else %}text-red-400{% endif %}">
+                            ${{ "%.2f"|format(pos.current_price) }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Market Value</span>
+                        <span class="text-gray-300 font-medium">${{ "{:,.0f}".format(pos.shares * pos.current_price) }}</span>
+                    </div>
                 </div>
-                <div class="mt-2 flex gap-2">
-                    <a href="{{ url_for('main.trade', ticker=pos.ticker) }}" class="flex-1 text-center px-3 py-1.5 rounded-lg bg-oracle-card text-sm">Trade</a>
-                    <button @click="closePosition('{{ pos.ticker }}')" class="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-sm">Close</button>
+
+                <!-- P&L Footer -->
+                <div class="flex items-center justify-between pt-3 border-t border-oracle-border/50">
+                    <div>
+                        <span class="text-xs text-gray-500">Unrealized P&L</span>
+                        <div class="flex items-baseline gap-2">
+                            <span class="font-bold {% if pos.unrealized_pl >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
+                                ${{ "%+.2f"|format(pos.unrealized_pl) }}
+                            </span>
+                            <span class="text-xs {% if pos.unrealized_plpc >= 0 %}text-green-500{% else %}text-red-500{% endif %}">
+                                ({{ "%+.2f"|format(pos.unrealized_plpc) }}%)
+                            </span>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('main.analysis', ticker=pos.ticker) }}"
+                       class="btn-primary px-4 py-2 rounded-lg text-xs font-medium">
+                        View Analysis
+                    </a>
                 </div>
             </div>
             {% endfor %}
-        </div>
-
-        <!-- Desktop: Table Layout -->
-        <div class="hidden md:block overflow-x-auto">
-            <table class="w-full">
-                <thead class="bg-oracle-card">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Ticker</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Shares</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Avg</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Current</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">P/L</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400"></th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-oracle-border">
-                    {% for pos in positions %}
-                    <tr class="hover:bg-oracle-card/50">
-                        <td class="px-4 py-3">
-                            <a href="{{ url_for('main.analysis', ticker=pos.ticker) }}" class="font-bold text-oracle-primary hover:underline">{{ pos.ticker }}</a>
-                        </td>
-                        <td class="px-4 py-3 text-sm">{{ "%.2f"|format(pos.shares) }}</td>
-                        <td class="px-4 py-3 text-sm">${{ "%.2f"|format(pos.avg_price) }}</td>
-                        <td class="px-4 py-3 text-sm">${{ "%.2f"|format(pos.current_price) }}</td>
-                        <td class="px-4 py-3 text-sm {% if pos.unrealized_pl >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
-                            ${{ "%+.2f"|format(pos.unrealized_pl) }} ({{ "%+.2f"|format(pos.unrealized_plpc) }}%)
-                        </td>
-                        <td class="px-4 py-3">
-                            <button @click="closePosition('{{ pos.ticker }}')" class="px-2 py-1 rounded text-xs bg-red-500/20 text-red-400">Close</button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
         </div>
         {% else %}
         <div class="p-8 text-center text-gray-400">
