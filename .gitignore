@@ -40,3 +40,16 @@ Thumbs.db
 
 # Cache
 .cache/
+
+# Backups and Old Files
+backup*/
+*.backup
+*_old.py
+*_backup.py
+
+# Test Files (keep local only)
+test_*.py
+check_*.py
+
+# Streamlit (old app - Flask is the main app now)
+pages/
