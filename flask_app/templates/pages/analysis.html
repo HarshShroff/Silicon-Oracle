@@ -97,22 +97,22 @@
             <button @click="activeTab = 'chart'" 
                     :class="activeTab === 'chart' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
                     class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
-                📈 Chart
+                 Chart
             </button>
             <button @click="activeTab = 'oracle'" 
                     :class="activeTab === 'oracle' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
                     class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
-                🔮 Oracle
+                 Oracle
             </button>
             <button @click="activeTab = 'ai'" 
                     :class="activeTab === 'ai' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
                     class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
-                🤖 AI
+                 AI
             </button>
             <button @click="activeTab = 'more'" 
                     :class="activeTab === 'more' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
                     class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
-                📊 More
+                 More
             </button>
         </div>
     </div>
@@ -175,7 +175,7 @@
                     <div class="text-center p-2 md:p-3 bg-oracle-card rounded-lg">
                         <p class="text-gray-500 text-xs mb-1">Trend</p>
                         <p class="text-sm md:text-base font-bold {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 and stock_data.technicals.price > stock_data.technicals.sma_50 %}text-green-400{% else %}text-red-400{% endif %}">
-                            {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 %}{% if stock_data.technicals.price > stock_data.technicals.sma_50 %}📈{% else %}📉{% endif %}{% else %}--{% endif %}
+                            {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 %}{% if stock_data.technicals.price > stock_data.technicals.sma_50 %}{% else %}{% endif %}{% else %}--{% endif %}
                         </p>
                     </div>
                 </div>
@@ -187,7 +187,7 @@
                     <!-- Monte Carlo - Commented out for now
                     <div class="glass rounded-2xl overflow-hidden" x-data="{ expanded: false }">
                         <button @click="expanded = !expanded" class="w-full p-4 md:p-6 flex items-center justify-between md:cursor-default">
-                            <h3 class="text-base md:text-lg font-semibold">🎲 Monte Carlo Simulation</h3>
+                            <h3 class="text-base md:text-lg font-semibold"> Monte Carlo Simulation</h3>
                             <div class="flex items-center gap-2">
                                 <button @click.stop="runMonteCarlo()" :disabled="monteCarloLoading" 
                                         class="px-3 py-1.5 rounded-lg bg-oracle-primary hover:bg-blue-600 disabled:opacity-50 text-xs font-medium">
@@ -228,7 +228,7 @@
                     {% if stock_data.news %}
                     <div class="glass rounded-2xl overflow-hidden" x-data="{ expanded: false }">
                         <button @click="expanded = !expanded" class="w-full p-4 md:p-6 flex items-center justify-between md:cursor-default">
-                            <h3 class="text-base md:text-lg font-semibold">📰 Latest News</h3>
+                            <h3 class="text-base md:text-lg font-semibold"> Latest News</h3>
                             <span class="text-xs text-gray-400 bg-oracle-card px-2 py-1 rounded">{{ stock_data.news|length }} articles</span>
                         </button>
                         <div x-show="expanded || window.innerWidth >= 768" x-collapse class="px-4 pb-4 md:px-6 md:pb-6 space-y-2 max-h-80 overflow-y-auto">
@@ -262,7 +262,7 @@
 
             <!-- Oracle Verdict - Compact -->
             <div x-show="activeTab === 'oracle' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
-                <h3 class="text-base md:text-lg font-semibold mb-4 text-center">🔮 Oracle Verdict</h3>
+                <h3 class="text-base md:text-lg font-semibold mb-4 text-center"> Oracle Verdict</h3>
                 
                 <!-- Compact Score Display -->
                 <div class="flex items-center justify-center gap-6 mb-4">
@@ -319,7 +319,7 @@
             <!-- Analyst Recommendations - Compact -->
             {% if stock_data and stock_data.recommendations and stock_data.recommendations|length > 0 %}
             <div x-show="activeTab === 'oracle' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
-                <h3 class="text-base font-semibold mb-3">📊 Analysts</h3>
+                <h3 class="text-base font-semibold mb-3"> Analysts</h3>
                 {% set latest = stock_data.recommendations[0] %}
                 {% set total = (latest.strongBuy|default(0)) + (latest.buy|default(0)) + (latest.hold|default(0)) + (latest.sell|default(0)) + (latest.strongSell|default(0)) %}
                 {% if total > 0 %}
@@ -351,7 +351,7 @@
             <!-- AI Deep Dive (Mobile: AI Tab) -->
             <div x-show="activeTab === 'ai' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-base md:text-lg font-semibold">🤖 AI Analysis</h3>
+                    <h3 class="text-base md:text-lg font-semibold"> AI Analysis</h3>
                     <button @click="generateAIDeepDive()" :disabled="aiLoading" 
                             class="px-3 py-1.5 rounded-lg text-xs font-medium"
                             :class="aiAnalysis ? 'bg-oracle-card hover:bg-oracle-border' : 'bg-oracle-primary hover:bg-blue-600'"
@@ -390,7 +390,7 @@
                     
                     <!-- AI Content -->
                     <div class="prose prose-invert prose-sm max-w-none text-sm max-h-[400px] overflow-y-auto" x-html="aiAnalysis"></div>
-                    <p class="text-xs text-gray-500 text-right">ℹ️ Powered by Gemini + Google Search</p>
+                    <p class="text-xs text-gray-500 text-right">ℹ Powered by Gemini + Google Search</p>
                 </div>
             </div>
         </div>
@@ -525,7 +525,7 @@
             showUpdateIndicator() {
                 // Create a small indicator that fades out
                 const indicator = document.createElement('div');
-                indicator.textContent = '● Live';
+                indicator.textContent = ' Live';
                 indicator.className = 'fixed top-20 right-4 text-xs text-green-400 bg-green-500/20 px-2 py-1 rounded-full animate-pulse z-50';
                 document.body.appendChild(indicator);
                 

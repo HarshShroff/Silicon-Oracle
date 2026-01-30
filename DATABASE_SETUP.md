@@ -1,29 +1,29 @@
-# 🗄️ Database Setup Guide
+#  Database Setup Guide
 
-## ⚠️ Critical: Why You Need PostgreSQL for Production
+##  Critical: Why You Need PostgreSQL for Production
 
 ### The Problem with SQLite on Render
 
 **SQLite is EPHEMERAL on Render's free tier:**
-- ❌ Data deleted on every deploy
-- ❌ Data deleted on app restart
-- ❌ Data deleted on sleep/wake cycle
-- ❌ Users lose accounts, API keys, watchlists, alerts
+-  Data deleted on every deploy
+-  Data deleted on app restart
+-  Data deleted on sleep/wake cycle
+-  Users lose accounts, API keys, watchlists, alerts
 
-**Result:** Your users will be **very angry** 😠
+**Result:** Your users will be **very angry** 
 
 ### The Solution: Supabase PostgreSQL
 
 **Supabase gives you PERSISTENT storage:**
-- ✅ Data survives deploys
-- ✅ Data survives restarts
-- ✅ Data survives sleep/wake
-- ✅ Free tier: 500MB storage
-- ✅ Users happy 😊
+-  Data survives deploys
+-  Data survives restarts
+-  Data survives sleep/wake
+-  Free tier: 500MB storage
+-  Users happy 
 
 ---
 
-## 🚀 Quick Setup (5 Minutes)
+##  Quick Setup (5 Minutes)
 
 ### Step 1: Create Supabase Account
 
@@ -39,7 +39,7 @@
    - **Database Password:** (generate strong password - save it!)
    - **Region:** Choose closest to your users
 3. Click "Create new project"
-4. Wait 2-3 minutes for database to provision ☕
+4. Wait 2-3 minutes for database to provision 
 
 ### Step 3: Get Connection String
 
@@ -63,18 +63,18 @@
    - **Key:** `DATABASE_URL`
    - **Value:** `postgresql://postgres:your-password@db.xxxxx.supabase.co:5432/postgres`
 6. Click **Save Changes**
-7. Your app will auto-redeploy with PostgreSQL! 🎉
+7. Your app will auto-redeploy with PostgreSQL! 
 
 ---
 
-## 🔍 Verify It's Working
+##  Verify It's Working
 
 ### Check Render Logs
 
 After redeploy completes, check logs:
 ```
 Using database: postgresql://postgres:***@db.xxxxx.supabase.co:5432/postgres
-✓ Database connected successfully
+ Database connected successfully
 ```
 
 ### Test User Signup
@@ -83,11 +83,11 @@ Using database: postgresql://postgres:***@db.xxxxx.supabase.co:5432/postgres
 2. Sign up for an account
 3. Add API keys in Settings
 4. **Trigger a redeploy** (push a commit)
-5. Log in again - **your account should still exist!** ✅
+5. Log in again - **your account should still exist!** 
 
 ---
 
-## 📊 Database Architecture
+##  Database Architecture
 
 Your Flask app automatically handles both:
 
@@ -116,7 +116,7 @@ On first run, your app creates:
 
 ---
 
-## 🛠️ Advanced Configuration
+##  Advanced Configuration
 
 ### Using Supabase Auth (Optional)
 
@@ -148,7 +148,7 @@ Supabase automatically backs up your database daily. To restore:
 
 ---
 
-## 💰 Cost Breakdown
+##  Cost Breakdown
 
 ### Free Tier (Forever)
 - **Database:** 500MB storage
@@ -166,7 +166,7 @@ Supabase automatically backs up your database daily. To restore:
 
 ---
 
-## 🔒 Security Best Practices
+##  Security Best Practices
 
 ### 1. Use Environment Variables
 Never commit your connection string to git:
@@ -198,7 +198,7 @@ CREATE POLICY "Users can view own data" ON users
 
 ---
 
-## 🆘 Troubleshooting
+##  Troubleshooting
 
 ### "Connection Refused"
 - **Cause:** Wrong connection string or password
@@ -218,7 +218,7 @@ CREATE POLICY "Users can view own data" ON users
 
 ---
 
-## 📚 Additional Resources
+##  Additional Resources
 
 - **Supabase Docs:** https://supabase.com/docs
 - **Flask-SQLAlchemy:** https://flask-sqlalchemy.palletsprojects.com/
@@ -226,7 +226,7 @@ CREATE POLICY "Users can view own data" ON users
 
 ---
 
-## ✅ Quick Checklist
+##  Quick Checklist
 
 Before going to production:
 
@@ -240,6 +240,6 @@ Before going to production:
 
 ---
 
-**Your data is now safe!** 🛡️
+**Your data is now safe!** 
 
-No more losing user accounts on every deploy. Happy trading! 📈
+No more losing user accounts on every deploy. Happy trading! 

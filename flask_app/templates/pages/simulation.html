@@ -3,7 +3,7 @@
 {% block title %}Sentinel Dashboard - Silicon Oracle{% endblock %}
 {% block page_title %}
 <span class="flex items-center gap-3">
-    <span class="text-2xl">🛡️</span>
+    <span class="text-2xl"></span>
     <span>Portfolio Sentinel</span>
     <span class="badge badge-info text-xs">SIMULATION MODE</span>
 </span>
@@ -201,7 +201,7 @@
         <div class="lg:col-span-1 glass rounded-xl md:rounded-2xl p-4 md:p-5">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm md:text-base font-semibold flex items-center gap-2">
-                    <span>🎛️</span>
+                    <span></span>
                     <span class="hidden sm:inline">Controls</span>
                 </h3>
                 <!-- Connection Status -->
@@ -221,7 +221,7 @@
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <span x-show="!syncing">🔄</span>
+                    <span x-show="!syncing"></span>
                     <span x-text="syncing ? 'Syncing...' : 'Force Sync'"></span>
                 </button>
 
@@ -262,7 +262,7 @@
         <div class="lg:col-span-3 glass rounded-xl md:rounded-2xl p-4 md:p-5">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm md:text-base font-semibold flex items-center gap-2">
-                    <span>➕</span>
+                    <span></span>
                     Add Position
                 </h3>
                 <button @click="showAddForm = !showAddForm"
@@ -332,7 +332,7 @@
         <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2">
                 <h3 class="font-semibold flex items-center gap-2">
-                    <span>📈</span>
+                    <span></span>
                     <span>Performance History</span>
                 </h3>
                 <span x-show="lastSyncDisplay" class="text-[10px] text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Live</span>
@@ -361,7 +361,7 @@
     <div class="glass rounded-xl md:rounded-2xl overflow-hidden">
         <div class="p-4 md:p-5 border-b border-oracle-border flex items-center justify-between">
             <h3 class="text-sm md:text-base font-semibold flex items-center gap-2">
-                <span>📊</span>
+                <span></span>
                 Shadow Portfolio
             </h3>
             <span class="badge badge-info text-xs" x-text="positions.length + ' positions'"></span>
@@ -381,7 +381,7 @@
 
             <template x-if="!loading && positions.length === 0">
                 <div class="text-center py-10">
-                    <span class="text-5xl opacity-40 block mb-4">🛡️</span>
+                    <span class="text-5xl opacity-40 block mb-4"></span>
                     <p class="text-gray-400 text-sm mb-1">No positions in Sentinel</p>
                     <p class="text-gray-500 text-xs">Add your first position above</p>
                 </div>
@@ -395,7 +395,7 @@
                     <div class="flex items-start justify-between gap-3 mb-3">
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 flex-wrap">
-                                <span x-show="position.has_alert" class="text-red-400">⚠️</span>
+                                <span x-show="position.has_alert" class="text-red-400"></span>
                                 <a :href="'/analysis/' + position.ticker"
                                    class="text-lg font-bold text-white hover:text-oracle-primary"
                                    x-text="position.ticker"></a>
@@ -476,7 +476,7 @@
     <template x-if="summary.active_alerts > 0">
         <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5 border border-red-500/30">
             <h3 class="text-sm md:text-base font-semibold flex items-center gap-2 mb-4 text-red-400">
-                <span>🚨</span>
+                <span></span>
                 Active Alerts (<span x-text="summary.active_alerts"></span>)
             </h3>
             <div class="space-y-3">
@@ -484,7 +484,7 @@
                     <template x-for="alert in position.alerts" :key="position.id + '-' + alert.type">
                         <div class="flex items-start gap-3 md:gap-4 p-3 md:p-4 rounded-xl bg-red-500/10 border border-red-500/20">
                             <div class="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full bg-red-500/20 flex items-center justify-center text-lg">
-                                <span x-text="alert.type === 'TRAILING_STOP' ? '📉' : alert.type === 'ORACLE_REVERSAL' ? '🔄' : '📅'"></span>
+                                <span x-text="alert.type === 'TRAILING_STOP' ? '' : alert.type === 'ORACLE_REVERSAL' ? '' : ''"></span>
                             </div>
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 mb-1 flex-wrap">

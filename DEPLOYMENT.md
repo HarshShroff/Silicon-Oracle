@@ -2,7 +2,7 @@
 
 Deploy Silicon Oracle to the cloud for free and access it from anywhere!
 
-## 🚀 Quick Deploy to Render.com (Recommended - FREE)
+##  Quick Deploy to Render.com (Recommended - FREE)
 
 ### Prerequisites
 1. GitHub account
@@ -41,7 +41,7 @@ git push -u origin main
 
 In Render Dashboard → Your Service → Environment:
 
-**✅ Good news!** The `render.yaml` auto-configures everything. You only need environment variables if:
+** Good news!** The `render.yaml` auto-configures everything. You only need environment variables if:
 
 1. **Using Supabase for database** (optional - for persistent PostgreSQL instead of SQLite):
 ```
@@ -50,14 +50,14 @@ SUPABASE_ANON_KEY=your_supabase_key
 DATABASE_URL=postgresql://...
 ```
 
-**⚠️ You do NOT need to add API keys here!**
+** You do NOT need to add API keys here!**
 
 Your app uses **BYOK (Bring Your Own Keys)** architecture:
-- ✅ Each user adds their own API keys after signup (in Settings page)
-- ✅ No shared rate limits between users
-- ✅ Keys are encrypted per-user in the database
-- ✅ More secure - users control their own API access
-- ✅ Multi-tenant friendly
+-  Each user adds their own API keys after signup (in Settings page)
+-  No shared rate limits between users
+-  Keys are encrypted per-user in the database
+-  More secure - users control their own API access
+-  Multi-tenant friendly
 
 ### Step 4: Deploy!
 
@@ -75,18 +75,18 @@ Your app uses **BYOK (Bring Your Own Keys)** architecture:
    - **Alpaca Keys** (optional) - Get free at https://alpaca.markets
    - **Gemini API Key** (optional) - Get free at https://ai.google.dev
 5. Save keys (they're encrypted and stored securely in your user profile)
-6. Start trading! 🎉
+6. Start trading! 
 
 **Why BYOK (Bring Your Own Keys)?**
-- ✅ No shared rate limits - your keys, your quota
-- ✅ You control your API usage and costs
-- ✅ More secure - keys encrypted per-user
-- ✅ Multi-user friendly - perfect for teams
-- ✅ No app owner pays for everyone's API calls
+-  No shared rate limits - your keys, your quota
+-  You control your API usage and costs
+-  More secure - keys encrypted per-user
+-  Multi-user friendly - perfect for teams
+-  No app owner pays for everyone's API calls
 
 ---
 
-## 🌐 Alternative: Deploy to Railway.app
+##  Alternative: Deploy to Railway.app
 
 Railway offers $5 free credit per month.
 
@@ -120,7 +120,7 @@ railway open
 
 ---
 
-## 🐳 Alternative: Deploy with Docker
+##  Alternative: Deploy with Docker
 
 ### Build Docker Image
 
@@ -155,7 +155,7 @@ fly deploy
 
 ---
 
-## 📊 Database Options
+##  Database Options
 
 ### Option 1: SQLite (Default - Simplest)
 - No setup needed
@@ -182,7 +182,7 @@ DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/post
 
 ---
 
-## ⚙️ Environment Variables Reference
+##  Environment Variables Reference
 
 **For Render/Railway/Fly deployment:**
 
@@ -194,7 +194,7 @@ DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/post
 | `SUPABASE_ANON_KEY` | No | Database key | https://supabase.com | Only if using Supabase |
 | `DATABASE_URL` | No | PostgreSQL connection | Supabase/Render | Only if using PostgreSQL |
 
-**⚠️ API Keys (Finnhub, Alpaca, Gemini) are NOT set here!**
+** API Keys (Finnhub, Alpaca, Gemini) are NOT set here!**
 
 These are added by each user after signup in the Settings page:
 - Each user brings their own API keys (BYOK)
@@ -204,7 +204,7 @@ These are added by each user after signup in the Settings page:
 
 ---
 
-## 🔧 Troubleshooting
+##  Troubleshooting
 
 ### Build fails with "torch too large"
 Torch is 2GB+ which can exceed free tier limits. Options:
@@ -231,12 +231,12 @@ Torch is 2GB+ which can exceed free tier limits. Options:
 
 ---
 
-## 📱 Accessing Your App
+##  Accessing Your App
 
 Once deployed, you can access from:
-- 🌐 Web browser (desktop/mobile)
-- 📱 Add to home screen (PWA-ready)
-- 🔗 Share URL with team members
+-  Web browser (desktop/mobile)
+-  Add to home screen (PWA-ready)
+-  Share URL with team members
 
 **Your URL will be:**
 - Render: `https://silicon-oracle-XXXX.onrender.com`
@@ -245,17 +245,17 @@ Once deployed, you can access from:
 
 ---
 
-## 🔒 Security Best Practices
+##  Security Best Practices
 
-1. ✅ Never commit `.streamlit/secrets.toml` (already in .gitignore)
-2. ✅ Use environment variables for all secrets
-3. ✅ Enable HTTPS (automatic on Render/Railway/Fly)
-4. ✅ Use strong SECRET_KEY (auto-generated)
-5. ✅ Regularly update dependencies: `pip list --outdated`
+1.  Never commit `.streamlit/secrets.toml` (already in .gitignore)
+2.  Use environment variables for all secrets
+3.  Enable HTTPS (automatic on Render/Railway/Fly)
+4.  Use strong SECRET_KEY (auto-generated)
+5.  Regularly update dependencies: `pip list --outdated`
 
 ---
 
-## 💰 Cost Comparison
+##  Cost Comparison
 
 | Platform | Free Tier | Build Time | Best For |
 |----------|-----------|------------|----------|
@@ -268,7 +268,7 @@ Once deployed, you can access from:
 
 ---
 
-## 🎯 Next Steps After Deployment
+##  Next Steps After Deployment
 
 1. Create your account on deployed site
 2. Add API keys in Settings
@@ -278,7 +278,7 @@ Once deployed, you can access from:
 
 ---
 
-## 📞 Need Help?
+##  Need Help?
 
 - Check Render logs: Dashboard → Service → Logs
 - Test health endpoint: `https://your-app.com/health`
@@ -286,7 +286,7 @@ Once deployed, you can access from:
 
 ---
 
-## 🔄 Updating Your Deployment
+##  Updating Your Deployment
 
 After making changes:
 ```bash
@@ -299,4 +299,4 @@ Render will auto-deploy on every push to `main` branch!
 
 ---
 
-**Happy Trading! 🚀📈**
+**Happy Trading! **

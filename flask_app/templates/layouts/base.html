@@ -865,7 +865,7 @@ function appLayout() {
              style="display: none;">
             <div class="glass px-4 py-3 rounded-xl flex items-center gap-3 shadow-xl backdrop-blur-xl border"
                  :class="toast.type === 'success' ? 'border-green-500/50 bg-green-500/10' : toast.type === 'error' ? 'border-red-500/50 bg-red-500/10' : 'border-oracle-primary/50 bg-oracle-card/80'">
-                <span class="text-lg" x-text="toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'"></span>
+                <span class="text-lg" x-text="toast.type === 'success' ? '' : toast.type === 'error' ? '' : 'ℹ'"></span>
                 <span class="text-sm font-medium flex-1 text-white" x-text="toast.message"></span>
                 <button @click="toast.show = false"
                         class="text-gray-400 hover:text-white transition-colors"

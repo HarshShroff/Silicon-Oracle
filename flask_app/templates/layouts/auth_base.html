@@ -164,7 +164,7 @@
         <div class="glass px-4 py-3 rounded-xl flex items-center gap-3 shadow-xl backdrop-blur-xl border mb-2
                     {% if category == 'success' %}border-green-500/50 bg-green-500/10{% elif category == 'error' %}border-red-500/50 bg-red-500/10{% else %}border-oracle-primary/50 bg-oracle-card/80{% endif %}">
             <span class="text-lg">
-                {% if category == 'success' %}✅{% elif category == 'error' %}❌{% else %}ℹ️{% endif %}
+                {% if category == 'success' %}{% elif category == 'error' %}{% else %}ℹ{% endif %}
             </span>
             <span class="text-sm font-medium flex-1 text-white">{{ message }}</span>
             <button @click="show = false"

@@ -1,4 +1,4 @@
-# 🚀 Silicon Oracle
+#  Silicon Oracle
 
 **AI-Powered Stock Analysis & Paper Trading Platform**
 
@@ -11,39 +11,39 @@
 
 ---
 
-## ✨ Features
+##  Features
 
-### 📊 Real-Time Market Analysis
+###  Real-Time Market Analysis
 - Live stock quotes and price tracking
 - Technical indicators (RSI, MACD, Bollinger Bands)
 - Volume analysis and market trends
 - Multiple timeframe charts (1D, 5D, 1M, 6M, 1Y)
 
-### 🤖 AI-Powered Insights
+###  AI-Powered Insights
 - **Oracle Score™** - Proprietary AI rating system (0-100)
 - Sentiment analysis from news and social media
 - Pattern recognition and trend prediction
 - AI-generated investment recommendations
 
-### 💼 Paper Trading
+###  Paper Trading
 - Risk-free practice trading with Alpaca
 - Real-time portfolio tracking
 - P&L analysis and performance metrics
 - Order history and transaction logs
 
-### 🔔 Smart Alerts
+###  Smart Alerts
 - Price alerts (above/below thresholds)
 - Percentage change notifications
 - Technical indicator triggers
 - Email and in-app notifications
 
-### 📋 Watchlists
+###  Watchlists
 - Pre-configured industry watchlists (Tech Giants, EV, AI, Crypto)
 - Custom watchlist creation
 - Real-time tracking of multiple stocks
 - Quick access to favorite symbols
 
-### 🛡️ Security & Privacy
+###  Security & Privacy
 - **BYOK (Bring Your Own Keys)** - Each user uses their own API keys
 - End-to-end encryption for API credentials
 - Secure session management
@@ -51,7 +51,7 @@
 
 ---
 
-## 🎯 Why Silicon Oracle?
+##  Why Silicon Oracle?
 
 | Feature | Silicon Oracle | Traditional Platforms |
 |---------|----------------|----------------------|
@@ -65,7 +65,7 @@
 
 ---
 
-## 🚀 Quick Deploy (15 Minutes)
+##  Quick Deploy (15 Minutes)
 
 ### Option 1: Deploy to Render (Recommended - FREE)
 
@@ -97,17 +97,17 @@
      ```
      DATABASE_URL=<your-supabase-connection-string>
      ```
-   - Wait 5-10 minutes ☕
+   - Wait 5-10 minutes 
 
-5. **Done!** Visit your URL and sign up 🎉
+5. **Done!** Visit your URL and sign up 
 
-⚠️ **Important:** Without Supabase, your data will be lost on every deploy/restart!
+ **Important:** Without Supabase, your data will be lost on every deploy/restart!
 
-[📖 Detailed Deployment Guide](DEPLOYMENT.md) | [⚡ Quick Start](QUICKSTART.md)
+[ Detailed Deployment Guide](DEPLOYMENT.md) | [ Quick Start](QUICKSTART.md)
 
 ---
 
-## 🔑 BYOK System
+##  BYOK System
 
 **Your app, your keys!** Silicon Oracle uses a unique BYOK (Bring Your Own Keys) architecture:
 
@@ -119,11 +119,11 @@
 5. Everyone has independent rate limits and usage
 
 ### Benefits
-✅ **No shared rate limits** - Your keys, your quota
-✅ **More secure** - Keys encrypted per-user
-✅ **Cost-effective** - App owner doesn't pay for everyone
-✅ **Scalable** - Add unlimited users
-✅ **Transparent** - Users control their own API usage
+ **No shared rate limits** - Your keys, your quota
+ **More secure** - Keys encrypted per-user
+ **Cost-effective** - App owner doesn't pay for everyone
+ **Scalable** - Add unlimited users
+ **Transparent** - Users control their own API usage
 
 ### Required API Keys (All FREE)
 
@@ -135,7 +135,7 @@
 
 ---
 
-## 💻 Local Development
+##  Local Development
 
 ### Prerequisites
 - Python 3.11+
@@ -186,67 +186,67 @@
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│             Frontend (Jinja2)               │
-│  ┌───────────┬───────────┬───────────────┐  │
-│  │  Analysis │ Portfolio │   Watchlist   │  │
-│  │   Page    │   Page    │     Page      │  │
-│  └───────────┴───────────┴───────────────┘  │
-└─────────────────┬───────────────────────────┘
-                  │
-┌─────────────────▼───────────────────────────┐
-│          Flask Backend (Python)             │
-│  ┌────────────────────────────────────────┐ │
-│  │  Routes (main, api, auth, sentinel)    │ │
-│  └────────────────┬───────────────────────┘ │
-│  ┌────────────────▼───────────────────────┐ │
-│  │  Services Layer                        │ │
-│  │  • StockService (market data)          │ │
-│  │  • OracleService (AI scoring)          │ │
-│  │  • TradingService (Alpaca)             │ │
-│  │  • PortfolioService (tracking)         │ │
-│  │  • AlertEngine (notifications)         │ │
-│  └────────────────┬───────────────────────┘ │
-└───────────────────┼─────────────────────────┘
-                    │
-┌───────────────────▼─────────────────────────┐
-│           External Services                 │
-│  • Finnhub API (market data)                │
-│  • Alpaca API (paper trading)               │
-│  • Gemini API (AI analysis)                 │
-│  • News APIs (sentiment)                    │
-└─────────────────────────────────────────────┘
+
+             Frontend (Jinja2)               
+    
+    Analysis  Portfolio    Watchlist     
+     Page       Page         Page        
+    
+
+                  
+
+          Flask Backend (Python)             
+   
+    Routes (main, api, auth, sentinel)     
+   
+   
+    Services Layer                         
+    • StockService (market data)           
+    • OracleService (AI scoring)           
+    • TradingService (Alpaca)              
+    • PortfolioService (tracking)          
+    • AlertEngine (notifications)          
+   
+
+                    
+
+           External Services                 
+  • Finnhub API (market data)                
+  • Alpaca API (paper trading)               
+  • Gemini API (AI analysis)                 
+  • News APIs (sentiment)                    
+
 ```
 
 ---
 
-## 📂 Project Structure
+##  Project Structure
 
 ```
 Silicon-Oracle/
-├── flask_app/              # Main Flask application
-│   ├── routes/            # URL routes (main, api, auth, sentinel)
-│   ├── services/          # Business logic services
-│   ├── templates/         # Jinja2 HTML templates
-│   ├── static/            # CSS, JS, images
-│   └── models/            # Data models
-├── utils/                 # Utility modules
-│   ├── database.py       # Database operations
-│   ├── encryption.py     # API key encryption
-│   ├── alpaca.py         # Trading integration
-│   └── gemini.py         # AI integration
-├── run_flask.py          # Application entry point
-├── requirements.txt      # Python dependencies
-├── render.yaml           # Render deployment config
-└── Dockerfile            # Docker configuration
+ flask_app/              # Main Flask application
+    routes/            # URL routes (main, api, auth, sentinel)
+    services/          # Business logic services
+    templates/         # Jinja2 HTML templates
+    static/            # CSS, JS, images
+    models/            # Data models
+ utils/                 # Utility modules
+    database.py       # Database operations
+    encryption.py     # API key encryption
+    alpaca.py         # Trading integration
+    gemini.py         # AI integration
+ run_flask.py          # Application entry point
+ requirements.txt      # Python dependencies
+ render.yaml           # Render deployment config
+ Dockerfile            # Docker configuration
 ```
 
 ---
 
-## 🎨 Tech Stack
+##  Tech Stack
 
 ### Backend
 - **Flask** - Web framework
@@ -275,19 +275,19 @@ Silicon-Oracle/
 
 ---
 
-## 🔒 Security Features
+##  Security Features
 
-✅ **Encryption at Rest** - API keys encrypted with Fernet
-✅ **Secure Sessions** - HTTPOnly, Secure cookies
-✅ **CSRF Protection** - Flask-WTF enabled
-✅ **Environment Variables** - No secrets in code
-✅ **HTTPS Enforced** - Automatic on cloud platforms
-✅ **Input Validation** - All user inputs sanitized
-✅ **Rate Limiting** - Per-user API quotas
+ **Encryption at Rest** - API keys encrypted with Fernet
+ **Secure Sessions** - HTTPOnly, Secure cookies
+ **CSRF Protection** - Flask-WTF enabled
+ **Environment Variables** - No secrets in code
+ **HTTPS Enforced** - Automatic on cloud platforms
+ **Input Validation** - All user inputs sanitized
+ **Rate Limiting** - Per-user API quotas
 
 ---
 
-## 📊 Performance
+##  Performance
 
 | Metric | Value |
 |--------|-------|
@@ -300,7 +300,7 @@ Silicon-Oracle/
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 We welcome contributions! Here's how you can help:
 
@@ -328,13 +328,13 @@ We welcome contributions! Here's how you can help:
 
 ---
 
-## 📝 License
+##  License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - **Finnhub** for excellent market data API
 - **Alpaca** for free paper trading
@@ -344,7 +344,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📞 Support
+##  Support
 
 - **Documentation**: [DEPLOYMENT.md](DEPLOYMENT.md)
 - **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
@@ -353,15 +353,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 🗺️ Roadmap
+##  Roadmap
 
 ### Current Version (v2.0)
-- ✅ Real-time stock analysis
-- ✅ AI-powered Oracle scoring
-- ✅ Paper trading with Alpaca
-- ✅ Multi-user BYOK system
-- ✅ Watchlists and alerts
-- ✅ Responsive design
+-  Real-time stock analysis
+-  AI-powered Oracle scoring
+-  Paper trading with Alpaca
+-  Multi-user BYOK system
+-  Watchlists and alerts
+-  Responsive design
 
 ### Coming Soon (v2.1)
 - [ ] Options trading analysis
@@ -380,10 +380,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📈 Usage Stats
+##  Usage Stats
 
 - **Active Deployments**: Growing daily
-- **GitHub Stars**: ⭐ Star us if you find this useful!
+- **GitHub Stars**:  Star us if you find this useful!
 - **Contributors**: Open to contributions
 - **License**: MIT - Use freely
 
@@ -391,12 +391,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
 
-**Built with ❤️ by traders, for traders**
+**Built with  by traders, for traders**
 
 [Deploy Now](https://dashboard.render.com) • [Documentation](DEPLOYMENT.md) • [Report Bug](https://github.com/HarshShroff/Silicon-Oracle/issues)
 
 ---
 
-### ⭐ Star this repo if you find it helpful!
+###  Star this repo if you find it helpful!
 
 </div>
