@@ -12,6 +12,7 @@ flask-wtf>=1.2.0
 flask-caching>=2.1.0
 gunicorn>=21.2.0  # Production WSGI server
 APScheduler>=3.10.0  # Background task scheduler
+flask-apscheduler>=1.13.0  # Flask integration for APScheduler
 
 # Data & Finance
 yfinance>=1.0  # v1.0 fixes cookie handling and includes curl_cffi support

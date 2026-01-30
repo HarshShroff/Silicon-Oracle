@@ -411,7 +411,7 @@ def test_email_config(user_email: str, app_password: str) -> Dict[str, Any]:
     if not user_email or not app_password:
         return {"success": False, "error": "Email credentials not provided"}
 
-    content = """
+    content = f"""
         <h2>✅ Email Test Successful</h2>
         <p>Your Silicon Oracle email configuration is working correctly!</p>
         <p>This is a test email to verify your Gmail App Password is working.</p>
