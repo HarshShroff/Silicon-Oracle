@@ -1,0 +1,544 @@
+import numpy as np
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import pandas_ta_classic as ta
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
+from scipy.stats import norm
+
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="Silicon Oracle", page_icon="🔮", layout="wide")
+st.title("🔮 The Silicon Oracle: AI Investment Dashboard")
+
+# --- SIDEBAR ---
+
+st.sidebar.header("Configuration")
+TICKER = st.sidebar.text_input("Stock Ticker", value="NVDA").upper()
+MARKET = "SPY"  # S&P 500 ETF for market context
+SECTOR = "QQQ"  # Nasdaq-100 ETF for tech sector context
+
+# Fetch Fundamental Data (P/E)
+try:
+    from curl_cffi import requests
+    session = requests.Session(impersonate="chrome")
+    stock_info = yf.Ticker(TICKER, session=session).info
+    pe_ratio = stock_info.get('trailingPE', 'N/A')
+    forward_pe = stock_info.get('forwardPE', 'N/A')
+    market_cap = stock_info.get('marketCap', 'N/A')
+
+    st.sidebar.divider()
+    st.sidebar.subheader("Fundamentals")
+    st.sidebar.metric("Trailing P/E", pe_ratio)
+    st.sidebar.metric("Forward P/E", forward_pe)
+
+    # Quick Formatting for Billions/Trillions
+    if market_cap != 'N/A':
+        fmt_mkt_cap = f"${market_cap / 1e12:.2f}T" if market_cap > 1e12 else f"${market_cap / 1e9:.2f}B"
+        st.sidebar.metric("Market Cap", fmt_mkt_cap)
+
+except Exception as e:
+    st.sidebar.warning("Could not fetch fundamentals.")
+
+# --- 1. DATA LOADER (CACHE FOR SPEED) ---
+
+
+@st.cache_data
+def load_data(ticker):
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=730)  # 2 Years
+    try:
+        import requests
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
+
+        # yfinance download allows session
+        data = yf.download(ticker, start=start_date,
+                           end=end_date, session=session, progress=False)
+
+        # Flatten columns if MultiIndex (common in new yfinance)
+        if isinstance(data.columns, pd.MultiIndex):
+            # For single ticker, drop the ticker level to get clean column names
+            data = data.droplevel(1, axis=1)
+
+        # Ensure we only have standard columns
+        data = data[['Open', 'High', 'Low', 'Close', 'Volume']]
+
+        # Ensure index is datetime and sorted
+        data.index = pd.to_datetime(data.index)
+        data = data.sort_index()
+
+        return data
+
+    except Exception as e:
+        st.error(f"Error fetching data for {ticker}: {e}")
+        return pd.DataFrame()
+
+
+@st.cache_resource
+def load_sentiment_model():
+    from transformers import pipeline
+    return pipeline("sentiment-analysis", model="ProsusAI/finbert")
+
+
+# Load Data
+with st.spinner(f"Fetching data for {TICKER}..."):
+    df = load_data(TICKER)
+    df_spy = load_data(MARKET)
+    df_qqq = load_data(SECTOR)
+
+if df.empty or df_spy.empty or df_qqq.empty:
+    st.error(
+        "⚠️ Data fetching failed (Rate Limit or Invalid Ticker). Please try again in 1 minute.")
+    st.stop()
+
+# --- 2. TECHNICAL ANALYSIS (THE MATH) ---
+df['SMA_50'] = ta.sma(df['Close'], length=50)
+df['RSI'] = ta.rsi(df['Close'], length=14)
+
+# Handle potential None returns from indicators if not enough data
+if df['SMA_50'].isnull().all():
+    df['SMA_50'] = df['Close']
+if df['RSI'].isnull().all():
+    df['RSI'] = 50
+
+last_price = df['Close'].iloc[-1]
+last_rsi = df['RSI'].iloc[-1]
+last_sma = df['SMA_50'].iloc[-1]
+
+# Market Context
+spy_sma_series = ta.sma(df_spy['Close'], length=50)
+if spy_sma_series is None or spy_sma_series.empty or spy_sma_series.isnull().all():
+    spy_sma = df_spy['Close'].iloc[-1]
+else:
+    spy_sma = spy_sma_series.iloc[-1]
+
+spy_price = df_spy['Close'].iloc[-1]
+is_market_healthy = spy_price > spy_sma
+
+# --- HELPER: CALCULATE SHARPE ---
+
+
+def calculate_sharpe(data, risk_free_rate=0.045):
+    # Daily returns
+    returns = data['Close'].pct_change()
+    # Excess daily returns (Return - Daily Risk Free Rate)
+    excess_returns = returns - (risk_free_rate / 252)
+    # Annualized Sharpe Ratio
+    sharpe = np.sqrt(252) * (excess_returns.mean() / excess_returns.std())
+    return sharpe
+
+# --- MONTE CARLO SIMULATION ENGINE ---
+
+
+def run_monte_carlo(data, days=30, simulations=1000):
+    # Get historical stats
+    log_returns = np.log(1 + data['Close'].pct_change())
+    u = log_returns.mean()
+    var = log_returns.var()
+    drift = u - (0.5 * var)
+    stdev = log_returns.std()
+
+    # Pre-compute current price
+    last_price = data['Close'].iloc[-1]
+
+    # Generate random shocks (The Chaos)
+    # Z is a matrix of random numbers [days, simulations]
+    Z = np.random.rand(days, simulations)
+
+    # Calculate future daily returns
+    daily_returns = np.exp(drift + stdev * norm.ppf(Z))
+
+    # Create price paths
+    price_paths = np.zeros_like(daily_returns)
+    price_paths[0] = last_price
+
+    for t in range(1, days):
+        price_paths[t] = price_paths[t-1] * daily_returns[t]
+
+    return price_paths
+
+
+# --- DASHBOARD METRICS ---
+sharpe_ratio = calculate_sharpe(df)
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric("Current Price", f"${last_price:.2f}",
+              f"{df['Close'].pct_change().iloc[-1]:.2%}")
+
+with col2:
+    # Sharpe Logic: > 1 is Good, > 2 is Great, < 1 is Bad
+    sharpe_color = "normal"
+    if sharpe_ratio > 2:
+        sharpe_color = "normal"  # Greenish default
+        sharpe_label = "🌟 EXCELLENT"
+    elif sharpe_ratio > 1:
+        sharpe_color = "off"
+        sharpe_label = "✅ GOOD"
+    else:
+        sharpe_color = "inverse"
+        sharpe_label = "⚠️ POOR"
+
+    st.metric("Sharpe Ratio (1Y)",
+              f"{sharpe_ratio:.2f}", sharpe_label, delta_color=sharpe_color)
+
+with col3:
+    rsi_delta = last_rsi - 50
+    st.metric("RSI (Momentum)", f"{last_rsi:.2f}",
+              delta=f"{rsi_delta:.2f}", delta_color="inverse")
+
+with col4:
+    trend_color = "normal"
+    if last_price > last_sma:
+        trend_label = "🚀 UPTREND"
+        trend_delta = "Above SMA50"
+        trend_color = "normal"
+    else:
+        trend_label = "📉 DOWNTREND"
+        trend_delta = "Below SMA50"
+        trend_color = "inverse"
+    st.metric("Trend (SMA 50)", trend_label,
+              trend_delta, delta_color=trend_color)
+
+st.divider()
+
+
+# --- 3. CHARTS (DYNAMIC TIMEFRAME) ---
+st.subheader(f"Price Action: {TICKER}")
+
+# 1. Timeframe Selector
+timeframe = st.radio(
+    "Zoom Level",
+    options=["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y", "Max"],
+    index=0,  # Default to 1D for real-time view
+    horizontal=True,
+    label_visibility="collapsed"
+)
+
+# Auto-refresh for intraday views (1D)
+if timeframe == "1D":
+    st.caption("Auto-refreshing every 30 seconds")
+    import time
+    # Use st.empty() placeholder for refresh mechanism
+    refresh_counter = st.session_state.get('refresh_counter', 0)
+    st_autorefresh = st.empty()
+    # Streamlit auto-rerun every 30 seconds for 1D view
+    from streamlit_autorefresh import st_autorefresh as auto_refresh
+    auto_refresh(interval=30000, limit=None, key=f"refresh_{timeframe}")
+
+# 2. Logic to map Timeframe -> YFinance Parameters
+# Note: Intraday data (1D, 5D) requires shorter intervals.
+period_map = {
+    "1D": {"period": "1d", "interval": "5m"},
+    "5D": {"period": "5d", "interval": "15m"},
+    "1M": {"period": "1mo", "interval": "1d"},
+    "6M": {"period": "6mo", "interval": "1d"},
+    "YTD": {"period": "ytd", "interval": "1d"},
+    "1Y": {"period": "1y", "interval": "1d"},
+    "5Y": {"period": "5y", "interval": "1wk"},
+    "Max": {"period": "max", "interval": "1mo"},
+}
+
+params = period_map[timeframe]
+
+# 3. Fetch Chart-Specific Data with short cache for real-time feel
+@st.cache_data(ttl=25)  # Cache for 25 seconds (less than 30s refresh interval)
+def fetch_chart_data(ticker, period, interval):
+    import requests
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    })
+
+    data = yf.download(
+        ticker,
+        period=period,
+        interval=interval,
+        progress=False,
+        auto_adjust=False
+    )
+    return data
+
+try:
+    chart_data = fetch_chart_data(TICKER, params['period'], params['interval'])
+
+    # Flatten columns if MultiIndex (common in new yfinance)
+    if isinstance(chart_data.columns, pd.MultiIndex):
+        # For single ticker, extract just the price columns by dropping the ticker level
+        chart_data = chart_data.droplevel(1, axis=1)
+
+    # Ensure we have the expected columns
+    chart_df = chart_data[['Open', 'High', 'Low', 'Close', 'Volume']]
+
+    # Convert timezone to US Eastern (market timezone) for intraday data
+    if chart_df.index.tz is not None:
+        chart_df.index = chart_df.index.tz_convert('America/New_York')
+    elif timeframe in ["1D", "5D"]:
+        # If no timezone info but intraday, localize to UTC then convert
+        chart_df.index = chart_df.index.tz_localize('UTC').tz_convert('America/New_York')
+
+    if chart_df.empty:
+        st.error("No data available for this timeframe.")
+    else:
+        # 4. Plot Area Chart (Google Finance style)
+        fig = go.Figure()
+
+        # Determine Color (Green/Red) based on period performance
+        start_p = float(chart_df['Close'].iloc[0])
+        end_p = float(chart_df['Close'].iloc[-1])
+
+        if end_p >= start_p:
+            line_color = '#00C805'  # Green
+            fill_color = 'rgba(0, 200, 5, 0.2)'
+        else:
+            line_color = '#FF5000'  # Red
+            fill_color = 'rgba(255, 80, 0, 0.2)'
+
+        # Calculate y-axis range with padding
+        price_min = float(chart_df['Close'].min())
+        price_max = float(chart_df['Close'].max())
+        price_range = price_max - price_min
+        # Ensure minimum range to avoid flat charts
+        if price_range < 0.01:
+            price_range = price_max * 0.02
+        y_padding = price_range * 0.1
+        y_min = price_min - y_padding
+        y_max = price_max + y_padding
+
+        # Convert Close prices to list for reliable plotting
+        close_prices = chart_df['Close'].tolist()
+        x_values = chart_df.index.tolist()
+
+        # Single trace: line with area fill to y_min
+        fig.add_trace(go.Scatter(
+            x=x_values,
+            y=close_prices,
+            mode='lines',
+            line=dict(color=line_color, width=2.5),
+            fill='tozeroy',
+            fillcolor=fill_color,
+            name='Price',
+            hovertemplate='%{x}<br>$%{y:.2f}<extra></extra>'
+        ))
+
+        fig.update_layout(
+            height=500,
+            hovermode="x unified",
+            margin=dict(l=10, r=70, t=20, b=40),
+            xaxis=dict(
+                showgrid=False,
+                showline=False,
+                showspikes=True,
+                spikethickness=1,
+                spikedash='solid',
+                spikecolor='#555555',
+                spikemode='across',
+                tickfont=dict(color='#888888')
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(255,255,255,0.1)',
+                side="right",
+                tickprefix="$",
+                tickformat=".2f",
+                range=[y_min, y_max],
+                showspikes=True,
+                spikethickness=1,
+                spikedash='solid',
+                spikecolor='#555555',
+                spikemode='across',
+                tickfont=dict(color='#888888')
+            ),
+            showlegend=False,
+            plot_bgcolor='#0E1117',
+            paper_bgcolor='#0E1117'
+        )
+
+        st.plotly_chart(fig, width='stretch')
+
+        # --- STATISTICS ROW ---
+        latest = chart_df.iloc[-1]
+        s1, s2, s3, s4, s5 = st.columns(5)
+        s1.metric("Open", f"${latest['Open']:.2f}")
+        s2.metric("High", f"${latest['High']:.2f}")
+        s3.metric("Low", f"${latest['Low']:.2f}")
+        s4.metric("Volume", f"{latest['Volume']/1e6:.1f}M")
+        s5.metric("Close", f"${latest['Close']:.2f}")
+
+        st.divider()
+
+except Exception as e:
+    st.error(f"Error loading chart: {e}")
+
+# --- MONTE CARLO PROJECTION ---
+st.subheader("🎲 Monte Carlo Simulation (Next 30 Days)")
+
+if st.button("Run Simulation (1,000 Paths)"):
+    st.session_state['run_mc'] = True
+
+if st.session_state.get('run_mc'):
+
+    with st.spinner("Simulating future realities..."):
+        # 1. GENERATE FUTURE DATES
+        sim_days = 30
+        last_date = df.index[-1]
+        # Create a list of the next 30 Business Days (skips weekends)
+        future_dates = pd.date_range(
+            start=last_date + timedelta(days=1), periods=sim_days, freq='B')
+
+        # 2. RUN SIMULATION
+        price_paths = run_monte_carlo(df, days=sim_days, simulations=1000)
+
+        # 3. STATS
+        final_prices = price_paths[-1]
+        mean_price = np.mean(final_prices)
+        p5 = np.percentile(final_prices, 5)
+        p95 = np.percentile(final_prices, 95)
+
+        # 4. PLOTTING (Fan Chart Style)
+        fig_mc = go.Figure()
+
+        # Plot 50 random paths
+        for i in range(50):
+            fig_mc.add_trace(go.Scatter(
+                x=future_dates,  # Use Real Dates!
+                y=price_paths[:, i],
+                mode='lines',
+                # Cyan with transparency
+                line=dict(width=1, color='rgba(0, 255, 255, 0.15)'),
+                showlegend=False,
+                hoverinfo='skip'
+            ))
+
+        # Plot Average Path (The "Most Likely" Trend)
+        fig_mc.add_trace(go.Scatter(
+            x=future_dates,
+            y=np.mean(price_paths, axis=1),
+            mode='lines',
+            line=dict(width=4, color='white'),  # Thicker white line
+            name="Average Path"
+        ))
+
+        fig_mc.update_layout(
+            title=f"Projected Price Cone ({sim_days} Days)",
+            yaxis_title="Projected Price (USD)",
+            xaxis_title="Future Date",
+            template="plotly_dark",
+            height=500,
+            hovermode="x unified"  # Shows all data points when you hover over a date
+        )
+
+        st.plotly_chart(fig_mc, width='stretch')
+
+        # Display The Odds
+        col_mc1, col_mc2, col_mc3 = st.columns(3)
+        col_mc1.metric("Worst Case (5%)", f"${p5:.2f}")
+        col_mc2.metric("Most Likely", f"${mean_price:.2f}")
+        col_mc3.metric("Best Case (95%)", f"${p95:.2f}")
+
+# --- 4. NEWS & SENTIMENT (THE VIBES) ---
+st.subheader("📰 AI News Sentiment Analysis")
+
+if st.button("Run AI Analysis (FinBERT)"):
+    classifier = load_sentiment_model()
+    from curl_cffi import requests
+    session = requests.Session(impersonate="chrome")
+    news = yf.Ticker(TICKER, session=session).news
+
+    sentiment_score = 0
+    count = 0
+
+    col_news1, col_news2 = st.columns([2, 1])
+
+    with col_news1:
+        for article in news[:5]:  # Analyze top 5
+            headline = article.get('title')
+            if not headline and 'content' in article:
+                headline = article['content'].get('title')
+
+            if not headline:
+                continue
+
+            res = classifier(headline)[0]
+            label = res['label']
+            score = res['score']
+
+            # Color code
+            if label == "positive":
+                color = "green"
+                sentiment_score += 1
+            elif label == "negative":
+                color = "red"
+                sentiment_score -= 1
+            else:
+                color = "gray"
+
+            st.markdown(f"**{headline}**")
+            st.markdown(f":{color}[{label.upper()} ({score:.0%})]")
+            st.write("---")
+            count += 1
+
+    with col_news2:
+        st.write("### AI Verdict")
+        if sentiment_score > 0:
+            st.success("## 🐂 BULLISH")
+            st.write("News is generally positive.")
+        elif sentiment_score < 0:
+            st.error("## 🐻 BEARISH")
+            st.write("News is generally negative.")
+        else:
+            st.warning("## 🤷 NEUTRAL")
+            st.write("Market is confused.")
+
+# --- 5. THE FINAL DECISION ---
+st.divider()
+st.subheader("🤖 The Oracle's Recommendation")
+
+# LOGIC:
+# 1. Price > SMA50 (Trend)
+# 2. RSI < 70 (Not expensive)
+# 3. SPY > SMA50 (Market Healthy)
+
+score = 0
+reasons = []
+
+if last_price > last_sma:
+    score += 1
+    reasons.append("✅ Price is in an Uptrend")
+else:
+    reasons.append("❌ Price is in a Downtrend")
+
+if last_rsi < 70:
+    score += 1
+    reasons.append("✅ RSI is not Overbought")
+else:
+    reasons.append("❌ RSI is Overbought (Too Expensive)")
+
+if is_market_healthy:
+    score += 1
+    reasons.append("✅ S&P 500 (SPY) is Bullish")
+else:
+    reasons.append("❌ S&P 500 (SPY) is Bearish (Market Risk)")
+
+col_final1, col_final2 = st.columns(2)
+
+with col_final1:
+    if score == 3:
+        st.balloons()
+        st.success("# BUY SIGNAL 🚀")
+        st.write("All systems go. Market is safe, trend is up, price is fair.")
+    elif score == 2:
+        st.warning("# HOLD / WATCH ⚠️")
+        st.write("Conditions are okay, but not perfect. Small position only.")
+    else:
+        st.error("# SELL / CASH 🛑")
+        st.write("Too risky. Stay safe.")
+
+with col_final2:
+    st.write("### Logic Checklist")
+    for r in reasons:
+        st.write(r)

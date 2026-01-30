@@ -1,0 +1,56 @@
+{# Card Component - Reusable glass card with consistent styling #}
+
+{% macro card(title='', class='', id='', interactive=false) %}
+  <div
+    {% if id %}id="{{ id }}"{% endif %}
+    class="
+      glass rounded-xl p-6
+      border border-white/5
+      transition-all duration-300
+      {% if interactive %}
+        card-interactive cursor-pointer
+        hover:border-oracle-primary/20
+        hover:-translate-y-1
+      {% endif %}
+      {{ class }}
+    "
+  >
+    {% if title %}
+      <h3 class="text-lg font-semibold gradient-text mb-4">{{ title }}</h3>
+    {% endif %}
+    {{ caller() }}
+  </div>
+{% endmacro %}
+
+{% macro stat_card(label, value, change='', icon='', class='') %}
+  <div class="glass rounded-xl p-4 border border-white/5 {{ class }}">
+    <div class="flex items-start justify-between mb-2">
+      <span class="text-sm text-gray-400">{{ label }}</span>
+      {% if icon %}
+        <div class="w-8 h-8 rounded-lg bg-oracle-primary/10 flex items-center justify-center">
+          {{ icon|safe }}
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="flex items-end justify-between">
+      <div>
+        <div class="text-2xl font-bold text-white mb-1">{{ value }}</div>
+        {% if change %}
+          <div class="text-sm font-medium flex items-center gap-1 {% if change.startswith('+') or not change.startswith('-') %}text-green-400{% else %}text-red-400{% endif %}">
+            {% if change.startswith('+') or not change.startswith('-') %}
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+              </svg>
+            {% else %}
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path fill-rule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+              </svg>
+            {% endif %}
+            <span>{{ change }}</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endmacro %}

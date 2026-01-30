@@ -1,0 +1,80 @@
+{
+  "name": "Silicon Oracle - AI Stock Analysis",
+  "short_name": "Oracle",
+  "description": "AI-Powered Stock Analysis & Paper Trading Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Analysis",
+      "short_name": "Analyze",
+      "description": "Stock analysis dashboard with AI insights",
+      "url": "/analysis/NVDA",
+      "icons": [
+        {
+          "src": "/static/icons/analyze-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Scanner",
+      "short_name": "Scan",
+      "description": "Market scanner for opportunities",
+      "url": "/scanner",
+      "icons": [
+        {
+          "src": "/static/icons/scan-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Portfolio",
+      "short_name": "Portfolio",
+      "description": "Manage your portfolio and positions",
+      "url": "/portfolio",
+      "icons": [
+        {
+          "src": "/static/icons/portfolio-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Trade",
+      "short_name": "Trade",
+      "description": "Quick trade execution",
+      "url": "/trade/NVDA",
+      "icons": [
+        {
+          "src": "/static/icons/trade-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "categories": ["finance", "productivity", "business"]
+}

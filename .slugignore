@@ -1,0 +1,14 @@
+# Ignore these files during deployment to reduce slug size
+backup_20260127_120838/
+node_modules/
+*.log
+silicon_oracle.log
+test_*.py
+__pycache__/
+.ruff_cache/
+*.backup
+.DS_Store
+.vscode/
+.idea/
+*.db
+portfolio.db

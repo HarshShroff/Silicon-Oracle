@@ -1,0 +1,59 @@
+{# Skeleton Loading Components - Show while content is loading #}
+
+{% macro skeleton_card(class='') %}
+  <div class="glass rounded-xl p-6 border border-white/5 animate-pulse {{ class }}" aria-busy="true" aria-live="polite" role="status">
+    <div class="h-4 bg-gray-700 rounded w-1/3 mb-4"></div>
+    <div class="space-y-3">
+      <div class="h-3 bg-gray-700 rounded"></div>
+      <div class="h-3 bg-gray-700 rounded w-5/6"></div>
+      <div class="h-3 bg-gray-700 rounded w-4/6"></div>
+    </div>
+    <span class="sr-only">Loading content...</span>
+  </div>
+{% endmacro %}
+
+{% macro skeleton_table(rows=5, class='') %}
+  <div class="space-y-2 {{ class }}" aria-busy="true" aria-live="polite" role="status">
+    {% for i in range(rows) %}
+      <div class="flex gap-4 animate-pulse">
+        <div class="h-10 bg-gray-700 rounded flex-1"></div>
+        <div class="h-10 bg-gray-700 rounded flex-1"></div>
+        <div class="h-10 bg-gray-700 rounded flex-1"></div>
+      </div>
+    {% endfor %}
+    <span class="sr-only">Loading table data...</span>
+  </div>
+{% endmacro %}
+
+{% macro skeleton_stat_card(class='') %}
+  <div class="glass rounded-xl p-4 border border-white/5 animate-pulse {{ class }}" aria-busy="true" aria-live="polite" role="status">
+    <div class="h-3 bg-gray-700 rounded w-1/2 mb-3"></div>
+    <div class="h-8 bg-gray-700 rounded w-3/4 mb-2"></div>
+    <div class="h-3 bg-gray-700 rounded w-1/3"></div>
+    <span class="sr-only">Loading statistics...</span>
+  </div>
+{% endmacro %}
+
+{% macro skeleton_chart(height='300px', class='') %}
+  <div class="glass rounded-xl p-6 border border-white/5 animate-pulse {{ class }}" style="height: {{ height }}" aria-busy="true" aria-live="polite" role="status">
+    <div class="h-4 bg-gray-700 rounded w-1/4 mb-6"></div>
+    <div class="flex items-end justify-between h-full gap-2 pb-8">
+      {% for i in range(20) %}
+        <div class="bg-gray-700 rounded-t" style="height: {{ (40 + (i * 3)) % 100 }}%; width: 100%;"></div>
+      {% endfor %}
+    </div>
+    <span class="sr-only">Loading chart...</span>
+  </div>
+{% endmacro %}
+
+{% macro skeleton_line(width='100%', height='h-3', class='') %}
+  <div class="{{ height }} bg-gray-700 rounded animate-pulse {{ class }}" style="width: {{ width }}" aria-hidden="true"></div>
+{% endmacro %}
+
+{% macro skeleton_circle(size='w-12 h-12', class='') %}
+  <div class="{{ size }} bg-gray-700 rounded-full animate-pulse {{ class }}" aria-hidden="true"></div>
+{% endmacro %}
+
+{% macro skeleton_button(class='') %}
+  <div class="h-11 bg-gray-700 rounded-lg animate-pulse {{ class }}" style="width: 120px" aria-hidden="true"></div>
+{% endmacro %}

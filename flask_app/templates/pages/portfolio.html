@@ -1,0 +1,400 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Portfolio - Silicon Oracle{% endblock %}
+{% block page_title %}Portfolio{% endblock %}
+
+{% block content %}
+<div x-data="portfolioPage()" x-init="init()" class="space-y-4 md:space-y-6">
+
+    <!-- Account Overview -->
+    {% if account %}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="glass rounded-xl p-3 md:p-4">
+            <div class="flex items-center gap-2 mb-1">
+                <div class="w-6 h-6 rounded-lg bg-oracle-primary/20 flex items-center justify-center">
+                    <svg class="w-3 h-3 text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <span class="text-xs text-gray-400">Portfolio</span>
+            </div>
+            <p class="text-lg md:text-2xl font-bold">${{ "{:,.0f}".format(account.portfolio_value) }}</p>
+        </div>
+        <div class="glass rounded-xl p-3 md:p-4">
+            <div class="flex items-center gap-2 mb-1">
+                <div class="w-6 h-6 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <svg class="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                </div>
+                <span class="text-xs text-gray-400">Buying Power</span>
+            </div>
+            <p class="text-lg md:text-2xl font-bold text-green-400">${{ "{:,.0f}".format(account.buying_power) }}</p>
+        </div>
+        <div class="glass rounded-xl p-3 md:p-4">
+            <div class="flex items-center gap-2 mb-1">
+                <div class="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                    <svg class="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                </div>
+                <span class="text-xs text-gray-400">Cash</span>
+            </div>
+            <p class="text-lg md:text-2xl font-bold">${{ "{:,.0f}".format(account.cash) }}</p>
+        </div>
+        <div class="glass rounded-xl p-3 md:p-4">
+            <div class="flex items-center gap-2 mb-1">
+                <div class="w-6 h-6 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                    <svg class="w-3 h-3 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                </div>
+                <span class="text-xs text-gray-400">Equity</span>
+            </div>
+            <p class="text-lg md:text-2xl font-bold">${{ "{:,.0f}".format(account.equity) }}</p>
+        </div>
+    </div>
+    {% else %}
+    <div class="glass rounded-xl p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="text-yellow-400 font-medium text-sm">Alpaca not connected</p>
+                <a href="{{ url_for('main.settings') }}" class="text-oracle-primary hover:underline text-xs">Add API keys →</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Portfolio Performance Chart - Always Visible -->
+    <div class="glass rounded-xl p-4">
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+                <h3 class="font-semibold">📈 Portfolio Performance</h3>
+                <span x-show="lastUpdate" class="text-xs text-green-400 bg-green-500/20 px-2 py-0.5 rounded-full">● Live</span>
+            </div>
+            <div class="flex gap-0.5 md:gap-1">
+                <button @click="setPeriod('1D')" :class="chartPeriod === '1D' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs min-w-[24px] md:min-w-[28px]">1D</button>
+                <button @click="setPeriod('1W')" :class="chartPeriod === '1W' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs min-w-[24px] md:min-w-[28px]">1W</button>
+                <button @click="setPeriod('1M')" :class="chartPeriod === '1M' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs min-w-[24px] md:min-w-[28px]">1M</button>
+                <button @click="setPeriod('3M')" :class="chartPeriod === '3M' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs min-w-[24px] md:min-w-[28px] hide-mobile">3M</button>
+                <button @click="setPeriod('1A')" :class="chartPeriod === '1A' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs min-w-[24px] md:min-w-[28px] hide-mobile">1Y</button>
+            </div>
+        </div>
+        <div class="h-48 md:h-64 relative">
+            <div x-show="chartLoading" class="absolute inset-0 flex items-center justify-center text-gray-400">
+                <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+            </div>
+            <div x-show="!chartLoading && !hasChartData" class="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
+                No chart data available
+            </div>
+            <canvas id="portfolioChart" x-show="hasChartData" class="w-full h-full"></canvas>
+        </div>
+    </div>
+
+    <!-- Positions - Mobile Card View -->
+    <div class="glass rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-oracle-border flex items-center justify-between">
+            <h3 class="font-semibold">Active Positions</h3>
+            <span class="text-xs text-gray-400">{{ positions|length if positions else 0 }} positions</span>
+        </div>
+
+        {% if positions %}
+        <!-- Mobile: Card Layout -->
+        <div class="md:hidden divide-y divide-oracle-border">
+            {% for pos in positions %}
+            <div class="p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <a href="{{ url_for('main.analysis', ticker=pos.ticker) }}" class="font-bold text-oracle-primary">{{ pos.ticker }}</a>
+                    <span class="text-sm {% if pos.unrealized_pl >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
+                        {{ "%+.2f"|format(pos.unrealized_plpc) }}%
+                    </span>
+                </div>
+                <div class="flex items-center justify-between text-sm text-gray-400">
+                    <span>{{ "%.2f"|format(pos.shares) }} shares @ ${{ "%.2f"|format(pos.avg_price) }}</span>
+                    <span class="{% if pos.unrealized_pl >= 0 %}text-green-400{% else %}text-red-400{% endif %}">${{ "%+.2f"|format(pos.unrealized_pl) }}</span>
+                </div>
+                <div class="mt-2 flex gap-2">
+                    <a href="{{ url_for('main.trade', ticker=pos.ticker) }}" class="flex-1 text-center px-3 py-1.5 rounded-lg bg-oracle-card text-sm">Trade</a>
+                    <button @click="closePosition('{{ pos.ticker }}')" class="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-sm">Close</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Desktop: Table Layout -->
+        <div class="hidden md:block overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-oracle-card">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Ticker</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Shares</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Avg</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Current</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">P/L</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-oracle-border">
+                    {% for pos in positions %}
+                    <tr class="hover:bg-oracle-card/50">
+                        <td class="px-4 py-3">
+                            <a href="{{ url_for('main.analysis', ticker=pos.ticker) }}" class="font-bold text-oracle-primary hover:underline">{{ pos.ticker }}</a>
+                        </td>
+                        <td class="px-4 py-3 text-sm">{{ "%.2f"|format(pos.shares) }}</td>
+                        <td class="px-4 py-3 text-sm">${{ "%.2f"|format(pos.avg_price) }}</td>
+                        <td class="px-4 py-3 text-sm">${{ "%.2f"|format(pos.current_price) }}</td>
+                        <td class="px-4 py-3 text-sm {% if pos.unrealized_pl >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
+                            ${{ "%+.2f"|format(pos.unrealized_pl) }} ({{ "%+.2f"|format(pos.unrealized_plpc) }}%)
+                        </td>
+                        <td class="px-4 py-3">
+                            <button @click="closePosition('{{ pos.ticker }}')" class="px-2 py-1 rounded text-xs bg-red-500/20 text-red-400">Close</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-8 text-center text-gray-400">
+            <p class="mb-2">No open positions</p>
+            <a href="{{ url_for('main.scanner') }}" class="text-oracle-primary hover:underline text-sm">Find stocks to trade →</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Trade History - Collapsible on Mobile -->
+    <div class="glass rounded-xl overflow-hidden" x-data="{ expanded: false }">
+        <button @click="expanded = !expanded" class="w-full p-4 flex items-center justify-between md:cursor-default">
+            <h3 class="font-semibold">Trade History</h3>
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-400">{{ trades|length if trades else 0 }} trades</span>
+                <svg class="w-5 h-5 text-gray-400 md:hidden transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </div>
+        </button>
+
+        <div x-show="expanded || window.innerWidth >= 768" x-collapse>
+            {% if trades %}
+            <div class="border-t border-oracle-border max-h-64 overflow-y-auto">
+                {% for trade in trades %}
+                <div class="px-4 py-3 border-b border-oracle-border/50 last:border-0">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="px-2 py-0.5 rounded text-xs {% if trade['action'] == 'buy' %}bg-green-500/20 text-green-400{% else %}bg-red-500/20 text-red-400{% endif %}">
+                                {{ trade['action']|upper }}
+                            </span>
+                            <span class="font-medium">{{ trade['ticker'] }}</span>
+                        </div>
+                        <span class="text-sm text-gray-400">{{ trade['timestamp'][:10] if trade['timestamp'] else '' }}</span>
+                    </div>
+                    <div class="mt-1 text-xs text-gray-400">
+                        {{ "%.2f"|format(trade['shares']|float) }} shares @ ${{ "%.2f"|format(trade['price']|float) }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="p-6 text-center text-gray-400 text-sm border-t border-oracle-border">
+                No trades yet
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function portfolioPage() {
+        return {
+            chartLoading: true,
+            hasChartData: false,
+            chart: null,
+            chartPeriod: '1D',
+            lastUpdate: null,
+
+            async closePosition(ticker) {
+                if (!confirm(`Close entire position in ${ticker}?`)) return;
+
+                try {
+                    const response = await fetch(`/api/trading/position/${ticker}`, { method: 'DELETE' });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('Error closing position');
+                }
+            },
+
+            init() {
+                const self = this;
+                this.$nextTick(() => {
+                    setTimeout(() => this.loadChart(), 100);
+                    
+                    // Auto-refresh chart every 30 seconds for real-time updates
+                    setInterval(() => {
+                        self.loadChart(true); // silent refresh
+                    }, 30000);
+                });
+            },
+
+            async loadChart(silent = false) {
+                if (!silent) this.chartLoading = true;
+                
+                // Map period to Alpaca timeframes
+                const periodMap = {
+                    '1D': { period: '1D', timeframe: '5Min' },
+                    '1W': { period: '1W', timeframe: '1H' },
+                    '1M': { period: '1M', timeframe: '1D' },
+                    '3M': { period: '3M', timeframe: '1D' },
+                    'YTD': { period: 'YTD', timeframe: '1D' },
+                    '1A': { period: '1A', timeframe: '1D' }
+                };
+                
+                const params = periodMap[this.chartPeriod] || periodMap['1D'];
+                
+                try {
+                    const response = await fetch(`/api/trading/history?period=${params.period}&timeframe=${params.timeframe}`);
+                    const data = await response.json();
+
+                    if (!data || data.length === 0) {
+                        this.chartLoading = false;
+                        this.hasChartData = false;
+                        return;
+                    }
+
+                    this.hasChartData = true;
+                    this.lastUpdate = new Date().toLocaleTimeString();
+                    
+                    const canvas = document.getElementById('portfolioChart');
+                    if (!canvas) {
+                        this.chartLoading = false;
+                        return;
+                    }
+                    
+                    if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
+                        setTimeout(() => this.loadChart(), 200);
+                        return;
+                    }
+
+                    try {
+                        const existingChart = Chart.getChart(canvas);
+                        if (existingChart) existingChart.destroy();
+                    } catch (e) {}
+                    
+                    if (this.chart) {
+                        try { this.chart.destroy(); } catch (e) {}
+                    }
+                    this.chart = null;
+
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        this.chartLoading = false;
+                        return;
+                    }
+                    
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Calculate color based on P&L
+                    const firstEquity = data[0]?.equity || 0;
+                    const lastEquity = data[data.length - 1]?.equity || 0;
+                    const isPositive = lastEquity >= firstEquity;
+                    const lineColor = isPositive ? '#22c55e' : '#ef4444';
+                    const fillColor = isPositive ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+                    
+                    this.chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.map(d => {
+                                const ts = d.timestamp || '';
+                                // For intraday, show time; for daily, show date
+                                if (this.chartPeriod === '1D') {
+                                    const date = new Date(ts);
+                                    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                                }
+                                return ts.split('T')[0] || ts.split(' ')[0] || ts;
+                            }),
+                            datasets: [{
+                                label: 'Portfolio Value',
+                                data: data.map(d => d.equity),
+                                borderColor: lineColor,
+                                backgroundColor: fillColor,
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 0,
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            },
+                            plugins: { 
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                    titleColor: '#f1f5f9',
+                                    bodyColor: '#94a3b8',
+                                    borderColor: '#334155',
+                                    borderWidth: 1,
+                                    padding: 10,
+                                    displayColors: false,
+                                    callbacks: {
+                                        label: function(context) {
+                                            return '$' + context.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: { 
+                                    display: true,
+                                    grid: { display: false },
+                                    ticks: { 
+                                        color: '#64748b', 
+                                        font: { size: 9 },
+                                        maxTicksLimit: 6
+                                    }
+                                },
+                                y: {
+                                    grid: { color: 'rgba(71, 85, 105, 0.2)' },
+                                    ticks: { 
+                                        color: '#94a3b8', 
+                                        font: { size: 10 },
+                                        callback: function(value) {
+                                            return '$' + (value / 1000).toFixed(0) + 'k';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    this.chartLoading = false;
+                } catch (error) {
+                    console.error('Chart loading error:', error);
+                    this.chartLoading = false;
+                }
+            },
+
+            setPeriod(period) {
+                this.chartPeriod = period;
+                this.loadChart();
+            }
+        }
+    }
+</script>
+{% endblock %}

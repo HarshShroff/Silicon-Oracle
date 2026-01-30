@@ -1,0 +1,36 @@
+services:
+  # Main Web Service
+  - type: web
+    name: silicon-oracle
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 'flask_app:create_app()'"
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      # NOTE: API keys are NOT needed here!
+      # Your app uses BYOK (Bring Your Own Keys)
+      # Users add their own API keys after signup via Settings page
+      #
+      # Only add these if using Supabase for database (optional):
+      # - SUPABASE_URL (for PostgreSQL database)
+      # - SUPABASE_ANON_KEY (for database access)
+      # - DATABASE_URL (PostgreSQL connection string)
+
+    # Health check
+    healthCheckPath: /health
+
+databases:
+  # Optional: PostgreSQL database (free tier: 90 days)
+  # Uncomment if you want to use PostgreSQL instead of SQLite
+  # - name: silicon-oracle-db
+  #   plan: free
+  #   databaseName: silicon_oracle
+  #   user: silicon_oracle

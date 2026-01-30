@@ -1,0 +1,72 @@
+{# Button Component - Reusable button with consistent styling #}
+
+{% macro button(
+  text,
+  type='primary',
+  size='md',
+  disabled=false,
+  onclick='',
+  xclick='',
+  class='',
+  id='',
+  form_type='button',
+  aria_label=''
+) %}
+  <button
+    {% if id %}id="{{ id }}"{% endif %}
+    type="{{ form_type }}"
+    {% if onclick %}onclick="{{ onclick }}"{% endif %}
+    {% if xclick %}@click="{{ xclick }}"{% endif %}
+    {% if disabled %}disabled{% endif %}
+    {% if aria_label %}aria-label="{{ aria_label }}"{% endif %}
+    class="
+      {# Base styles #}
+      rounded-lg font-medium text-white
+      transition-all duration-300
+      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-oracle-darker
+      active:scale-95
+      disabled:opacity-50 disabled:cursor-not-allowed
+      inline-flex items-center justify-center
+
+      {# Type variants #}
+      {% if type == 'primary' %}
+        bg-gradient-to-r from-oracle-primary to-oracle-secondary
+        hover:shadow-lg hover:shadow-oracle-primary/25
+        focus:ring-oracle-primary
+      {% elif type == 'success' %}
+        bg-gradient-to-r from-green-500 to-green-600
+        hover:shadow-lg hover:shadow-green-500/25
+        focus:ring-green-500
+      {% elif type == 'danger' %}
+        bg-red-500/90 hover:bg-red-500
+        hover:shadow-lg hover:shadow-red-500/25
+        focus:ring-red-500
+      {% elif type == 'ghost' %}
+        bg-transparent hover:bg-white/5
+        border border-oracle-border
+        focus:ring-oracle-primary
+      {% elif type == 'outline' %}
+        bg-transparent hover:bg-oracle-primary/10
+        border-2 border-oracle-primary text-oracle-primary
+        focus:ring-oracle-primary
+      {% endif %}
+
+      {# Size variants #}
+      {% if size == 'xs' %}
+        px-1.5 py-0.5 text-[10px] min-h-[24px] rounded-sm
+      {% elif size == 'sm' %}
+        px-3 py-1.5 text-sm min-h-[36px]
+      {% elif size == 'lg' %}
+        px-6 py-4 text-lg min-h-[52px]
+      {% else %}
+        px-4 py-2.5 text-base min-h-[44px]
+      {% endif %}
+
+
+      {# Custom classes #}
+      {{ class }}
+    "
+  >
+    {{ text }}
+  </button>
+{% endmacro %}

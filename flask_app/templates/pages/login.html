@@ -1,0 +1,84 @@
+{% extends "layouts/base.html" %}
+{% block title %}Sign In - Silicon Oracle{% endblock %}
+
+{% block content %}
+{% from "components/input.html" import input %}
+{% from "components/button.html" import button %}
+
+<div class="min-h-[calc(100vh-200px)] flex items-center justify-center">
+    <div class="w-full max-w-md animate-fade-in">
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-oracle-primary to-oracle-secondary mb-4">
+                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </div>
+            <h1 class="text-3xl font-bold gradient-text">Welcome Back</h1>
+            <p class="text-gray-400 mt-2">Sign in to your Silicon Oracle account</p>
+        </div>
+
+        <!-- Login Form -->
+        <div class="glass rounded-2xl p-8 border border-gray-800">
+            <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-6">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                {{ input(
+                    name='email',
+                    type='email',
+                    label='Email Address',
+                    placeholder='you@example.com',
+                    required=true,
+                    id='email-input'
+                ) }}
+
+                {{ input(
+                    name='password',
+                    type='password',
+                    label='Password',
+                    placeholder='Enter your password',
+                    required=true,
+                    id='password-input'
+                ) }}
+
+                {{ button(
+                    text='Sign In',
+                    type='primary',
+                    form_type='submit',
+                    class='w-full',
+                    aria_label='Sign in to your account'
+                ) }}
+            </form>
+
+            <div class="mt-6 text-center">
+                <p class="text-gray-500 text-sm">
+                    Don't have an account?
+                    <a href="{{ url_for('auth.signup') }}" class="text-oracle-primary hover:text-oracle-secondary transition-colors font-medium">
+                        Sign Up
+                    </a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Features Highlight -->
+        <div class="mt-8 grid grid-cols-3 gap-4 text-center">
+            <div class="p-3 rounded-xl glass border border-oracle-border">
+                <span class="text-2xl block mb-1" role="img" aria-label="Chart">📊</span>
+                <span class="text-xs text-gray-400">Real-time Analysis</span>
+            </div>
+            <div class="p-3 rounded-xl glass border border-oracle-border">
+                <span class="text-2xl block mb-1" role="img" aria-label="Shield">🛡️</span>
+                <span class="text-xs text-gray-400">Portfolio Sentinel</span>
+            </div>
+            <div class="p-3 rounded-xl glass border border-oracle-border">
+                <span class="text-2xl block mb-1" role="img" aria-label="Robot">🤖</span>
+                <span class="text-xs text-gray-400">AI Insights</span>
+            </div>
+        </div>
+
+        <p class="text-center text-gray-600 text-sm mt-8">
+            Silicon Oracle v2.0 - Powered by AI
+        </p>
+    </div>
+</div>
+{% endblock %}

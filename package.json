@@ -1,0 +1,15 @@
+{
+  "name": "silicon-oracle",
+  "version": "1.0.0",
+  "description": "AI-Powered Stock Analysis Platform",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "tailwindcss -i ./flask_app/static/css/input.css -o ./flask_app/static/css/tailwind.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "tailwindcss": "^3.4.1"
+  }
+}

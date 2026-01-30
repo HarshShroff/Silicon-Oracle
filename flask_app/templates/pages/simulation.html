@@ -1,0 +1,1015 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Sentinel Dashboard - Silicon Oracle{% endblock %}
+{% block page_title %}
+<span class="flex items-center gap-3">
+    <span class="text-2xl">🛡️</span>
+    <span>Portfolio Sentinel</span>
+    <span class="badge badge-info text-xs">SIMULATION MODE</span>
+</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Live indicator pulse animation */
+    @keyframes livePulse {
+        0%, 100% {
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+        }
+        50% {
+            opacity: 0.8;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);
+        }
+    }
+
+    .live-indicator {
+        animation: livePulse 2s ease-in-out infinite;
+    }
+
+    /* Stale data indicator */
+    .stale-indicator {
+        animation: none;
+        background: #6b7280 !important;
+    }
+
+    /* Row highlight animation for alerts */
+    @keyframes alertGlow {
+        0%, 100% {
+            box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.3);
+        }
+        50% {
+            box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.5);
+        }
+    }
+
+    .alert-row {
+        animation: alertGlow 2s ease-in-out infinite;
+    }
+
+    /* Score gauge styling */
+    .score-gauge {
+        position: relative;
+        width: 48px;
+        height: 48px;
+    }
+
+    .score-gauge-circle {
+        transform: rotate(-90deg);
+        transform-origin: 50% 50%;
+    }
+
+    /* Smooth number transitions */
+    .value-transition {
+        transition: color 0.3s ease;
+    }
+
+    /* Enhanced card hover effects */
+    .position-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .position-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Mobile optimizations */
+    @media (max-width: 768px) {
+        .mobile-compact {
+            padding: 12px !important;
+        }
+
+        .mobile-text-sm {
+            font-size: 0.875rem;
+        }
+
+        .mobile-text-xs {
+            font-size: 0.75rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="sentinelDashboard()" x-init="init()" class="space-y-6">
+
+    <!-- HUD Display - Top Row -->
+    <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
+
+        <!-- Total Portfolio Value -->
+        <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5 card-interactive">
+            <div class="flex items-center justify-between mb-2 md:mb-3">
+                <span class="text-xs md:text-sm text-gray-400 font-medium">Total Value</span>
+                <div class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-br from-oracle-primary/20 to-oracle-secondary/20 flex items-center justify-center">
+                    <svg class="w-4 h-4 md:w-5 md:h-5 text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <template x-if="loading">
+                    <div class="loading-skeleton h-7 md:h-8 w-24 md:w-32"></div>
+                </template>
+                <template x-if="!loading">
+                    <span class="text-xl md:text-2xl font-bold value-transition" x-text="formatCurrency(summary.total_value)">$0.00</span>
+                </template>
+            </div>
+            <div class="mt-1 md:mt-2 text-xs md:text-sm text-gray-500">
+                <span x-text="summary.position_count || 0"></span> positions
+            </div>
+        </div>
+
+        <!-- Unrealized P&L -->
+        <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5 card-interactive">
+            <div class="flex items-center justify-between mb-2 md:mb-3">
+                <span class="text-xs md:text-sm text-gray-400 font-medium">P&L</span>
+                <div class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center"
+                     :class="summary.total_pnl >= 0 ? 'bg-green-500/20' : 'bg-red-500/20'">
+                    <svg class="w-4 h-4 md:w-5 md:h-5" :class="summary.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <template x-if="loading">
+                    <div class="loading-skeleton h-7 md:h-8 w-24 md:w-32"></div>
+                </template>
+                <template x-if="!loading">
+                    <span class="text-xl md:text-2xl font-bold value-transition"
+                          :class="summary.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'"
+                          x-text="formatCurrency(summary.total_pnl)">$0.00</span>
+                </template>
+            </div>
+            <div class="mt-1 md:mt-2 text-xs md:text-sm" :class="summary.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'">
+                <span x-text="formatPercent(summary.total_pnl_percent)"></span>
+            </div>
+        </div>
+
+        <!-- Active Alerts -->
+        <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5 card-interactive"
+             :class="summary.active_alerts > 0 ? 'border-red-500/50 glow-danger' : ''">
+            <div class="flex items-center justify-between mb-2 md:mb-3">
+                <span class="text-xs md:text-sm text-gray-400 font-medium">Alerts</span>
+                <div class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center"
+                     :class="summary.active_alerts > 0 ? 'bg-red-500/20' : 'bg-gray-500/20'">
+                    <svg class="w-4 h-4 md:w-5 md:h-5" :class="summary.active_alerts > 0 ? 'text-red-400 animate-pulse' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <template x-if="loading">
+                    <div class="loading-skeleton h-7 md:h-8 w-12 md:w-16"></div>
+                </template>
+                <template x-if="!loading">
+                    <span class="text-xl md:text-2xl font-bold"
+                          :class="summary.active_alerts > 0 ? 'text-red-400' : 'text-gray-400'"
+                          x-text="summary.active_alerts || 0">0</span>
+                </template>
+            </div>
+            <div class="mt-1 md:mt-2 text-xs md:text-sm text-gray-500">
+                <span x-show="summary.active_alerts > 0" class="text-red-400">Action needed</span>
+                <span x-show="!summary.active_alerts">All clear</span>
+            </div>
+        </div>
+
+        <!-- Last Sync Time -->
+        <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5 card-interactive">
+            <div class="flex items-center justify-between mb-2 md:mb-3">
+                <span class="text-xs md:text-sm text-gray-400 font-medium">Last Sync</span>
+                <div class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-oracle-card flex items-center justify-center">
+                    <svg class="w-4 h-4 md:w-5 md:h-5 text-gray-400" :class="syncing ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <span class="text-xl md:text-2xl font-bold text-gray-300" x-text="lastSyncDisplay">--:--</span>
+            </div>
+            <div class="mt-1 md:mt-2 text-xs md:text-sm text-gray-500">
+                <span x-show="autoRefresh">Next: <span x-text="refreshCountdown"></span>s</span>
+                <span x-show="!autoRefresh" class="text-yellow-500">Auto-refresh off</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Control Row: Sync + Add Position -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+
+        <!-- Control Panel (Compact) -->
+        <div class="lg:col-span-1 glass rounded-xl md:rounded-2xl p-4 md:p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm md:text-base font-semibold flex items-center gap-2">
+                    <span>🎛️</span>
+                    <span class="hidden sm:inline">Controls</span>
+                </h3>
+                <!-- Connection Status -->
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full"
+                          :class="connected ? 'bg-green-400 live-indicator' : 'bg-red-400'"></span>
+                    <span class="text-xs text-gray-400" x-text="connected ? 'Live' : 'Offline'"></span>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <!-- Force Sync Button -->
+                <button @click="forceSync()"
+                        :disabled="syncing"
+                        class="w-full btn-success px-4 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
+                    <svg x-show="syncing" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span x-show="!syncing">🔄</span>
+                    <span x-text="syncing ? 'Syncing...' : 'Force Sync'"></span>
+                </button>
+
+                <!-- Test Alert Button -->
+                <button @click="testAlert()"
+                        :disabled="testingAlert"
+                        class="w-full bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-4 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
+                    <span x-show="testingAlert">⌛</span>
+                    <span x-text="testingAlert ? 'Sending Test...' : 'Test Email Alert'"></span>
+                </button>
+
+                <!-- Auto-refresh toggle -->
+                <div class="flex items-center justify-between p-3 rounded-xl bg-oracle-card/50">
+                    <span class="text-xs md:text-sm text-gray-400">Auto-refresh</span>
+                    <button @click="autoRefresh = !autoRefresh"
+                            :class="autoRefresh ? 'bg-oracle-primary' : 'bg-gray-600'"
+                            class="relative w-11 h-6 rounded-full transition-colors">
+                        <span :class="autoRefresh ? 'translate-x-5' : 'translate-x-1'"
+                              class="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform"></span>
+                    </button>
+                </div>
+
+                <!-- NEW: Starting Capital Input -->
+                <div class="p-3 rounded-xl bg-oracle-card/50">
+                     <label class="block text-xs font-medium text-gray-400 mb-1.5">Starting Capital ($)</label>
+                     <div class="flex gap-2">
+                        <input type="number" 
+                               x-model="settings.starting_capital"
+                               @change="updateSettings()"
+                               step="10"
+                               class="w-full px-2 py-1.5 rounded bg-gray-700 border border-gray-600 text-sm text-white focus:outline-none focus:border-oracle-primary">
+                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Position Card -->
+        <div class="lg:col-span-3 glass rounded-xl md:rounded-2xl p-4 md:p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm md:text-base font-semibold flex items-center gap-2">
+                    <span>➕</span>
+                    Add Position
+                </h3>
+                <button @click="showAddForm = !showAddForm"
+                        class="text-xs text-oracle-primary hover:text-oracle-secondary transition-colors md:hidden">
+                    <span x-text="showAddForm ? 'Hide' : 'Show'"></span>
+                </button>
+            </div>
+
+            <div x-show="showAddForm" x-collapse>
+                <form @submit.prevent="addPosition()" class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                    <!-- Ticker -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">Ticker</label>
+                        <input type="text"
+                               x-model="newPosition.ticker"
+                               placeholder="AAPL"
+                               class="w-full px-3 py-2.5 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none transition-colors uppercase text-sm"
+                               required>
+                    </div>
+
+                    <!-- Quantity -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">Quantity</label>
+                        <input type="number"
+                               x-model="newPosition.quantity"
+                               placeholder="100"
+                               step="0.001"
+                               min="0.001"
+                               class="w-full px-3 py-2.5 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none transition-colors text-sm"
+                               required>
+                    </div>
+
+                    <!-- Average Cost -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">Entry Price</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                            <input type="number"
+                                   x-model="newPosition.average_entry_price"
+                                   placeholder="150.00"
+                                   step="0.01"
+                                   min="0.01"
+                                   class="w-full pl-7 pr-3 py-2.5 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none transition-colors text-sm"
+                                   required>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="col-span-2 md:col-span-1 flex items-end">
+                        <button type="submit"
+                                :disabled="addingPosition"
+                                class="w-full btn-primary px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
+                            <svg x-show="addingPosition" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span x-text="addingPosition ? 'Adding...' : 'Add'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sentinel Performance Chart -->
+    <div class="glass rounded-xl p-4 md:p-5">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+                <h3 class="font-semibold flex items-center gap-2">
+                    <span>📈</span>
+                    <span>Performance History</span>
+                </h3>
+                <span x-show="lastSyncDisplay" class="text-[10px] text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Live</span>
+            </div>
+            <div class="flex gap-0.5 md:gap-1">
+                <button @click="chartPeriod = '1D'; loadChart()" :class="chartPeriod === '1D' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">1D</button>
+                <button @click="chartPeriod = '1W'; loadChart()" :class="chartPeriod === '1W' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">1W</button>
+                <button @click="chartPeriod = '1M'; loadChart()" :class="chartPeriod === '1M' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'" class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">1M</button>
+            </div>
+        </div>
+        <div class="h-48 md:h-64 relative">
+            <div x-show="chartLoading" class="absolute inset-0 flex items-center justify-center bg-oracle-bg/50 z-10 rounded-lg">
+                <svg class="w-6 h-6 animate-spin text-oracle-primary" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+            <canvas id="sentinelHistoryChart" class="w-full h-full"></canvas>
+            <div x-show="!chartLoading && historyData.length === 0" class="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
+                No performance history yet. Monitoring begins today.
+            </div>
+        </div>
+    </div>
+
+    <!-- Shadow Portfolio Table -->
+    <div class="glass rounded-xl md:rounded-2xl overflow-hidden">
+        <div class="p-4 md:p-5 border-b border-oracle-border flex items-center justify-between">
+            <h3 class="text-sm md:text-base font-semibold flex items-center gap-2">
+                <span>📊</span>
+                Shadow Portfolio
+            </h3>
+            <span class="badge badge-info text-xs" x-text="positions.length + ' positions'"></span>
+        </div>
+
+        <!-- Unified Card View (Mobile & Desktop) -->
+        <div class="p-3 md:p-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <template x-if="loading && positions.length === 0">
+                <div class="text-center py-8">
+                    <svg class="w-8 h-8 animate-spin text-oracle-primary mx-auto mb-3" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-gray-400 text-sm">Loading positions...</span>
+                </div>
+            </template>
+
+            <template x-if="!loading && positions.length === 0">
+                <div class="text-center py-10">
+                    <span class="text-5xl opacity-40 block mb-4">🛡️</span>
+                    <p class="text-gray-400 text-sm mb-1">No positions in Sentinel</p>
+                    <p class="text-gray-500 text-xs">Add your first position above</p>
+                </div>
+            </template>
+
+            <template x-for="position in positions" :key="position.id">
+                <div class="position-card glass rounded-xl p-4"
+                     :class="position.has_alert ? 'border-l-4 border-l-red-500 bg-red-500/5' : ''">
+
+                    <!-- Header Row: Ticker + Name + Live + Status -->
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span x-show="position.has_alert" class="text-red-400">⚠️</span>
+                                <a :href="'/analysis/' + position.ticker"
+                                   class="text-lg font-bold text-white hover:text-oracle-primary"
+                                   x-text="position.ticker"></a>
+                                <!-- Live Indicator -->
+                                <span x-show="position.is_live"
+                                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/20 text-green-400 border border-green-500/30">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-green-400 live-indicator"></span>
+                                    LIVE
+                                </span>
+                            </div>
+                            <p class="text-xs text-gray-500 truncate" x-text="position.company_name || ''"></p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="badge text-xs"
+                                  :class="getStatusBadgeClass(position.status)"
+                                  x-text="position.status"></span>
+                            <button @click="deletePosition(position.id)"
+                                    class="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Qty</span>
+                            <span class="text-gray-300 font-medium" x-text="formatNumber(position.quantity)"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Entry</span>
+                            <span class="text-gray-400" x-text="formatCurrency(position.average_entry_price)"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Live</span>
+                            <span class="font-semibold"
+                                  :class="position.live_price >= position.average_entry_price ? 'text-green-400' : 'text-red-400'"
+                                  x-text="formatCurrency(position.live_price)"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Oracle</span>
+                            <div class="flex flex-col items-end">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold" :class="getScoreTextClass(position.oracle_score)" x-text="Math.round(position.oracle_confidence) + '%'"></span>
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider" :class="getVerdictColorClass(position.oracle_verdict)" x-text="position.oracle_verdict"></span>
+                                </div>
+                                <span class="text-[9px] text-gray-500" x-text="formatNumber(position.oracle_score) + ' pts'"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- P&L Footer -->
+                    <div class="flex items-center justify-between pt-3 border-t border-oracle-border/50">
+                        <div>
+                            <span class="text-xs text-gray-500">Unrealized P&L</span>
+                            <div class="flex items-baseline gap-2">
+                                <span class="font-bold"
+                                      :class="position.unrealized_pnl >= 0 ? 'text-green-400' : 'text-red-400'"
+                                      x-text="formatCurrency(position.unrealized_pnl)"></span>
+                                <span class="text-xs"
+                                      :class="position.unrealized_pnl_percent >= 0 ? 'text-green-500' : 'text-red-500'"
+                                      x-text="'(' + formatPercent(position.unrealized_pnl_percent) + ')'"></span>
+                            </div>
+                        </div>
+                        <a :href="'/analysis/' + position.ticker"
+                           class="btn-primary px-4 py-2 rounded-lg text-xs font-medium">
+                            View Analysis
+                        </a>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Active Alerts Panel -->
+    <template x-if="summary.active_alerts > 0">
+        <div class="glass rounded-xl md:rounded-2xl p-4 md:p-5 border border-red-500/30">
+            <h3 class="text-sm md:text-base font-semibold flex items-center gap-2 mb-4 text-red-400">
+                <span>🚨</span>
+                Active Alerts (<span x-text="summary.active_alerts"></span>)
+            </h3>
+            <div class="space-y-3">
+                <template x-for="position in positions.filter(p => p.has_alert)" :key="'alert-' + position.id">
+                    <template x-for="alert in position.alerts" :key="position.id + '-' + alert.type">
+                        <div class="flex items-start gap-3 md:gap-4 p-3 md:p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+                            <div class="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full bg-red-500/20 flex items-center justify-center text-lg">
+                                <span x-text="alert.type === 'TRAILING_STOP' ? '📉' : alert.type === 'ORACLE_REVERSAL' ? '🔄' : '📅'"></span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span class="font-semibold text-white" x-text="position.ticker"></span>
+                                    <span class="badge text-xs"
+                                          :class="alert.priority === 'CRITICAL' ? 'badge-danger' : alert.priority === 'HIGH' ? 'badge-warning' : 'badge-info'"
+                                          x-text="alert.priority"></span>
+                                </div>
+                                <p class="text-xs md:text-sm text-gray-400" x-text="alert.message"></p>
+                            </div>
+                            <a :href="'/analysis/' + position.ticker"
+                               class="flex-shrink-0 btn-primary px-3 py-1.5 rounded-lg text-xs font-medium">
+                                Review
+                            </a>
+                        </div>
+                    </template>
+                </template>
+            </div>
+        </div>
+    </template>
+
+
+</div>
+
+<script>
+function sentinelDashboard() {
+    return {
+        // State
+        loading: true,
+        syncing: false,
+        testingAlert: false,
+        connected: true,
+        autoRefresh: true,
+        showAddForm: true,
+        addingPosition: false,
+        chart: null,
+        chartLoading: false,
+        chartPeriod: '1D',
+        historyData: [],
+
+        // Data
+        positions: [],
+        summary: {
+            total_value: 0,
+            total_cost: 0,
+            total_pnl: 0,
+            total_pnl_percent: 0,
+            active_alerts: 0,
+            position_count: 0
+        },
+        settings: {
+            starting_capital: 50
+        },
+
+        // Form
+        newPosition: {
+            ticker: '',
+            quantity: '',
+            average_entry_price: ''
+        },
+
+        // UI
+        lastSyncTime: null,
+        lastSyncDisplay: '--:--',
+        refreshCountdown: 60,
+        refreshInterval: null,
+        countdownInterval: null,
+
+
+        // Initialize
+        init() {
+            // Get user_id from template or URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            // Prioritize URL param, fallback to template injection
+            this.userId = urlParams.get('user_id') || "{{ current_user.id if current_user and current_user.id else '' }}";
+            
+            this.fetchSettings();
+            this.fetchData();
+            this.loadChart();
+            this.startAutoRefresh();
+
+            // Slower auto-refresh for chart to keep it clean, every 5 mins
+            setInterval(() => {
+                if (this.chartPeriod === '1D') this.loadChart(true);
+            }, 300000);
+
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', () => {
+                clearInterval(this.refreshInterval);
+                clearInterval(this.countdownInterval);
+            });
+        },
+
+        // Fetch settings
+        async fetchSettings() {
+            try {
+                let url = '/sentinel/settings';
+                if (this.userId) {
+                    url += `?user_id=${this.userId}`;
+                }
+                const res = await fetch(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && !data.error) {
+                        this.settings = data;
+                    }
+                }
+            } catch (e) {
+                console.error("Error fetching settings:", e);
+            }
+        },
+
+        // Update settings
+        async updateSettings() {
+            try {
+                let url = '/sentinel/settings';
+                if (this.userId) {
+                    url += `?user_id=${this.userId}`;
+                }
+                
+                await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.settings)
+                });
+                // Reload data to reflect any capital changes if relevant
+                this.$dispatch('show-toast', { message: 'Settings saved', type: 'success' });
+            } catch (e) {
+                console.error("Error updating settings:", e);
+            }
+        },
+
+        // Fetch enriched position data
+        async fetchData() {
+            try {
+                let url = '/sentinel/positions/enriched';
+                if (this.userId) {
+                    url += `?user_id=${this.userId}`;
+                }
+
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch positions');
+                }
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                this.positions = data.positions || [];
+                this.summary = data.summary || this.summary;
+                this.updateSyncTime();
+                this.connected = true;
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                this.connected = false;
+                if (!this.loading) {
+                    this.$dispatch('show-toast', { message: 'Connection lost. Retrying...', type: 'error' });
+                }
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // Chart Logic
+        async loadChart() {
+            this.chartLoading = true;
+            try {
+                let url = `/sentinel/history?period=${this.chartPeriod}`;
+                if (this.userId) {
+                    url += `&user_id=${this.userId}`;
+                }
+                const res = await fetch(url);
+                const history = await res.json();
+                
+                if (history && !history.error) {
+                    this.historyData = history;
+                    this.$nextTick(() => this.renderChart(history));
+                }
+            } catch (e) {
+                console.error("Error loading sentinel history:", e);
+            } finally {
+                this.chartLoading = false;
+            }
+        },
+
+        renderChart(data) {
+            const canvas = document.getElementById('sentinelHistoryChart');
+            if (!canvas) return;
+            
+            if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
+                // If not visible yet, wait and try again
+                setTimeout(() => this.loadChart(true), 100);
+                return;
+            }
+            
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            if (!data || data.length === 0) return;
+            
+            // Defensive cleanup
+            try {
+                const existingChart = Chart.getChart(canvas);
+                if (existingChart) existingChart.destroy();
+            } catch (e) {}
+            
+            if (this.chart) {
+                try { this.chart.destroy(); } catch (e) {}
+                this.chart = null;
+            }
+
+            // Reverse data for chronological order
+            const plotData = [...data].reverse();
+            
+            const isPositive = plotData[plotData.length-1].total_value >= plotData[0].total_value;
+            const lineColor = isPositive ? '#22c55e' : '#ef4444';
+            const fillColor = isPositive ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+
+            this.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: plotData.map(d => {
+                        const date = new Date(d.timestamp);
+                        if (this.chartPeriod === '1D') {
+                            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        }
+                        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                    }),
+                    datasets: [{
+                        label: 'Portfolio Value',
+                        data: plotData.map(d => d.total_value),
+                        borderColor: lineColor,
+                        backgroundColor: fillColor,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleColor: '#f1f5f9',
+                            bodyColor: '#94a3b8',
+                            borderColor: '#334155',
+                            borderWidth: 1,
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                label: (context) => `$${context.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { 
+                            display: true,
+                            grid: { display: false },
+                            ticks: { 
+                                color: '#64748b', 
+                                font: { size: 9 },
+                                maxTicksLimit: 6
+                            }
+                        },
+                        y: {
+                            grid: { color: 'rgba(71, 85, 105, 0.2)' },
+                            ticks: { 
+                                color: '#94a3b8', 
+                                font: { size: 10 },
+                                callback: (value) => {
+                                    if (value >= 1000) return '$' + (value/1000).toFixed(1) + 'k';
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        },
+
+        // Add new position
+        async addPosition() {
+            if (!this.newPosition.ticker || !this.newPosition.quantity || !this.newPosition.average_entry_price) {
+                this.$dispatch('show-toast', { message: 'Please fill in all fields', type: 'error' });
+                return;
+            }
+
+            try {
+                this.addingPosition = true;
+
+                const response = await fetch('/sentinel/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ticker: this.newPosition.ticker.toUpperCase(),
+                        quantity: parseFloat(this.newPosition.quantity),
+                        average_entry_price: parseFloat(this.newPosition.average_entry_price),
+                        user_id: this.userId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to add position');
+                }
+
+                this.$dispatch('show-toast', { message: `${this.newPosition.ticker.toUpperCase()} added to Sentinel`, type: 'success' });
+                this.newPosition = { ticker: '', quantity: '', average_entry_price: '' };
+                await this.fetchData();
+
+            } catch (error) {
+                console.error('Error adding position:', error);
+                this.$dispatch('show-toast', { message: error.message, type: 'error' });
+            } finally {
+                this.addingPosition = false;
+            }
+        },
+
+        // Delete position
+        async deletePosition(positionId) {
+            if (!confirm('Remove this position from Sentinel?')) {
+                return;
+            }
+
+            try {
+                const url = this.userId ? `/sentinel/position/${positionId}?user_id=${this.userId}` : `/sentinel/position/${positionId}`;
+
+                const response = await fetch(url, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to delete');
+                }
+
+                this.$dispatch('show-toast', { message: 'Position removed', type: 'success' });
+                await this.fetchData();
+
+            } catch (error) {
+                console.error('Error deleting position:', error);
+                this.$dispatch('show-toast', { message: error.message, type: 'error' });
+            }
+        },
+
+        // Force sync
+        async forceSync() {
+            try {
+                this.syncing = true;
+
+                const url = this.userId ? `/sentinel/sync?user_id=${this.userId}` : '/sentinel/sync';
+
+                const response = await fetch(url, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Sync failed');
+                }
+
+                this.$dispatch('show-toast', { message: 'Sentinel sync completed', type: 'success' });
+                await this.fetchData();
+                this.resetCountdown();
+
+            } catch (error) {
+                console.error('Sync error:', error);
+                this.$dispatch('show-toast', { message: 'Sync failed: ' + error.message, type: 'error' });
+            } finally {
+                this.syncing = false;
+            }
+        },
+
+        async testAlert() {
+            try {
+                this.testingAlert = true;
+                const response = await fetch('/sentinel/test-alert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    this.$dispatch('show-toast', { message: 'Test alert sent! Check your inbox.', type: 'success' });
+                } else {
+                    throw new Error(data.error || 'Failed to send test alert');
+                }
+            } catch (error) {
+                console.error('Test alert error:', error);
+                this.$dispatch('show-toast', { message: error.message, type: 'error' });
+            } finally {
+                this.testingAlert = false;
+            }
+        },
+
+        // Auto-refresh logic
+        startAutoRefresh() {
+            this.refreshInterval = setInterval(() => {
+                if (this.autoRefresh && !this.syncing) {
+                    this.fetchData();
+                    this.resetCountdown();
+                }
+            }, 60000);
+
+            this.countdownInterval = setInterval(() => {
+                if (this.autoRefresh) {
+                    this.refreshCountdown = Math.max(0, this.refreshCountdown - 1);
+                }
+            }, 1000);
+        },
+
+        resetCountdown() {
+            this.refreshCountdown = 60;
+        },
+
+        updateSyncTime() {
+            this.lastSyncTime = new Date();
+            this.lastSyncDisplay = this.lastSyncTime.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        },
+
+        // Formatters
+        formatCurrency(value) {
+            if (value === null || value === undefined) return '$0.00';
+            const prefix = value < 0 ? '-' : '';
+            return prefix + '$' + Math.abs(value).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        },
+
+        formatPercent(value) {
+            if (value === null || value === undefined) return '0.00%';
+            const prefix = value >= 0 ? '+' : '';
+            return prefix + value.toFixed(2) + '%';
+        },
+
+        formatNumber(value) {
+            if (value === null || value === undefined) return '0';
+            return value.toLocaleString('en-US', {
+                minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+                maximumFractionDigits: 3
+            });
+        },
+
+        getScoreColorClass(score) {
+            if (!score) return 'bg-gray-500';
+            const pct = (score / 12) * 100;
+            if (pct >= 75) return 'bg-green-500';  // Strong Buy
+            if (pct >= 55) return 'bg-green-400';  // Buy
+            if (pct >= 40) return 'bg-yellow-500'; // Hold
+            if (pct >= 25) return 'bg-orange-500'; // Avoid
+            return 'bg-red-500';                   // Strong Sell
+        },
+
+        getScoreTextClass(score) {
+            if (!score) return 'text-gray-400';
+            const pct = (score / 12) * 100;
+            if (pct >= 75) return 'text-green-400';  // Strong Buy
+            if (pct >= 55) return 'text-green-400';  // Buy (Using same as green-400 for consistency)
+            if (pct >= 40) return 'text-yellow-400'; // Hold
+            if (pct >= 25) return 'text-orange-400'; // Avoid
+            return 'text-red-400';                   // Strong Sell
+        },
+
+        getVerdictColorClass(verdict) {
+            if (!verdict) return 'bg-gray-500/10 text-gray-400';
+            const v = verdict.toUpperCase();
+            if (v.includes('STRONG BUY')) return 'bg-green-500/20 text-green-400';
+            if (v.includes('BUY')) return 'bg-green-400/20 text-green-400';
+            if (v.includes('HOLD') || v.includes('WATCH')) return 'bg-yellow-500/20 text-yellow-400';
+            if (v.includes('AVOID')) return 'bg-orange-500/20 text-orange-400';
+            if (v.includes('SELL')) return 'bg-red-500/20 text-red-400';
+            return 'bg-gray-500/10 text-gray-400';
+        },
+
+        getVerdictTextClass(verdict) {
+            if (!verdict) return 'text-gray-400';
+            const v = verdict.toUpperCase();
+            if (v.includes('STRONG BUY')) return 'text-green-400';
+            if (v.includes('BUY')) return 'text-green-400';
+            if (v.includes('HOLD') || v.includes('WATCH')) return 'text-yellow-400';
+            if (v.includes('AVOID')) return 'text-orange-400';
+            if (v.includes('SELL')) return 'text-red-400';
+            return 'text-gray-400';
+        },
+
+        getStatusBadgeClass(status) {
+            switch (status) {
+                case 'Earnings Soon':
+                    return 'badge-warning';
+                case 'Alert':
+                    return 'badge-danger';
+                default:
+                    return 'badge-success';
+            }
+        },
+
+        showToast(message, type = 'info') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => {
+                this.toast.show = false;
+            }, 4000);
+        }
+    }
+}
+</script>
+{% endblock %}

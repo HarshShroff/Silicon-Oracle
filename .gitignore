@@ -1,0 +1,42 @@
+# Secrets - NEVER commit these
+.streamlit/secrets.toml
+.env
+.env.local
+*.pem
+*.key
+
+# Database
+*.db
+portfolio.db
+instance/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.eggs/
+*.egg-info/
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Cache
+.cache/

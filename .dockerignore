@@ -1,0 +1,56 @@
+# Don't copy these to Docker image
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Git
+.git/
+.gitignore
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+silicon_oracle.log
+
+# Database (will be created in container)
+*.db
+portfolio.db
+
+# Secrets
+.streamlit/secrets.toml
+
+# Backups
+backup_*/
+
+# Node
+node_modules/
+
+# Cache
+.ruff_cache/
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test_*.py
+*_test.py
+tests/

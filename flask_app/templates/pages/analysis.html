@@ -1,0 +1,963 @@
+{% extends "layouts/base.html" %} {% block title %}{{ ticker }} Analysis - Silicon Oracle{% endblock %} {% block page_title %}{{ ticker }} Analysis{% endblock %} {% block content %}
+<div x-data="analysisPage()" x-init="init()" class="space-y-4 md:space-y-6">
+
+    <!-- Compact Ticker Search -->
+    <div class="flex gap-2 md:gap-4">
+        <input type="text" name="ticker" value="{{ ticker }}" placeholder="Ticker..." 
+               class="flex-1 max-w-[120px] md:max-w-xs px-3 md:px-4 py-2 md:py-3 rounded-lg md:rounded-xl bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none font-medium uppercase text-sm md:text-lg text-center"
+            @keydown.enter="if ($el.value) { window.location.href = '/analysis/' + $el.value.toUpperCase() }">
+        <button type="button" class="px-4 md:px-6 py-2 md:py-3 rounded-lg md:rounded-xl bg-oracle-primary hover:bg-oracle-secondary transition-colors font-medium text-sm md:text-base" 
+                @click="const input = $el.previousElementSibling; if (input.value) { window.location.href = '/analysis/' + input.value.toUpperCase() }">
+            Go
+        </button>
+        <a href="{{ url_for('main.trade', ticker=ticker) }}" 
+           class="px-4 md:px-6 py-2 md:py-3 rounded-lg md:rounded-xl btn-success text-sm md:text-base whitespace-nowrap ml-auto">
+            Buy
+        </a>
+    </div>
+
+    <!-- Price Header - Compact with Stats Inline -->
+    <div class="glass rounded-xl p-4 md:p-6">
+        <div class="flex items-center justify-between gap-4">
+            <!-- Left: Ticker & Price -->
+            <div class="flex-shrink-0">
+                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                    <h2 class="text-xl md:text-2xl font-bold gradient-text">{{ ticker }}</h2>
+                    {% if stock_data.company %}
+                    <span class="text-gray-400 text-xs md:text-sm truncate max-w-[100px] md:max-w-[200px]">{{ stock_data.company.name }}</span>
+                    {% endif %}
+                    <!-- Live Indicator -->
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-green-500/20 text-green-400 border border-green-500/30">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-400 live-indicator"></span>
+                        LIVE
+                    </span>
+                </div>
+
+                {% if stock_data.quote and stock_data.quote.current %}
+                <div class="flex items-baseline gap-2">
+                    <span id="live-price" class="text-2xl md:text-3xl font-bold tracking-tight transition-all duration-300">${{ "%.2f"|format(stock_data.quote.current) }}</span>
+                    <span id="live-change" class="text-sm md:text-base font-semibold transition-all duration-300 {% if stock_data.quote.change >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
+                        {{ "%+.2f"|format(stock_data.quote.change) }} ({{ "%+.2f"|format(stock_data.quote.percent_change) }}%)
+                    </span>
+                </div>
+                {% else %}
+                <div class="h-8 w-32 loading-skeleton"></div>
+                {% endif %}
+            </div>
+
+            <!-- Right: Key Stats Inline -->
+            {% if stock_data.company %}
+            <div class="hidden md:flex items-center gap-4 text-sm">
+                <div class="text-center px-3 py-1 bg-oracle-card rounded-lg">
+                    <p class="text-gray-500 text-xs">Mkt Cap</p>
+                    <p class="font-medium">{{ ("{:,.0f}".format(stock_data.company.market_cap / 1e9)) if stock_data.company.market_cap else 'N/A' }}B</p>
+                </div>
+                <div class="text-center px-3 py-1 bg-oracle-card rounded-lg">
+                    <p class="text-gray-500 text-xs">P/E</p>
+                    <p class="font-medium">{{ "%.1f"|format(stock_data.company.pe_ratio) if stock_data.company.pe_ratio else 'N/A' }}</p>
+                </div>
+                <div class="text-center px-3 py-1 bg-oracle-card rounded-lg">
+                    <p class="text-gray-500 text-xs">52W H</p>
+                    <p class="font-medium">${{ "%.0f"|format(stock_data.company.year_high) if stock_data.company.year_high else 'N/A' }}</p>
+                </div>
+                <div class="text-center px-3 py-1 bg-oracle-card rounded-lg">
+                    <p class="text-gray-500 text-xs">52W L</p>
+                    <p class="font-medium">${{ "%.0f"|format(stock_data.company.year_low) if stock_data.company.year_low else 'N/A' }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Mobile: Key Stats Row -->
+        {% if stock_data.company %}
+        <div class="md:hidden grid grid-cols-4 gap-1 mt-3 text-center text-xs">
+            <div class="bg-oracle-card rounded px-2 py-1">
+                <p class="text-gray-500">Mkt</p>
+                <p class="font-medium">{{ ("{:,.0f}".format(stock_data.company.market_cap / 1e9)) if stock_data.company.market_cap else 'N/A' }}B</p>
+            </div>
+            <div class="bg-oracle-card rounded px-2 py-1">
+                <p class="text-gray-500">P/E</p>
+                <p class="font-medium">{{ "%.1f"|format(stock_data.company.pe_ratio) if stock_data.company.pe_ratio else 'N/A' }}</p>
+            </div>
+            <div class="bg-oracle-card rounded px-2 py-1">
+                <p class="text-gray-500">High</p>
+                <p class="font-medium">${{ "%.0f"|format(stock_data.company.year_high) if stock_data.company.year_high else 'N/A' }}</p>
+            </div>
+            <div class="bg-oracle-card rounded px-2 py-1">
+                <p class="text-gray-500">Low</p>
+                <p class="font-medium">${{ "%.0f"|format(stock_data.company.year_low) if stock_data.company.year_low else 'N/A' }}</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Mobile Tab Navigation -->
+    <div class="mb-4 md:hidden sticky top-16 z-30 bg-oracle-darker/95 backdrop-blur-md -mx-4 px-4 py-2 border-b border-oracle-border">
+        <div class="flex gap-1 overflow-x-auto hide-scrollbar">
+            <button @click="activeTab = 'chart'" 
+                    :class="activeTab === 'chart' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
+                    class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
+                📈 Chart
+            </button>
+            <button @click="activeTab = 'oracle'" 
+                    :class="activeTab === 'oracle' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
+                    class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
+                🔮 Oracle
+            </button>
+            <button @click="activeTab = 'ai'" 
+                    :class="activeTab === 'ai' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
+                    class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
+                🤖 AI
+            </button>
+            <button @click="activeTab = 'more'" 
+                    :class="activeTab === 'more' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
+                    class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
+                📊 More
+            </button>
+        </div>
+    </div>
+
+    <!-- Desktop: Grid Layout, Mobile: Tabbed Content -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+
+        <!-- Main Content (Chart + Metrics) -->
+        <div class="lg:col-span-2 space-y-4 md:space-y-6" :class="{ 'hidden md:block': activeTab !== 'chart' && activeTab !== 'more' }">
+
+            <!-- Chart - Always Visible on Chart Tab -->
+            <div x-show="activeTab === 'chart' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
+                <div class="flex items-center justify-between mb-3 md:mb-4">
+                    <h3 class="text-base md:text-lg font-semibold">Price Chart</h3>
+                    <div class="flex gap-0.5 md:gap-1">
+                        {% for period in ['1D', '5D', '1M', '3M', '1Y'] %}
+                        <button @click="loadChart('{{ period }}')"
+                                :class="chartPeriod === '{{ period }}' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
+                                class="px-1 py-0.5 md:px-2 rounded text-[10px] md:text-xs transition-colors min-w-[24px] md:min-w-[28px]">
+                            {{ period }}
+                        </button>{% endfor %}
+                    </div>
+                </div>
+                <div class="h-48 md:h-80 relative">
+                    <div x-show="chartLoading" class="absolute inset-0 flex items-center justify-center bg-oracle-card/50 rounded-xl z-10">
+                        <div class="flex items-center gap-2 text-gray-400">
+                            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            <span class="text-sm">Loading...</span>
+                        </div>
+                    </div>
+                    <div x-show="chartError" class="absolute inset-0 flex items-center justify-center text-red-400 text-sm">
+                        <span x-text="chartError"></span>
+                    </div>
+                    <canvas id="priceChart" class="w-full h-full"></canvas>
+                </div>
+            </div>
+
+            <!-- Quick Metrics - Compact for mobile -->
+            <div x-show="activeTab === 'chart' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-base font-semibold">Quick Metrics</h3>
+                </div>
+                <div class="grid grid-cols-4 gap-2 md:gap-4">
+                    <div class="text-center p-2 md:p-3 bg-oracle-card rounded-lg">
+                        <p class="text-gray-500 text-xs mb-1">RSI</p>
+                        <p class="text-lg md:text-xl font-bold {% if stock_data.technicals and stock_data.technicals.rsi and stock_data.technicals.rsi < 30 %}text-green-400{% elif stock_data.technicals and stock_data.technicals.rsi and stock_data.technicals.rsi > 70 %}text-red-400{% endif %}">
+                            {% if stock_data.technicals and stock_data.technicals.rsi %}{{ "%.0f"|format(stock_data.technicals.rsi) }}{% else %}--{% endif %}
+                        </p>
+                    </div>
+                    <div class="text-center p-2 md:p-3 bg-oracle-card rounded-lg">
+                        <p class="text-gray-500 text-xs mb-1">P/E</p>
+                        <p class="text-lg md:text-xl font-bold">{{ "%.0f"|format(stock_data.company.pe_ratio) if stock_data.company and stock_data.company.pe_ratio else '--' }}</p>
+                    </div>
+                    <div class="text-center p-2 md:p-3 bg-oracle-card rounded-lg">
+                        <p class="text-gray-500 text-xs mb-1">Vol%</p>
+                        <p class="text-lg md:text-xl font-bold">{% if stock_data.technicals and stock_data.technicals.volatility %}{{ "%.0f"|format(stock_data.technicals.volatility) }}{% else %}--{% endif %}</p>
+                    </div>
+                    <div class="text-center p-2 md:p-3 bg-oracle-card rounded-lg">
+                        <p class="text-gray-500 text-xs mb-1">Trend</p>
+                        <p class="text-sm md:text-base font-bold {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 and stock_data.technicals.price > stock_data.technicals.sma_50 %}text-green-400{% else %}text-red-400{% endif %}">
+                            {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 %}{% if stock_data.technicals.price > stock_data.technicals.sma_50 %}📈{% else %}📉{% endif %}{% else %}--{% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- More Tab Content (News, Monte Carlo, Technicals) -->
+            <template x-if="activeTab === 'more' || window.innerWidth >= 768">
+                <div class="space-y-4 md:space-y-6">
+                    <!-- Monte Carlo - Commented out for now
+                    <div class="glass rounded-2xl overflow-hidden" x-data="{ expanded: false }">
+                        <button @click="expanded = !expanded" class="w-full p-4 md:p-6 flex items-center justify-between md:cursor-default">
+                            <h3 class="text-base md:text-lg font-semibold">🎲 Monte Carlo Simulation</h3>
+                            <div class="flex items-center gap-2">
+                                <button @click.stop="runMonteCarlo()" :disabled="monteCarloLoading" 
+                                        class="px-3 py-1.5 rounded-lg bg-oracle-primary hover:bg-blue-600 disabled:opacity-50 text-xs font-medium">
+                                    <span x-show="!monteCarloLoading">Run</span>
+                                    <span x-show="monteCarloLoading">...</span>
+                                </button>
+                                <svg class="w-5 h-5 text-gray-400 md:hidden transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </div>
+                        </button>
+                        <div x-show="expanded || window.innerWidth >= 768" x-collapse class="px-4 pb-4 md:px-6 md:pb-6">
+                            <div class="h-48 md:h-64 relative">
+                                <div x-show="!monteCarloLoading && !monteCarloData" class="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
+                                    Click "Run" to project prices
+                                </div>
+                                <canvas id="monteCarloChart" x-show="monteCarloData" class="w-full h-full"></canvas>
+                            </div>
+                            <div x-show="monteCarloData" class="grid grid-cols-3 gap-2 mt-3 text-center">
+                                <div class="p-2 bg-oracle-card rounded-lg">
+                                    <p class="text-gray-500 text-xs">Worst (5%)</p>
+                                    <p class="text-base font-bold text-red-400" x-text="'$' + monteCarloWorst.toFixed(0)">--</p>
+                                </div>
+                                <div class="p-2 bg-oracle-card rounded-lg">
+                                    <p class="text-gray-500 text-xs">Expected</p>
+                                    <p class="text-base font-bold" x-text="'$' + monteCarloMean.toFixed(0)">--</p>
+                                </div>
+                                <div class="p-2 bg-oracle-card rounded-lg">
+                                    <p class="text-gray-500 text-xs">Best (95%)</p>
+                                    <p class="text-base font-bold text-green-400" x-text="'$' + monteCarloBest.toFixed(0)">--</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    -->
+
+                    <!-- News - Collapsible -->
+                    {% if stock_data.news %}
+                    <div class="glass rounded-2xl overflow-hidden" x-data="{ expanded: false }">
+                        <button @click="expanded = !expanded" class="w-full p-4 md:p-6 flex items-center justify-between md:cursor-default">
+                            <h3 class="text-base md:text-lg font-semibold">📰 Latest News</h3>
+                            <span class="text-xs text-gray-400 bg-oracle-card px-2 py-1 rounded">{{ stock_data.news|length }} articles</span>
+                        </button>
+                        <div x-show="expanded || window.innerWidth >= 768" x-collapse class="px-4 pb-4 md:px-6 md:pb-6 space-y-2 max-h-80 overflow-y-auto">
+                            {% for item in stock_data.news %}
+                            <a href="{{ item.url }}" target="_blank" class="block p-3 bg-oracle-card rounded-lg hover:bg-oracle-border transition-colors">
+                                <h4 class="text-sm font-medium line-clamp-2">{{ item.headline }}</h4>
+                                <p class="text-xs text-gray-500 mt-1">{{ item.source }}</p>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Peers -->
+                    {% if stock_data.peers %}
+                    <div class="glass rounded-2xl p-4 md:p-6">
+                        <h3 class="text-base font-semibold mb-3">Similar Stocks</h3>
+                        <div class="flex flex-wrap gap-2">
+                            {% for peer in stock_data.peers[:8] %}
+                            <a href="{{ url_for('main.analysis', ticker=peer) }}" class="px-3 py-1.5 bg-oracle-card rounded-lg hover:bg-oracle-border text-sm font-medium">{{ peer }}</a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </template>
+        </div>
+
+        <!-- Sidebar: Oracle Score (Mobile: Oracle Tab) -->
+        <div class="space-y-4 md:space-y-6" :class="{ 'hidden md:block': activeTab !== 'oracle' && activeTab !== 'ai' }">
+
+            <!-- Oracle Verdict - Compact -->
+            <div x-show="activeTab === 'oracle' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
+                <h3 class="text-base md:text-lg font-semibold mb-4 text-center">🔮 Oracle Verdict</h3>
+                
+                <!-- Compact Score Display -->
+                <div class="flex items-center justify-center gap-6 mb-4">
+                    <div class="relative w-24 h-24 md:w-32 md:h-32">
+                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="42" fill="none" stroke="#1e293b" stroke-width="8"/>
+                            <circle cx="50" cy="50" r="42" fill="none" stroke="url(#gradient)" stroke-width="8" stroke-linecap="round"
+                                    stroke-dasharray="{{ oracle.confidence * 2.64 }} 264"/>
+                            <defs>
+                                <linearGradient id="gradient">
+                                    <stop offset="0%" stop-color="#22c55e"/>
+                                    <stop offset="50%" stop-color="#eab308"/>
+                                    <stop offset="100%" stop-color="#ef4444"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <span class="text-2xl md:text-3xl font-bold">{{ oracle.confidence }}%</span>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        {% set verdict_colors = { 'STRONG_BUY': 'bg-green-500', 'BUY': 'bg-green-400', 'HOLD': 'bg-yellow-500', 'AVOID': 'bg-orange-500', 'STRONG_SELL': 'bg-red-500' } %}
+                        <span class="inline-block px-4 py-1.5 rounded-full text-sm md:text-base font-bold {{ verdict_colors.get(oracle.verdict, 'bg-gray-500') }}">
+                            {{ oracle.verdict_text }}
+                        </span>
+                        <p class="text-gray-400 mt-2 text-xs md:text-sm">{{ oracle.verdict_detail }}</p>
+                    </div>
+                </div>
+
+                <!-- Factor Summary - Collapsible -->
+                <div x-data="{ showFactors: false }">
+                    <button @click="showFactors = !showFactors" class="w-full flex items-center justify-between p-3 bg-oracle-card rounded-lg">
+                        <span class="text-sm font-medium">Factor Breakdown</span>
+                        <span class="text-xs text-gray-400">{{ oracle.available_factors }}/{{ oracle.total_factors }} factors</span>
+                    </button>
+                    <div x-show="showFactors" x-collapse class="mt-2 space-y-1">
+                        {% for factor in oracle.factors %}
+                        <div class="flex items-center justify-between p-2 text-sm">
+                            <span class="flex items-center gap-2">
+                                {% if factor.signal == 'Bullish' %}<span class="w-2 h-2 rounded-full bg-green-400"></span>
+                                {% elif factor.signal == 'Bearish' %}<span class="w-2 h-2 rounded-full bg-red-400"></span>
+                                {% else %}<span class="w-2 h-2 rounded-full bg-gray-500"></span>{% endif %}
+                                {{ factor.name }}
+                            </span>
+                            <span class="{% if factor.signal == 'Bullish' %}text-green-400{% elif factor.signal == 'Bearish' %}text-red-400{% else %}text-gray-400{% endif %}">
+                                {{ factor.signal }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analyst Recommendations - Compact -->
+            {% if stock_data and stock_data.recommendations and stock_data.recommendations|length > 0 %}
+            <div x-show="activeTab === 'oracle' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
+                <h3 class="text-base font-semibold mb-3">📊 Analysts</h3>
+                {% set latest = stock_data.recommendations[0] %}
+                {% set total = (latest.strongBuy|default(0)) + (latest.buy|default(0)) + (latest.hold|default(0)) + (latest.sell|default(0)) + (latest.strongSell|default(0)) %}
+                {% if total > 0 %}
+                {% set bullish_pct = ((latest.strongBuy|default(0) + latest.buy|default(0)) / total * 100)|round %}
+                <div class="flex items-center gap-4">
+                    <div class="flex-1">
+                        <div class="h-3 rounded-full bg-oracle-card overflow-hidden flex">
+                            <div class="bg-green-500 h-full" style="width: {{ ((latest.strongBuy|default(0)) / total * 100)|round }}%"></div>
+                            <div class="bg-green-400 h-full" style="width: {{ ((latest.buy|default(0)) / total * 100)|round }}%"></div>
+                            <div class="bg-yellow-500 h-full" style="width: {{ ((latest.hold|default(0)) / total * 100)|round }}%"></div>
+                            <div class="bg-orange-500 h-full" style="width: {{ ((latest.sell|default(0)) / total * 100)|round }}%"></div>
+                            <div class="bg-red-500 h-full" style="width: {{ ((latest.strongSell|default(0)) / total * 100)|round }}%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-400 mt-1">
+                            <span>Buy: {{ latest.strongBuy|default(0) + latest.buy|default(0) }}</span>
+                            <span>Hold: {{ latest.hold|default(0) }}</span>
+                            <span>Sell: {{ latest.sell|default(0) + latest.strongSell|default(0) }}</span>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-xl font-bold {% if bullish_pct >= 60 %}text-green-400{% elif bullish_pct >= 40 %}text-yellow-400{% else %}text-red-400{% endif %}">{{ bullish_pct }}%</span>
+                        <p class="text-xs text-gray-400">Bullish</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- AI Deep Dive (Mobile: AI Tab) -->
+            <div x-show="activeTab === 'ai' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base md:text-lg font-semibold">🤖 AI Analysis</h3>
+                    <button @click="generateAIDeepDive()" :disabled="aiLoading" 
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium"
+                            :class="aiAnalysis ? 'bg-oracle-card hover:bg-oracle-border' : 'bg-oracle-primary hover:bg-blue-600'"
+                            x-text="aiLoading ? 'Analyzing...' : (aiAnalysis ? 'Refresh' : 'Generate')">
+                    </button>
+                </div>
+
+                <div x-show="aiLoading" class="py-6 text-center text-gray-400">
+                    <svg class="w-6 h-6 animate-spin mx-auto mb-2 text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    <p class="text-sm">Searching real-time data...</p>
+                </div>
+
+                <div x-show="!aiLoading && !aiAnalysis" class="py-6 text-center text-gray-500">
+                    <p class="text-sm">Tap "Generate" for AI-powered insights</p>
+                </div>
+
+                <div x-show="aiAnalysis" x-transition class="space-y-4">
+                    <!-- AI Score -->
+                    <div class="flex items-center gap-3 bg-oracle-card rounded-lg p-3">
+                        <div class="text-center min-w-[60px]">
+                            <p class="text-xl font-bold" 
+                               :class="aiLabel === 'Bullish' ? 'text-green-400' : (aiLabel === 'Bearish' ? 'text-red-400' : 'text-yellow-400')" 
+                               x-text="aiLabel">--</p>
+                            <p class="text-xs text-gray-500" x-text="aiScore + '/100'">--</p>
+                        </div>
+                        <div class="flex-1">
+                            <div class="w-full bg-oracle-border rounded-full h-2">
+                                <div class="h-2 rounded-full transition-all"
+                                     :class="aiLabel === 'Bullish' ? 'bg-green-500' : (aiLabel === 'Bearish' ? 'bg-red-500' : 'bg-yellow-500')"
+                                     :style="`width: ${aiScore}%`"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Content -->
+                    <div class="prose prose-invert prose-sm max-w-none text-sm max-h-[400px] overflow-y-auto" x-html="aiAnalysis"></div>
+                    <p class="text-xs text-gray-500 text-right">ℹ️ Powered by Gemini + Google Search</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function analysisPage() {
+        return {
+            loading: false,
+            chartLoading: true,
+            chartError: null,
+            chartPeriod: '1D',
+            chart: null,
+
+            // Monte Carlo
+            monteCarloLoading: false,
+            monteCarloData: null,
+            monteCarloChart: null,
+            monteCarloWorst: 0,
+            monteCarloMean: 0,
+            monteCarloBest: 0,
+
+            // AI Deep Dive
+            aiLoading: false,
+            aiAnalysis: null,
+            aiScore: 0,
+            aiLabel: '',
+
+            // Mobile Tab Navigation
+            activeTab: 'chart',
+
+            init() {
+                // Wait for DOM, Alpine.js, and Chart.js to be fully ready
+                const self = this;
+
+                // Function to check if Chart.js is ready and canvas is available
+                 const initChart = () => {
+                    const canvas = document.getElementById('priceChart');
+                    // Ensure Chart.js is loaded and the canvas element is rendered and visible
+                    if (typeof Chart !== 'undefined' && canvas && canvas.offsetParent !== null) {
+                        self.loadChart('1D');
+                        self.calculateMetrics();
+                    } else {
+                        // Retry after a short delay if canvas is not ready
+                        setTimeout(initChart, 100);
+                    }
+                };
+
+                // Start initialization after Alpine.js has processed the DOM
+                this.$nextTick(() => {
+                    initChart();
+                    
+                    // Auto-refresh prices every 30 seconds
+                    setInterval(() => {
+                        self.updatePrice();
+                    }, 10000);
+                });
+            },
+
+            async updatePrice() {
+                try {
+                    const response = await fetch(`/api/stock/{{ ticker }}/quote`);
+                    const data = await response.json();
+
+                    if (!data || data.error) return;
+
+                    const priceEl = document.getElementById('live-price');
+                    const changeEl = document.getElementById('live-change');
+                    
+                    if (priceEl) {
+                        const oldPrice = parseFloat(priceEl.textContent.replace('$', ''));
+                        const newPrice = data.current;
+                        const priceChanged = Math.abs(oldPrice - newPrice) > 0.001;
+                        
+                        // Determine if price went up or down
+                        const isUp = newPrice > oldPrice;
+                        
+                        if (priceChanged) {
+                            // Add rollover animation class
+                            priceEl.classList.add('price-updating');
+                            
+                            // Flash color based on direction
+                            if (isUp) {
+                                priceEl.style.color = '#22c55e'; // green
+                                priceEl.style.transform = 'scale(1.05)';
+                            } else {
+                                priceEl.style.color = '#ef4444'; // red
+                                priceEl.style.transform = 'scale(1.05)';
+                            }
+                            
+                            // Update value after short delay for "roll" effect
+                            setTimeout(() => {
+                                priceEl.textContent = '$' + newPrice.toFixed(2);
+                            }, 100);
+                            
+                            // Reset style after animation
+                            setTimeout(() => {
+                                priceEl.style.color = '';
+                                priceEl.style.transform = 'scale(1)';
+                                priceEl.classList.remove('price-updating');
+                            }, 600);
+                        }
+                    }
+                    
+                    if (changeEl) {
+                        const changeStr = (data.change >= 0 ? '+' : '') + data.change.toFixed(2);
+                        const pctStr = (data.change >= 0 ? '+' : '') + data.percent_change.toFixed(2) + '%';
+                        
+                        // Flash effect on change too
+                        changeEl.style.transform = 'scale(1.05)';
+                        
+                        setTimeout(() => {
+                            changeEl.textContent = `${changeStr} (${pctStr})`;
+                            // Update color class
+                            changeEl.className = `text-sm md:text-base font-semibold transition-all duration-300 ${data.change >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                        }, 100);
+                        
+                        setTimeout(() => {
+                            changeEl.style.transform = 'scale(1)';
+                        }, 600);
+                    }
+
+                    // Show a brief "Updated" indicator
+                    this.showUpdateIndicator();
+
+                } catch (error) {
+                    console.error('Price update error:', error);
+                }
+            },
+
+            showUpdateIndicator() {
+                // Create a small indicator that fades out
+                const indicator = document.createElement('div');
+                indicator.textContent = '● Live';
+                indicator.className = 'fixed top-20 right-4 text-xs text-green-400 bg-green-500/20 px-2 py-1 rounded-full animate-pulse z-50';
+                document.body.appendChild(indicator);
+                
+                setTimeout(() => {
+                    indicator.style.opacity = '0';
+                    indicator.style.transition = 'opacity 0.5s';
+                    setTimeout(() => indicator.remove(), 500);
+                }, 2000);
+            },
+
+            async loadChart(period) {
+                // Prevent race conditions by tracking the active period
+                this.chartPeriod = period;
+                const currentPeriod = period;
+                
+                this.chartLoading = true;
+                this.chartError = null;
+
+                const periodMap = {
+                    '1D': { period: '1d', interval: '1m' },
+                    '5D': { period: '5d', interval: '5m' },
+                    '1M': { period: '1mo', interval: '1d' },
+                    '3M': { period: '3mo', interval: '1d' },
+                    '1Y': { period: '1y', interval: '1d' }
+                };
+
+                const params = periodMap[period];
+                const url = `/api/stock/{{ ticker }}/chart?period=${params.period}&interval=${params.interval}`;
+
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    // If user clicked another period while fetching, abort this render
+                    if (this.chartPeriod !== currentPeriod) return;
+
+                    if (!data || data.length === 0) {
+                        this.chartError = 'No chart data available';
+                        this.chartLoading = false;
+                        return;
+                    }
+
+                    // Format labels (extract date part only)
+                    const labels = data.map(d => {
+                        const dateStr = d.Date || d.Datetime || '';
+                        // For intraday (1D, 5D), show time
+                        if (period === '1D' || period === '5D') {
+                            const date = new Date(dateStr);
+                            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        }
+                        return dateStr.split(' ')[0] || dateStr;
+                    });
+                    const prices = data.map(d => d.Close);
+
+                    // Chart Configuration
+                    const canvas = document.getElementById('priceChart');
+                    if (!canvas) {
+                        console.error('Canvas element not found');
+                        this.chartError = 'Chart canvas not available';
+                        this.chartLoading = false;
+                        return;
+                    }
+                    
+                    // Ensure canvas has dimensions
+                    if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
+                        console.warn('Canvas has no dimensions, retrying...');
+                        setTimeout(() => this.loadChart(period), 200);
+                        return;
+                    }
+                    
+                    const chartCtx = canvas.getContext('2d');
+                    if (!chartCtx) {
+                        console.error('Could not get canvas 2D context');
+                        this.chartError = 'Chart context not available';
+                        this.chartLoading = false;
+                        return;
+                    }
+                    
+                    const isPositive = prices.length > 0 && prices[prices.length - 1] >= prices[0];
+
+                    // Destroy existing chart BEFORE creating gradient
+                    // First check if there's an existing chart on this canvas
+                    try {
+                        const existingChart = Chart.getChart(canvas);
+                        if (existingChart) {
+                            existingChart.stop();
+                            existingChart.destroy();
+                        }
+                    } catch (e) {
+                        console.warn('Existing chart destruction failed:', e);
+                    }
+                    
+                    // Also destroy our tracked chart reference
+                    if (this.chart) {
+                        try {
+                            if (typeof this.chart.stop === 'function') this.chart.stop();
+                            if (typeof this.chart.destroy === 'function') this.chart.destroy();
+                        } catch (e) {
+                            console.warn('Chart destruction failed:', e);
+                        }
+                    }
+                    this.chart = null;
+                    
+                    // Clear the canvas
+                    chartCtx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Now create gradient after destroying old chart
+                    const gradient = chartCtx.createLinearGradient(0, 0, 0, canvas.height || 400);
+                    if (isPositive) {
+                        gradient.addColorStop(0, 'rgba(34, 197, 94, 0.5)');
+                        gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
+                    } else {
+                        gradient.addColorStop(0, 'rgba(239, 68, 68, 0.5)');
+                        gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
+                    }
+
+                    this.chart = new Chart(chartCtx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                data: prices,
+                                borderColor: isPositive ? '#22c55e' : '#ef4444',
+                                backgroundColor: gradient,
+                                fill: true,
+                                tension: 0.1,
+                                pointRadius: 0,
+                                borderWidth: 2,
+                                borderJoinStyle: 'round'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: {
+                                duration: 0 // Disable animation to prevent race conditions slightly
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    mode: 'index',
+                                    intersect: false,
+                                    callbacks: {
+                                        label: function(context) {
+                                            return '$' + context.raw.toFixed(2);
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    display: true,
+                                    grid: { display: false },
+                                    ticks: {
+                                        color: '#64748b',
+                                        maxTicksLimit: 6,
+                                        font: { size: 10 }
+                                    }
+                                },
+                                y: {
+                                    position: 'right',
+                                    grid: { color: 'rgba(51, 65, 85, 0.3)' },
+                                    ticks: {
+                                        color: '#94a3b8',
+                                        callback: function(value) {
+                                            return '$' + value.toFixed(0);
+                                        }
+                                    }
+                                }
+                            },
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            }
+                        }
+                    });
+
+                    this.chartLoading = false;
+                } catch (error) {
+                    console.error('Chart load error:', error);
+                    // Only show error if we are still on the same request
+                    if (this.chartPeriod === currentPeriod) {
+                        this.chartError = 'Failed to load chart data';
+                        this.chartLoading = false;
+                    }
+                }
+            },
+
+            async refreshData() {
+                this.loading = true;
+                try {
+                    location.reload();
+                } catch (error) {
+                    console.error('Refresh error:', error);
+                }
+                this.loading = false;
+            },
+
+            async calculateMetrics() {
+                try {
+                    // Fetch historical data for metrics
+                    const response = await fetch(`/api/stock/{{ ticker }}/chart?period=1y&interval=1d`);
+                    const data = await response.json();
+
+                    if (!data || data.length === 0) return;
+
+                    // Calculate Sharpe Ratio
+                    this.calculateSharpeRatio(data);
+
+                    // Calculate 52-week range
+                    this.calculate52WeekRange(data);
+
+                } catch (error) {
+                    console.error('Metrics calculation error:', error);
+                }
+            },
+
+            calculateSharpeRatio(data) {
+                const returns = [];
+                const riskFreeRate = 0.045; // 4.5% annual
+
+                for (let i = 1; i < data.length; i++) {
+                    const dailyReturn = (data[i].Close - data[i - 1].Close) / data[i - 1].Close;
+                    returns.push(dailyReturn);
+                }
+
+                if (returns.length === 0) return;
+
+                const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+                const stdDev = Math.sqrt(returns.reduce((sq, n) => sq + Math.pow(n - meanReturn, 2), 0) / returns.length);
+                const excessReturn = meanReturn - (riskFreeRate / 252);
+                const sharpe = (Math.sqrt(252) * excessReturn) / stdDev;
+
+                const sharpeElement = document.getElementById('sharpe-ratio');
+                const sharpeQuality = document.getElementById('sharpe-quality');
+
+                if (sharpeElement && sharpeQuality) {
+                    sharpeElement.textContent = sharpe.toFixed(2);
+                    if (sharpe >= 2) {
+                        sharpeQuality.textContent = 'Excellent';
+                        sharpeElement.className = 'text-2xl font-bold text-green-400';
+                    } else if (sharpe >= 1) {
+                        sharpeQuality.textContent = 'Good';
+                        sharpeElement.className = 'text-2xl font-bold text-yellow-400';
+                    } else if (sharpe >= 0.5) {
+                        sharpeQuality.textContent = 'Fair';
+                        sharpeElement.className = 'text-2xl font-bold text-orange-400';
+                    } else {
+                        sharpeQuality.textContent = 'Poor';
+                        sharpeElement.className = 'text-2xl font-bold text-red-400';
+                    }
+                }
+            },
+
+            calculate52WeekRange(data) {
+                if (data.length < 252) return; // Need at least 1 year of data
+
+                const recentData = data.slice(-252);
+                const prices = recentData.map(d => d.Close);
+                const high52 = Math.max(...prices);
+                const low52 = Math.min(...prices);
+                const current = prices[prices.length - 1];
+
+                const position = ((current - low52) / (high52 - low52)) * 100;
+
+                const rangeElement = document.getElementById('week52-range');
+                const positionElement = document.getElementById('week52-position');
+
+                if (rangeElement && positionElement) {
+                    rangeElement.style.width = position + '%';
+
+                    if (position < 33) {
+                        positionElement.textContent = 'Near 52-week low';
+                    } else if (position > 67) {
+                        positionElement.textContent = 'Near 52-week high';
+                    } else {
+                        positionElement.textContent = 'Mid-range';
+                    }
+                }
+            },
+
+            async runMonteCarlo() {
+                if (this.monteCarloLoading) return;
+
+                this.monteCarloLoading = true;
+
+                try {
+                    // Fetch 1-year historical data
+                    const response = await fetch(`/api/stock/{{ ticker }}/chart?period=1y&interval=1d`);
+                    const data = await response.json();
+
+                    if (!data || data.length === 0) {
+                        this.$dispatch('show-toast', { message: 'No data available for Monte Carlo simulation', type: 'error' });
+                        return;
+                    }
+
+                    // Calculate parameters
+                    const logReturns = [];
+                    for (let i = 1; i < data.length; i++) {
+                        logReturns.push(Math.log(1 + (data[i].Close - data[i - 1].Close) / data[i - 1].Close));
+                    }
+
+                    const meanLogReturn = logReturns.reduce((a, b) => a + b, 0) / logReturns.length;
+                    const variance = logReturns.reduce((sq, r) => sq + Math.pow(r - meanLogReturn, 2), 0) / logReturns.length;
+                    const drift = meanLogReturn - (0.5 * variance);
+                    const stdDev = Math.sqrt(variance);
+
+                    const currentPrice = data[data.length - 1].Close;
+                    const days = 30;
+                    const simulations = 1000;
+
+                    // Generate price paths
+                    const pricePaths = [];
+                    for (let sim = 0; sim < simulations; sim++) {
+                        const path = [currentPrice];
+                        let price = currentPrice;
+
+                        for (let day = 1; day <= days; day++) {
+                            const randomShock = Math.sqrt(1) * stdDev * this.boxMullerRandom();
+                            price = price * Math.exp(drift + randomShock);
+                            path.push(price);
+                        }
+                        pricePaths.push(path);
+                    }
+
+                    // Calculate percentiles
+                    const finalPrices = pricePaths.map(path => path[path.length - 1]);
+                    finalPrices.sort((a, b) => a - b);
+
+                    const p5Index = Math.floor(0.05 * finalPrices.length);
+                    const p50Index = Math.floor(0.50 * finalPrices.length);
+                    const p95Index = Math.floor(0.95 * finalPrices.length);
+
+                    this.monteCarloWorst = finalPrices[p5Index];
+                    this.monteCarloMean = Math.floor(finalPrices.reduce((a, b) => a + b, 0) / finalPrices.length);
+                    this.monteCarloBest = finalPrices[p95Index];
+                    
+                    // Generate future dates
+                    const futureDates = [];
+                    const today = new Date();
+                    for (let i = 0; i < days; i++) {
+                        const date = new Date(today);
+                        date.setDate(date.getDate() + i + 1);
+                        futureDates.push(date.toISOString().split('T')[0]);
+                    }
+
+                    this.monteCarloData = true;
+                    this.renderMonteCarloChart(pricePaths, this.monteCarloMean, finalPrices, futureDates);
+                    this.monteCarloLoading = false;
+
+                } catch (error) {
+                    console.error('Monte Carlo error:', error);
+                    this.$dispatch('show-toast', { message: 'Monte Carlo simulation failed', type: 'error' });
+                    this.monteCarloLoading = false;
+                }
+            },
+
+            async generateAIDeepDive() {
+                this.aiLoading = true;
+                try {
+                    const response = await fetch(`/api/stock/{{ ticker }}/ai-analysis`);
+                    const data = await response.json();
+                    
+                    if (data.html) {
+                        this.aiAnalysis = data.html;
+                        this.aiScore = data.score;
+                        this.aiLabel = data.label;
+                        this.$dispatch('show-toast', { message: 'AI Analysis generated', type: 'success' });
+                    } else if (data.error) {
+                        this.$dispatch('show-toast', { message: data.error, type: 'error' });
+                    }
+                } catch (error) {
+                    console.error('AI Analysis error:', error);
+                    this.$dispatch('show-toast', { message: 'Failed to generate AI analysis. Check console.', type: 'error' });
+                }
+                this.aiLoading = false;
+            },
+
+            // Helper for Gaussian random numbers (Box-Muller)
+            boxMullerRandom() {
+                let u = 0, v = 0;
+                while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
+                while(v === 0) v = Math.random();
+                return Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+            },
+
+            renderMonteCarloChart(paths, meanPrice, finalPrices, dates) {
+                // Simplified rendering for Chart.js
+                // We'll just show the Mean Path and the Confidence Envelope for clarity/speed
+                
+                const ctx = document.getElementById('monteCarloChart');
+                if (this.monteCarloChart) this.monteCarloChart.destroy();
+                
+                // Calculate mean path
+                const days = paths[0].length;
+                const meanPath = [];
+                for (let i=0; i<days; i++) {
+                    let sum = 0;
+                    for (let j=0; j<paths.length; j++) sum += paths[j][i];
+                    meanPath.push(sum/paths.length);
+                }
+
+                this.monteCarloChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: days}, (_, i) => `Day ${i}`),
+                        datasets: [{
+                            label: 'Average Path',
+                            data: meanPath,
+                            borderColor: '#ffffff',
+                            borderWidth: 3,
+                            fill: false,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: { display: false },
+                            y: { 
+                                position: 'right',
+                                grid: { color: 'rgba(255,255,255,0.1)' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    }
+</script>
+{% endblock %}

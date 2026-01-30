@@ -1,0 +1,62 @@
+{# Error State Components - Show when something goes wrong #}
+
+{% macro error_state(message='', retry_action='', retry_text='Try Again', class='') %}
+  <div class="glass rounded-xl p-8 border border-red-500/20 text-center {{ class }}" role="alert" aria-live="assertive">
+    <svg class="w-16 h-16 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+    </svg>
+
+    <h3 class="text-lg font-semibold text-white mb-2">Something went wrong</h3>
+
+    <p class="text-gray-400 mb-6 max-w-md mx-auto">
+      {{ message or "We couldn't load this content. Please try again." }}
+    </p>
+
+    {% if retry_action %}
+      <button
+        {% if retry_action.startswith('http') %}
+          onclick="window.location.href='{{ retry_action }}'"
+        {% else %}
+          @click="{{ retry_action }}"
+        {% endif %}
+        class="bg-gradient-to-r from-oracle-primary to-oracle-secondary px-6 py-2.5 rounded-lg font-medium text-white hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-oracle-primary focus:ring-offset-2 focus:ring-offset-oracle-darker"
+      >
+        {{ retry_text }}
+      </button>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% macro error_inline(message, class='') %}
+  <div class="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-lg {{ class }}" role="alert">
+    <svg class="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+    </svg>
+    <div class="flex-1">
+      <p class="text-sm text-red-300">{{ message }}</p>
+    </div>
+  </div>
+{% endmacro %}
+
+{% macro error_network(retry_action='', class='') %}
+  <div class="glass rounded-xl p-8 border border-red-500/20 text-center {{ class }}" role="alert" aria-live="assertive">
+    <svg class="w-16 h-16 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"/>
+    </svg>
+
+    <h3 class="text-lg font-semibold text-white mb-2">Connection Error</h3>
+
+    <p class="text-gray-400 mb-6 max-w-md mx-auto">
+      Unable to connect to the server. Please check your internet connection and try again.
+    </p>
+
+    {% if retry_action %}
+      <button
+        @click="{{ retry_action }}"
+        class="bg-gradient-to-r from-oracle-primary to-oracle-secondary px-6 py-2.5 rounded-lg font-medium text-white hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-oracle-primary focus:ring-offset-2 focus:ring-offset-oracle-darker"
+      >
+        Retry Connection
+      </button>
+    {% endif %}
+  </div>
+{% endmacro %}

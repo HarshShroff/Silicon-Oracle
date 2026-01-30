@@ -1,0 +1,103 @@
+{% extends "layouts/base.html" %}
+{% block title %}Sign Up - Silicon Oracle{% endblock %}
+
+{% block content %}
+{% from "components/input.html" import input %}
+{% from "components/button.html" import button %}
+
+<div class="min-h-[calc(100vh-200px)] flex items-center justify-center">
+    <div class="w-full max-w-md animate-fade-in">
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-oracle-primary to-oracle-secondary mb-4">
+                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </div>
+            <h1 class="text-3xl font-bold gradient-text">Create Account</h1>
+            <p class="text-gray-400 mt-2">Join Silicon Oracle and start trading smarter</p>
+        </div>
+
+        <!-- Signup Form -->
+        <div class="glass rounded-2xl p-8 border border-gray-800">
+            <form method="POST" action="{{ url_for('auth.signup') }}" class="space-y-5">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                {{ input(
+                    name='username',
+                    type='text',
+                    label='Username',
+                    placeholder='Choose a username',
+                    required=true,
+                    value=username if username is defined else '',
+                    id='username-input'
+                ) }}
+
+                {{ input(
+                    name='email',
+                    type='email',
+                    label='Email Address',
+                    placeholder='you@example.com',
+                    required=true,
+                    value=email if email is defined else '',
+                    id='email-input'
+                ) }}
+
+                {{ input(
+                    name='password',
+                    type='password',
+                    label='Password',
+                    placeholder='Minimum 6 characters',
+                    required=true,
+                    id='password-input'
+                ) }}
+
+                {{ input(
+                    name='confirm_password',
+                    type='password',
+                    label='Confirm Password',
+                    placeholder='Confirm your password',
+                    required=true,
+                    id='confirm-password-input'
+                ) }}
+
+                {{ button(
+                    text='Create Account',
+                    type='primary',
+                    form_type='submit',
+                    class='w-full',
+                    aria_label='Create your account'
+                ) }}
+            </form>
+
+            <div class="mt-6 text-center">
+                <p class="text-gray-500 text-sm">
+                    Already have an account?
+                    <a href="{{ url_for('auth.login') }}" class="text-oracle-primary hover:text-oracle-secondary transition-colors font-medium">
+                        Sign In
+                    </a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="mt-6 p-4 rounded-xl glass border border-oracle-border">
+            <div class="flex items-start gap-3">
+                <span class="text-xl" role="img" aria-label="Light bulb">💡</span>
+                <div class="text-sm text-gray-400">
+                    <p class="font-medium text-gray-300 mb-1">What you'll need:</p>
+                    <ul class="space-y-1 text-xs">
+                        <li>• <strong>Finnhub API Key</strong> (required) - for stock data</li>
+                        <li>• Alpaca API Keys (optional) - for paper trading</li>
+                        <li>• Gemini API Key (optional) - for AI analysis</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <p class="text-center text-gray-600 text-sm mt-6">
+            Silicon Oracle v2.0 - Powered by AI
+        </p>
+    </div>
+</div>
+{% endblock %}

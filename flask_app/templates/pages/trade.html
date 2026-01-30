@@ -1,0 +1,246 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Trade {{ ticker }} - Silicon Oracle{% endblock %}
+{% block page_title %}Trade{% endblock %}
+
+{% block content %}
+<div x-data="tradePage()" class="space-y-4 md:space-y-6 max-w-4xl mx-auto">
+
+    <!-- Ticker Search - Compact -->
+    <div class="glass rounded-xl p-4">
+        <div class="flex gap-2 items-center">
+            <input type="text" x-model="ticker" placeholder="Enter ticker..."
+                   class="flex-1 px-4 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none font-medium uppercase text-center"
+                   @keyup.enter="loadQuote()">
+            <button @click="loadQuote()" class="px-4 py-2 rounded-lg bg-oracle-primary hover:bg-oracle-secondary transition-colors font-medium">
+                Load
+            </button>
+        </div>
+    </div>
+
+    <!-- Stock Info Card -->
+    <div class="glass rounded-xl p-4">
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+                <h3 class="text-xl font-bold" x-text="ticker">{{ ticker }}</h3>
+                <span class="px-2 py-0.5 rounded-full text-xs {% if is_connected %}bg-green-500/20 text-green-400{% else %}bg-red-500/20 text-red-400{% endif %}">
+                    {% if is_connected %}Connected{% else %}Offline{% endif %}
+                </span>
+            </div>
+            <a href="{{ url_for('main.analysis', ticker=ticker) }}" class="text-oracle-primary text-sm hover:underline">
+                View Analysis →
+            </a>
+        </div>
+
+        {% if quote and quote.current %}
+        <div class="flex items-baseline gap-3 mb-4">
+            <span class="text-3xl font-bold">${{ "%.2f"|format(quote.current) }}</span>
+            <span class="text-lg {% if quote.change and quote.change >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
+                {{ "%+.2f"|format(quote.change or 0) }} ({{ "%+.2f"|format(quote.percent_change or 0) }}%)
+            </span>
+        </div>
+
+        <div class="grid grid-cols-4 gap-2 text-sm">
+            <div class="text-center p-2 bg-oracle-card rounded-lg">
+                <p class="text-gray-400 text-xs">Open</p>
+                <p class="font-medium">${{ "%.2f"|format(quote.open or 0) }}</p>
+            </div>
+            <div class="text-center p-2 bg-oracle-card rounded-lg">
+                <p class="text-gray-400 text-xs">High</p>
+                <p class="font-medium">${{ "%.2f"|format(quote.high or 0) }}</p>
+            </div>
+            <div class="text-center p-2 bg-oracle-card rounded-lg">
+                <p class="text-gray-400 text-xs">Low</p>
+                <p class="font-medium">${{ "%.2f"|format(quote.low or 0) }}</p>
+            </div>
+            <div class="text-center p-2 bg-oracle-card rounded-lg">
+                <p class="text-gray-400 text-xs">Prev</p>
+                <p class="font-medium">${{ "%.2f"|format(quote.previous_close or 0) }}</p>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center py-6 text-gray-400">
+            <p>Loading price data...</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Account & Position Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% if account %}
+        <div class="glass rounded-xl p-4">
+            <h4 class="text-sm font-medium text-gray-400 mb-3">Account</h4>
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span class="text-gray-400 text-sm">Buying Power</span>
+                    <span class="font-bold text-green-400">${{ "{:,.0f}".format(account.buying_power) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400 text-sm">Portfolio</span>
+                    <span class="font-medium">${{ "{:,.0f}".format(account.portfolio_value) }}</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if position %}
+        <div class="glass rounded-xl p-4 border border-oracle-primary/50">
+            <h4 class="text-sm font-medium text-gray-400 mb-3">Current Position</h4>
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span class="text-gray-400 text-sm">{{ "%.2f"|format(position.shares) }} shares</span>
+                    <span class="text-sm">@ ${{ "%.2f"|format(position.avg_price) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400 text-sm">P&L</span>
+                    <span class="font-bold {% if position.unrealized_pl >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
+                        ${{ "%+.2f"|format(position.unrealized_pl) }} ({{ "%+.2f"|format(position.unrealized_plpc) }}%)
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Order Form -->
+    <div class="glass rounded-xl p-4">
+        <h3 class="font-semibold mb-4">Place Order</h3>
+
+        {% if not is_connected %}
+        <div class="bg-yellow-500/20 text-yellow-400 p-3 rounded-lg mb-4 text-sm">
+            <a href="{{ url_for('main.settings') }}" class="underline">Connect Alpaca</a> to trade.
+        </div>
+        {% endif %}
+
+        <form @submit.prevent="submitOrder()" class="space-y-4">
+            <!-- Buy/Sell Toggle -->
+            <div class="grid grid-cols-2 gap-2">
+                <button type="button" @click="side = 'buy'" 
+                        :class="side === 'buy' ? 'bg-green-500 text-white' : 'bg-oracle-card text-gray-400'"
+                        class="py-3 rounded-lg font-medium transition-colors">
+                    Buy
+                </button>
+                <button type="button" @click="side = 'sell'" 
+                        :class="side === 'sell' ? 'bg-red-500 text-white' : 'bg-oracle-card text-gray-400'"
+                        class="py-3 rounded-lg font-medium transition-colors">
+                    Sell
+                </button>
+            </div>
+
+            <!-- Order Type -->
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Order Type</label>
+                <select x-model="orderType" class="w-full px-3 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none text-sm">
+                    <option value="market">Market</option>
+                    <option value="limit">Limit</option>
+                </select>
+            </div>
+
+            <!-- Quantity -->
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Quantity</label>
+                <input type="number" x-model="quantity" min="1" step="1" placeholder="Shares"
+                       class="w-full px-3 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none text-sm">
+            </div>
+
+            <!-- Limit Price -->
+            <div x-show="orderType === 'limit'">
+                <label class="block text-xs text-gray-400 mb-1">Limit Price</label>
+                <input type="number" x-model="limitPrice" step="0.01" placeholder="$0.00"
+                       class="w-full px-3 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none text-sm">
+            </div>
+
+            <!-- Order Preview -->
+            <div class="bg-oracle-card rounded-lg p-3">
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="text-gray-400">Estimated Total</span>
+                    <span class="font-bold" x-text="'$' + estimatedTotal.toLocaleString('en-US', {minimumFractionDigits: 2})">$0.00</span>
+                </div>
+                <p class="text-xs text-gray-500">Market orders execute at best available price</p>
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" 
+                    :disabled="!canSubmit || submitting"
+                    :class="side === 'buy' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'"
+                    class="w-full py-3 rounded-lg font-medium disabled:opacity-50 transition-colors">
+                <span x-show="!submitting" x-text="side === 'buy' ? 'Buy ' + ticker : 'Sell ' + ticker"></span>
+                <span x-show="submitting">Placing Order...</span>
+            </button>
+        </form>
+    </div>
+
+    <!-- Order Result -->
+    <div x-show="orderResult" x-transition class="glass rounded-xl p-4" :class="orderResult?.success ? 'border border-green-500' : 'border border-red-500'">
+        <div class="flex items-center gap-3">
+            <div :class="orderResult?.success ? 'bg-green-500/20' : 'bg-red-500/20'" class="w-10 h-10 rounded-lg flex items-center justify-center">
+                <svg x-show="orderResult?.success" class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <svg x-show="!orderResult?.success" class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </div>
+            <div>
+                <p class="font-medium" x-text="orderResult?.success ? 'Order Placed!' : 'Order Failed'"></p>
+                <p class="text-sm text-gray-400" x-text="orderResult?.message || orderResult?.error"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function tradePage() {
+        return {
+            ticker: '{{ ticker }}',
+            side: 'buy',
+            orderType: 'market',
+            quantity: 1,
+            limitPrice: 0,
+            currentPrice: {{ quote.current if quote and quote.current else 0 }},
+            submitting: false,
+            orderResult: null,
+
+            get estimatedTotal() {
+                const price = this.orderType === 'limit' && this.limitPrice > 0 ? this.limitPrice : this.currentPrice;
+                return price * this.quantity;
+            },
+
+            get canSubmit() {
+                return this.ticker && this.quantity > 0 && (this.orderType === 'market' || this.limitPrice > 0);
+            },
+
+            async loadQuote() {
+                if (!this.ticker.trim()) return;
+                window.location.href = `/trade/${this.ticker.toUpperCase().trim()}`;
+            },
+
+            async submitOrder() {
+                if (!this.canSubmit || this.submitting) return;
+                this.submitting = true;
+                this.orderResult = null;
+
+                try {
+                    const response = await fetch('/api/trading/order', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ticker: this.ticker,
+                            side: this.side,
+                            type: this.orderType,
+                            qty: this.quantity,
+                            limit_price: this.orderType === 'limit' ? this.limitPrice : null
+                        })
+                    });
+                    
+                    this.orderResult = await response.json();
+                } catch (error) {
+                    this.orderResult = { success: false, error: 'Network error' };
+                }
+                
+                this.submitting = false;
+            }
+        }
+    }
+</script>
+{% endblock %}

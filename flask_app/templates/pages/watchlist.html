@@ -1,0 +1,557 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Watchlist - Silicon Oracle{% endblock %}
+
+{% block content %}
+<div x-data="watchlistPage()" x-init="init()" class="space-y-4 md:space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold gradient-text">👁 Watchlists</h1>
+            <p class="text-gray-400 text-sm">Track your favorite stocks</p>
+        </div>
+        <button @click="syncAllWithAlpaca()" :disabled="syncing"
+                class="px-3 py-1.5 rounded-lg bg-oracle-primary hover:bg-blue-600 disabled:opacity-50 text-xs md:text-sm">
+            <span x-show="!syncing">Sync</span>
+            <span x-show="syncing">...</span>
+        </button>
+    </div>
+
+    <!-- Create New Watchlist - Collapsible -->
+    <div class="glass rounded-xl overflow-hidden" x-data="{ expanded: false }">
+        <button @click="expanded = !expanded" class="w-full p-4 flex items-center justify-between">
+            <span class="font-medium">✨ Create New Watchlist</span>
+            <svg class="w-5 h-5 text-gray-400 transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+        <div x-show="expanded" x-collapse class="px-4 pb-4 space-y-3">
+            <input type="text" x-model="newListName" placeholder="Watchlist name..."
+                   class="w-full px-3 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none text-sm">
+            <textarea x-model="newListTickers" placeholder="Enter tickers (comma-separated)..."
+                      class="w-full px-3 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none text-sm"
+                      rows="2"></textarea>
+            <button @click="createWatchlist()" :disabled="!newListName.trim() || !newListTickers.trim() || creating"
+                    class="w-full py-2 rounded-lg bg-green-500 hover:bg-green-600 disabled:opacity-50 text-sm font-medium">
+                <span x-show="!creating">Create</span>
+                <span x-show="creating">Creating...</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Local Watchlists -->
+        <div class="glass rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold">Local Watchlists</h2>
+                <select x-model="selectedList" @change="loadSelectedList()" 
+                        class="px-3 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none text-sm">
+                    <option value="">Select a watchlist</option>
+                    <template x-for="list in watchlists" :key="list.name">
+                        <option :value="list.name" x-text="`${list.name} (${list.tickers.length} stocks)`"></option>
+                    </template>
+                </select>
+            </div>
+
+            <!-- Watchlist Content -->
+            <div x-show="selectedList && selectedListData.length > 0">
+                <div class="mb-4 flex justify-between items-center">
+                    <span class="text-sm text-gray-400" x-text="`${selectedListData.length} stocks`"></span>
+                    <div class="flex gap-2">
+                        <button @click="quickScan()" 
+                                :disabled="scanning"
+                                class="px-3 py-1 rounded-lg bg-oracle-primary hover:bg-blue-600 disabled:opacity-50 transition-colors text-xs">
+                            Quick Scan
+                        </button>
+                        <button @click="deleteWatchlist()" 
+                                :disabled="deleting"
+                                class="px-3 py-1 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-colors text-xs">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-2 max-h-96 overflow-y-auto">
+                    <template x-for="ticker in selectedListData" :key="ticker">
+                        <div class="flex items-center justify-between p-3 rounded-lg bg-oracle-card hover:bg-oracle-border transition-colors">
+                            <div class="flex items-center gap-3">
+                                <span class="font-medium" x-text="ticker"></span>
+                                <a :href="`/analysis/${ticker}`" 
+                                   class="text-oracle-primary hover:underline text-sm">
+                                    Analyze
+                                </a>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm" x-text="getPrice(ticker) ? `$${getPrice(ticker)}` : 'Loading...'"></span>
+                                <span class="text-sm" :class="getChange(ticker) >= 0 ? 'text-green-400' : 'text-red-400'" 
+                                      x-text="getChange(ticker) ? `${getChange(ticker) >= 0 ? '+' : ''}${getChange(ticker).toFixed(2)}%` : '--'"></span>
+                                <button @click="removeFromList(ticker)" 
+                                        class="text-red-400 hover:text-red-300 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="!selectedList" class="text-center py-8">
+                <div class="text-gray-400">
+                    <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <p>Select a watchlist or create a new one</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alpaca Watchlists -->
+        <div class="glass rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold">Alpaca Watchlists</h2>
+                <button @click="refreshAlpacaLists()" 
+                        :disabled="refreshing"
+                        class="px-3 py-1 rounded-lg bg-oracle-card hover:bg-oracle-border disabled:opacity-50 transition-colors text-sm">
+                    <span x-show="!refreshing">Refresh</span>
+                    <span x-show="refreshing">Refreshing...</span>
+                </button>
+            </div>
+
+            <div x-show="alpacaWatchlists.length > 0" class="space-y-3">
+                <template x-for="list in alpacaWatchlists" :key="list.id">
+                    <div class="p-4 rounded-lg bg-oracle-card hover:bg-oracle-border transition-colors">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-medium" x-text="list.name"></h3>
+                            <div class="flex gap-2">
+                                <button @click="syncWithAlpaca(list)" 
+                                        :disabled="syncing"
+                                        class="px-3 py-1 rounded-lg bg-oracle-primary hover:bg-blue-600 disabled:opacity-50 transition-colors text-xs">
+                                    Sync
+                                </button>
+                                <button @click="deleteFromAlpaca(list)" 
+                                        :disabled="deleting"
+                                        class="px-3 py-1 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-colors text-xs">
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <template x-for="asset in (list.assets || [])" :key="asset">
+                                <span class="px-2 py-1 rounded bg-oracle-border text-sm" x-text="asset.symbol || asset"></span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="alpacaWatchlists.length === 0 && !refreshing" class="text-center py-8">
+                <div class="text-gray-400">
+                    <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                    </svg>
+                    <p>No Alpaca watchlists found</p>
+                    <p class="text-sm mt-2">Connect your Alpaca account to sync watchlists</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Add Section -->
+    <div class="glass rounded-2xl p-6">
+        <h2 class="text-lg font-semibold mb-4">Quick Add to Selected List</h2>
+        <div class="flex flex-wrap gap-4">
+            <div class="flex-1 min-w-[300px]">
+                <input type="text" 
+                       x-model="quickAddTicker" 
+                       @keydown.enter="quickAdd()"
+                       placeholder="Enter ticker to add..."
+                       class="w-full px-4 py-3 rounded-xl bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none transition-colors">
+            </div>
+            <button @click="quickAdd()" 
+                    :disabled="!quickAddTicker.trim() || !selectedList || adding"
+                    class="px-6 py-3 rounded-xl bg-green-500 hover:bg-green-600 disabled:opacity-50 transition-colors">
+                Add
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Scan Results -->
+    <div x-show="scanResults.length > 0" class="glass rounded-2xl p-6">
+        <h2 class="text-lg font-semibold mb-4">Quick Scan Results</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-oracle-border">
+                        <th class="text-left py-3 px-4">Ticker</th>
+                        <th class="text-right py-3 px-4">Price</th>
+                        <th class="text-center py-3 px-4">Oracle Score</th>
+                        <th class="text-center py-3 px-4">Verdict</th>
+                        <th class="text-right py-3 px-4">RSI</th>
+                        <th class="text-center py-3 px-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="result in scanResults" :key="result.ticker">
+                        <tr class="border-b border-oracle-border hover:bg-oracle-card transition-colors">
+                            <td class="py-3 px-4 font-medium" x-text="result.ticker"></td>
+                            <td class="text-right py-3 px-4" x-text="result.price ? `$${result.price.toFixed(2)}` : '--'"></td>
+                            <td class="text-center py-3 px-4" x-text="result.oracle_score ? result.oracle_score.toFixed(1) : '--'"></td>
+                            <td class="text-center py-3 px-4">
+                                <span class="inline-block px-2 py-1 rounded-full text-xs font-medium"
+                                      :class="getVerdictColor(result.verdict)"
+                                      x-text="result.verdict || '--'"></span>
+                            </td>
+                            <td class="text-center py-3 px-4" x-text="result.rsi ? result.rsi.toFixed(1) : '--'"></td>
+                            <td class="text-center py-3 px-4">
+                                <div class="flex justify-center gap-2">
+                                    <a :href="`/analysis/${result.ticker}`" 
+                                       class="px-2 py-1 rounded bg-oracle-card hover:bg-oracle-border transition-colors text-xs">
+                                        Analyze
+                                    </a>
+                                    <a :href="`/trade/${result.ticker}`" 
+                                       class="px-2 py-1 rounded bg-green-500 hover:bg-green-600 transition-colors text-xs">
+                                        Buy
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function watchlistPage() {
+    return {
+        // Data
+        watchlists: [],
+        selectedList: '',
+        selectedListData: [],
+        alpacaWatchlists: [],
+        scanResults: [],
+        
+        // Forms
+        newListName: '',
+        newListTickers: '',
+        quickAddTicker: '',
+        
+        // State
+        syncing: false,
+        creating: false,
+        deleting: false,
+        scanning: false,
+        refreshing: false,
+        lastSync: null,
+        
+        // Price cache
+        priceCache: {},
+        
+        init() {
+            this.loadLocalWatchlists();
+            this.loadAlpacaWatchlists();
+        },
+        
+        async loadLocalWatchlists() {
+            try {
+                const response = await fetch('/api/scanner/watchlists');
+                this.watchlists = await response.json();
+            } catch (error) {
+                console.error('Error loading watchlists:', error);
+            }
+        },
+        
+        async loadAlpacaWatchlists() {
+            this.refreshing = true;
+            try {
+                const response = await fetch('/api/trading/watchlists');
+                if (response.ok) {
+                    this.alpacaWatchlists = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading Alpaca watchlists:', error);
+            } finally {
+                this.refreshing = false;
+            }
+        },
+        
+        async loadSelectedList() {
+            if (!this.selectedList) {
+                this.selectedListData = [];
+                return;
+            }
+            
+            const list = this.watchlists.find(l => l.name === this.selectedList);
+            if (list) {
+                this.selectedListData = [...list.tickers];
+                await this.loadPrices(this.selectedListData);
+            }
+        },
+        
+        async loadPrices(tickers) {
+            for (const ticker of tickers) {
+                try {
+                    const response = await fetch(`/api/stock/${ticker}/quote`);
+                    const data = await response.json();
+                    if (data.current) {
+                        this.priceCache[ticker] = data;
+                    }
+                } catch (error) {
+                    console.error(`Error loading price for ${ticker}:`, error);
+                }
+            }
+        },
+        
+        async createWatchlist() {
+            if (!this.newListName.trim() || !this.newListTickers.trim() || this.creating) {
+                return;
+            }
+            
+            this.creating = true;
+            try {
+                const tickers = this.newListTickers.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
+                
+                const response = await fetch('/api/scanner/watchlists/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: this.newListName.trim(),
+                        tickers: tickers
+                    })
+                });
+                
+                if (response.ok) {
+                    this.newListName = '';
+                    this.newListTickers = '';
+                    await this.loadLocalWatchlists();
+                } else {
+                    alert('Error creating watchlist');
+                }
+            } catch (error) {
+                console.error('Error creating watchlist:', error);
+                alert('Error creating watchlist');
+            } finally {
+                this.creating = false;
+            }
+        },
+        
+        async deleteWatchlist() {
+            if (!this.selectedList || this.deleting) return;
+            
+            if (!confirm(`Delete watchlist "${this.selectedList}"?`)) {
+                return;
+            }
+            
+            this.deleting = true;
+            try {
+                const response = await fetch(`/api/scanner/watchlists/${encodeURIComponent(this.selectedList)}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    this.selectedList = '';
+                    this.selectedListData = [];
+                    await this.loadLocalWatchlists();
+                } else {
+                    alert('Error deleting watchlist');
+                }
+            } catch (error) {
+                console.error('Error deleting watchlist:', error);
+                alert('Error deleting watchlist');
+            } finally {
+                this.deleting = false;
+            }
+        },
+        
+        async quickAdd() {
+            if (!this.quickAddTicker.trim() || !this.selectedList || this.adding) {
+                return;
+            }
+            
+            this.adding = true;
+            try {
+                const response = await fetch('/api/scanner/watchlists/add-ticker', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: this.selectedList,
+                        ticker: this.quickAddTicker.trim().toUpperCase()
+                    })
+                });
+                
+                if (response.ok) {
+                    this.quickAddTicker = '';
+                    await this.loadSelectedList();
+                    await this.loadLocalWatchlists();
+                } else {
+                    alert('Error adding ticker');
+                }
+            } catch (error) {
+                console.error('Error adding ticker:', error);
+                alert('Error adding ticker');
+            } finally {
+                this.adding = false;
+            }
+        },
+        
+        async removeFromList(ticker) {
+            try {
+                const response = await fetch('/api/scanner/watchlists/remove-ticker', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: this.selectedList,
+                        ticker: ticker
+                    })
+                });
+                
+                if (response.ok) {
+                    this.selectedListData = this.selectedListData.filter(t => t !== ticker);
+                    delete this.priceCache[ticker];
+                    await this.loadSelectedList();
+                    await this.loadLocalWatchlists();
+                }
+            } catch (error) {
+                console.error('Error removing ticker:', error);
+            }
+        },
+        
+        async quickScan() {
+            if (this.scanning || this.selectedListData.length === 0) return;
+            
+            this.scanning = true;
+            this.scanResults = [];
+            
+            try {
+                const response = await fetch('/api/oracle/scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tickers: this.selectedListData
+                    })
+                });
+                
+                if (response.ok) {
+                    this.scanResults = await response.json();
+                }
+            } catch (error) {
+                console.error('Error during scan:', error);
+                alert('Error during scan');
+            } finally {
+                this.scanning = false;
+            }
+        },
+        
+        async syncWithAlpaca(list) {
+            if (this.syncing) return;
+            
+            this.syncing = true;
+            try {
+                const response = await fetch(`/api/trading/watchlists/${list.id}/sync`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    this.lastSync = new Date().toLocaleTimeString();
+                    await this.loadAlpacaWatchlists();
+                }
+            } catch (error) {
+                console.error('Error syncing with Alpaca:', error);
+                alert('Error syncing with Alpaca');
+            } finally {
+                this.syncing = false;
+            }
+        },
+        
+        async syncAllWithAlpaca() {
+            if (this.syncing) return;
+            
+            this.syncing = true;
+            try {
+                // Sync each local watchlist with Alpaca
+                for (const list of this.watchlists) {
+                    try {
+                        await fetch('/api/trading/watchlists/sync-local', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                name: list.name,
+                                tickers: list.tickers
+                            })
+                        });
+                    } catch (error) {
+                        console.error(`Error syncing ${list.name}:`, error);
+                    }
+                }
+                
+                this.lastSync = new Date().toLocaleTimeString();
+                await this.loadAlpacaWatchlists();
+            } catch (error) {
+                console.error('Error in sync all:', error);
+            } finally {
+                this.syncing = false;
+            }
+        },
+        
+        async deleteFromAlpaca(list) {
+            if (!confirm(`Delete "${list.name}" from Alpaca?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/trading/watchlists/${list.id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    await this.loadAlpacaWatchlists();
+                }
+            } catch (error) {
+                console.error('Error deleting from Alpaca:', error);
+                alert('Error deleting from Alpaca');
+            }
+        },
+        
+        async refreshAlpacaLists() {
+            await this.loadAlpacaWatchlists();
+        },
+        
+        getPrice(ticker) {
+            return this.priceCache[ticker]?.current;
+        },
+        
+        getChange(ticker) {
+            return this.priceCache[ticker]?.percent_change;
+        },
+        
+        getVerdictColor(verdict) {
+            const colors = {
+                'Strong Buy': 'bg-green-500 text-white',
+                'Buy': 'bg-green-400 text-white',
+                'Hold': 'bg-yellow-500 text-white',
+                'Sell': 'bg-orange-500 text-white',
+                'Strong Sell': 'bg-red-500 text-white'
+            };
+            return colors[verdict] || 'bg-gray-500 text-white';
+        }
+    }
+}
+</script>
+{% endblock %}
