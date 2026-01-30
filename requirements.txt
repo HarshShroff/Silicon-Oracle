@@ -44,6 +44,8 @@ feedparser>=6.0.0  # For Google News RSS parsing
 # Database
 # SQLite is built into Python - no install needed
 supabase>=2.0.0  # PostgreSQL with Auth (cloud or local)
+psycopg2-binary>=2.9.0  # PostgreSQL adapter (required for Supabase)
+SQLAlchemy>=2.0.0  # ORM for database operations
 
 # Security
 cryptography>=41.0.0  # For API key encryption (BYOK)
