@@ -82,16 +82,26 @@
    git push -u origin main
    ```
 
-3. **Deploy on Render**
+3. **Set up Supabase Database (REQUIRED for production)**
+   - Go to [supabase.com](https://supabase.com) and create free account
+   - Create new project (takes ~2 minutes to provision)
+   - Go to Settings → Database → Copy the **URI** connection string
+   - It looks like: `postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres`
+
+4. **Deploy on Render**
    - Go to [dashboard.render.com](https://dashboard.render.com)
    - Click **"New +"** → **"Blueprint"**
    - Connect your GitHub repo
    - Click **"Apply"**
+   - **CRITICAL:** Add environment variable:
+     ```
+     DATABASE_URL=<your-supabase-connection-string>
+     ```
    - Wait 5-10 minutes ☕
 
-4. **Done!** Visit your URL and sign up 🎉
+5. **Done!** Visit your URL and sign up 🎉
 
-**No environment variables needed** - everything is auto-configured!
+⚠️ **Important:** Without Supabase, your data will be lost on every deploy/restart!
 
 [📖 Detailed Deployment Guide](DEPLOYMENT.md) | [⚡ Quick Start](QUICKSTART.md)
 
@@ -242,7 +252,8 @@ Silicon-Oracle/
 - **Flask** - Web framework
 - **Gunicorn** - WSGI server
 - **APScheduler** - Background tasks
-- **SQLite/PostgreSQL** - Database
+- **PostgreSQL** - Database (Supabase recommended)
+- **SQLite** - Local development only
 - **Cryptography** - Encryption
 
 ### Frontend
@@ -284,7 +295,7 @@ Silicon-Oracle/
 | **Cold Start** | ~30s (free tier) |
 | **Concurrent Users** | 100+ (scales automatically) |
 | **API Calls/min** | Unlimited (per-user keys) |
-| **Database Size** | <100MB (SQLite) |
+| **Database** | PostgreSQL (Supabase free: 500MB) |
 | **Build Time** | 5-10 minutes |
 
 ---
