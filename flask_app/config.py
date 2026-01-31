@@ -5,6 +5,7 @@ Production-grade configuration management
 
 import os
 from datetime import timedelta
+from urllib.parse import quote_plus, urlparse, urlunparse
 
 
 def load_streamlit_secrets():
@@ -65,6 +66,70 @@ def get_secret(env_key, secrets_key, default=""):
     return os.environ.get(env_key) or _streamlit_secrets.get(secrets_key, default)
 
 
+def fix_database_url(db_url: str) -> str:
+    """
+    Fix and properly encode database URL to handle special characters in passwords.
+
+    Args:
+        db_url: Database connection string
+
+    Returns:
+        Properly formatted and encoded database URL
+    """
+    if not db_url:
+        return db_url
+
+    # Handle Heroku-style postgres:// to postgresql:// conversion
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+    try:
+        # Parse the URL to extract components
+        parsed = urlparse(db_url)
+
+        # If there's a password in the URL, ensure it's properly encoded
+        if parsed.password:
+            # The password might already be URL-encoded or might need encoding
+            # We'll decode first (if it's already encoded) then re-encode to ensure consistency
+            try:
+                from urllib.parse import unquote
+                # Try to detect if it's already encoded by checking for %
+                # If decoding changes it, it was encoded; if not, it wasn't
+                decoded_pass = unquote(parsed.password)
+
+                # Re-encode the password properly
+                encoded_pass = quote_plus(decoded_pass)
+
+                # Reconstruct the URL with properly encoded password
+                netloc = parsed.netloc
+                if '@' in netloc:
+                    # Split user info from host
+                    userinfo, host = netloc.rsplit('@', 1)
+                    if ':' in userinfo:
+                        username, _ = userinfo.split(':', 1)
+                        # Reconstruct with encoded password
+                        netloc = f"{username}:{encoded_pass}@{host}"
+
+                    # Reconstruct the full URL
+                    db_url = urlunparse((
+                        parsed.scheme,
+                        netloc,
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment
+                    ))
+            except Exception:
+                # If any error occurs during encoding, return original
+                pass
+
+    except Exception:
+        # If parsing fails, return the original URL
+        pass
+
+    return db_url
+
+
 class Config:
     """Base configuration."""
 
@@ -98,14 +163,14 @@ class Config:
     # Check for database URL in order of priority
     _db_url = os.environ.get("DATABASE_URL", "")
 
-    # Handle Heroku-style postgres:// to postgresql:// conversion
-    if _db_url.startswith("postgres://"):
-        _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+    # Apply database URL fixes (encoding, protocol conversion, etc.)
+    _db_url = fix_database_url(_db_url)
+    _supabase_db_url = fix_database_url(SUPABASE_DB_URL)
 
     if _db_url:
         SQLALCHEMY_DATABASE_URI = _db_url
-    elif SUPABASE_DB_URL:
-        SQLALCHEMY_DATABASE_URI = SUPABASE_DB_URL
+    elif _supabase_db_url:
+        SQLALCHEMY_DATABASE_URI = _supabase_db_url
     else:
         # Fallback to local SQLite database
         SQLALCHEMY_DATABASE_URI = "sqlite:///portfolio.db"
