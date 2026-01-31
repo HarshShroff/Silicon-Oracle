@@ -19,6 +19,9 @@ def create_app(config_name=None):
     if config_name is None:
         config_name = os.environ.get("FLASK_ENV", "development")
 
+    # Normalize config name to lowercase to handle case variations
+    config_name = config_name.lower()
+
     app = Flask(__name__, template_folder="templates", static_folder="static")
 
     # Load configuration
