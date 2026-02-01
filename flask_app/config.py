@@ -179,7 +179,8 @@ class Config:
 
     # Session
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
-    SESSION_TYPE = "filesystem"
+    # Use cookie-based sessions (default) instead of filesystem for cloud deployments
+    # SESSION_TYPE = "filesystem"  # Don't use filesystem on ephemeral cloud platforms
 
     # Cache
     CACHE_TYPE = "simple"
