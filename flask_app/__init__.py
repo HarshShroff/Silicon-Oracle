@@ -64,20 +64,81 @@ def create_app(config_name=None):
     # MIDDLEWARE (ORDER MATTERS)
     # ============================================
 
+    # User profile cache to reduce database queries and tolerate failures
+    from datetime import datetime
+    _user_profile_cache = {}
+    _cache_timeout = 300  # 5 minutes
+
     @app.before_request
     def load_logged_in_user():
-        """1. Load identity first so subsequent checks know who the user is."""
+        """1. Load identity first so subsequent checks know who the user is.
+
+        Now with caching and graceful error handling to prevent session loss
+        due to transient database failures (common on Render free tier).
+        """
         from utils import database as db
         from flask_app.models import User
+        import logging
 
+        logger = logging.getLogger(__name__)
         user_id = session.get('user_id')
         g.user = None
 
         if user_id:
-            profile = db.get_user_profile(user_id)
-            if profile:
-                user_api_keys = db.get_user_api_keys(user_id, decrypt=True)
+            # Try cache first
+            cache_key = f"user_{user_id}"
+            cached_data = _user_profile_cache.get(cache_key)
 
+            # Use cache if fresh
+            if cached_data and (datetime.now() - cached_data['timestamp']).seconds < _cache_timeout:
+                profile = cached_data['profile']
+                user_api_keys = cached_data['api_keys']
+                logger.debug(f"User {user_id} loaded from cache")
+            else:
+                # Fetch from database
+                profile = db.get_user_profile(user_id)
+
+                if profile:
+                    user_api_keys = db.get_user_api_keys(user_id, decrypt=True) or {}
+
+                    # Cache successful fetch
+                    _user_profile_cache[cache_key] = {
+                        'profile': profile,
+                        'api_keys': user_api_keys,
+                        'timestamp': datetime.now()
+                    }
+                    logger.debug(f"User {user_id} loaded from database")
+                else:
+                    # Database query failed - check if we have session email as fallback
+                    user_email = session.get('user_email')
+
+                    if user_email:
+                        # User was authenticated in this session before
+                        # Use minimal fallback to avoid session loss due to database hiccup
+                        logger.warning(f"Database failed for user {user_id}, using session fallback")
+
+                        # Create minimal user object from session
+                        display_name = user_email.split('@')[0]
+                        g.user = User(
+                            id=user_id,
+                            username=display_name,
+                            email=user_email,
+                            password=None
+                        )
+                        g.user.is_authenticated = True
+                        g.user.finnhub_api_key = ''
+                        g.user.alpaca_api_key = ''
+                        g.user.alpaca_secret_key = ''
+                        g.user.gemini_api_key = ''
+                        return  # Skip rest, using fallback
+                    else:
+                        # First request, no fallback data available
+                        logger.error(f"Failed to load profile for {user_id} (no session fallback)")
+                        session.clear()
+                        return
+
+            # Build user object from profile data
+            if profile:
                 display_name = profile.get('username') or profile.get(
                     'email', 'User').split('@')[0]
                 g.user = User(
@@ -87,15 +148,15 @@ def create_app(config_name=None):
                     password=None
                 )
 
-                g.user.finnhub_api_key = user_api_keys.get(
-                    'FINNHUB_API_KEY', '')
+                g.user.finnhub_api_key = user_api_keys.get('FINNHUB_API_KEY', '')
                 g.user.alpaca_api_key = user_api_keys.get('ALPACA_API_KEY', '')
-                g.user.alpaca_secret_key = user_api_keys.get(
-                    'ALPACA_SECRET_KEY', '')
+                g.user.alpaca_secret_key = user_api_keys.get('ALPACA_SECRET_KEY', '')
                 g.user.gemini_api_key = user_api_keys.get('GEMINI_API_KEY', '')
                 g.user.is_authenticated = True
-            else:
-                session.clear()
+
+                # Store email in session for fallback
+                if not session.get('user_email'):
+                    session['user_email'] = profile.get('email')
 
     @app.before_request
     def normalize_ticker_params():

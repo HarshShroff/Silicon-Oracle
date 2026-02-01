@@ -954,3 +954,281 @@ def export_data():
         )
     else:
         return jsonify({"error": "Invalid format"}), 400
+
+
+# ============================================
+# NEWS INTELLIGENCE ENDPOINTS
+# ============================================
+
+
+@api_bp.route("/news-intelligence/trigger", methods=["POST"])
+def trigger_news_intelligence():
+    """
+    Manual trigger for news intelligence scan.
+    Useful for testing the hourly news digest feature immediately.
+    """
+    if not hasattr(g, 'user') or not g.user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        from utils import database as db
+        from flask_app.services.news_intelligence_service import NewsIntelligenceService
+
+        user_id = g.user.id
+        user_email = g.user.email
+
+        # Get user's API keys
+        config = db.get_user_api_keys(user_id, decrypt=True)
+        if not config.get("GMAIL_ADDRESS") or not config.get("GMAIL_APP_PASSWORD"):
+            return jsonify({
+                "error": "Gmail credentials not configured. Please add them in Settings."
+            }), 400
+
+        # Add Gmail credentials to config
+        config['gmail_address'] = config.get("GMAIL_ADDRESS")
+        config['gmail_app_password'] = config.get("GMAIL_APP_PASSWORD")
+
+        # Get user's shadow portfolio holdings
+        holdings = db.get_shadow_positions(user_id, is_active=True)
+        holding_tickers = [pos.get('ticker') for pos in holdings if pos.get('ticker')]
+
+        logger.info(f"Manual news intelligence trigger for {user_email} with {len(holding_tickers)} holdings")
+
+        # Initialize news intelligence service
+        news_service = NewsIntelligenceService(config)
+
+        # Get hours_back from request (default 2 hours for manual trigger)
+        hours_back = request.json.get('hours_back', 2) if request.json else 2
+
+        # Scan and notify
+        sent = news_service.scan_and_notify(
+            user_holdings=holding_tickers,
+            user_email=user_email,
+            include_market_news=True,
+            hours_back=hours_back
+        )
+
+        if sent:
+            return jsonify({
+                "success": True,
+                "message": f"News intelligence email sent to {user_email}",
+                "holdings_count": len(holding_tickers),
+                "hours_scanned": hours_back
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "No important news found in the last {} hour(s)".format(hours_back),
+                "holdings_count": len(holding_tickers),
+                "hours_scanned": hours_back
+            })
+
+    except Exception as e:
+        logger.error(f"Manual news intelligence trigger failed: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/news-intelligence/status")
+def get_news_intelligence_status():
+    """
+    Get status of news intelligence configuration and last run info.
+    """
+    if not hasattr(g, 'user') or not g.user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        from utils import database as db
+
+        user_id = g.user.id
+
+        # Check configuration
+        config = db.get_user_api_keys(user_id, decrypt=True)
+        prefs = db.get_notification_preferences(user_id)
+
+        # Get holdings count
+        holdings = db.get_shadow_positions(user_id, is_active=True)
+        holding_tickers = [pos.get('ticker') for pos in holdings if pos.get('ticker')]
+
+        status = {
+            "configured": bool(
+                config.get("GMAIL_ADDRESS") and
+                config.get("GMAIL_APP_PASSWORD") and
+                config.get("GEMINI_API_KEY")
+            ),
+            "news_alerts_enabled": prefs.get("news_alerts", True),
+            "notifications_enabled": config.get("notifications_enabled", True),
+            "holdings_count": len(holding_tickers),
+            "gmail_configured": bool(config.get("GMAIL_ADDRESS") and config.get("GMAIL_APP_PASSWORD")),
+            "gemini_configured": bool(config.get("GEMINI_API_KEY")),
+            "finnhub_configured": bool(config.get("FINNHUB_API_KEY")),
+            "scan_schedule": "Every hour (top of the hour)",
+            "missing_config": []
+        }
+
+        # Add missing configuration items
+        if not config.get("GMAIL_ADDRESS") or not config.get("GMAIL_APP_PASSWORD"):
+            status["missing_config"].append("Gmail credentials (required for email alerts)")
+        if not config.get("GEMINI_API_KEY"):
+            status["missing_config"].append("Gemini API Key (optional, for AI insights)")
+        if not config.get("FINNHUB_API_KEY"):
+            status["missing_config"].append("Finnhub API Key (optional, for better data)")
+
+        return jsonify(status)
+
+    except Exception as e:
+        logger.error(f"Failed to get news intelligence status: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================
+# AI MARKET INTELLIGENCE ENDPOINTS (New Enhanced Version)
+# ============================================
+
+
+@api_bp.route("/market-intelligence/trigger", methods=["POST"])
+def trigger_market_intelligence():
+    """
+    Manual trigger for AI-powered market intelligence analysis.
+    Scans broad financial/geopolitical news and generates personalized recommendations.
+    """
+    if not hasattr(g, 'user') or not g.user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        from utils import database as db
+        from flask_app.services.market_intelligence_service import MarketIntelligenceService
+
+        user_id = g.user.id
+        user_email = g.user.email
+
+        # Get user's API keys
+        config = db.get_user_api_keys(user_id, decrypt=True)
+        if not config.get("GMAIL_ADDRESS") or not config.get("GMAIL_APP_PASSWORD"):
+            return jsonify({
+                "error": "Gmail credentials not configured. Please add them in Settings."
+            }), 400
+
+        if not config.get("GEMINI_API_KEY"):
+            return jsonify({
+                "error": "Gemini API Key required for AI-powered recommendations. Please add it in Settings."
+            }), 400
+
+        # Add Gmail credentials to config
+        config['gmail_address'] = config.get("GMAIL_ADDRESS")
+        config['gmail_app_password'] = config.get("GMAIL_APP_PASSWORD")
+
+        # Get user's shadow portfolio holdings
+        holdings = db.get_shadow_positions(user_id, is_active=True)
+        holding_tickers = [pos.get('ticker') for pos in holdings if pos.get('ticker')]
+
+        # Get user's risk profile and available cash
+        sim_settings = db.get_simulation_settings(user_id)
+        risk_profile = sim_settings.get('risk_profile', 'moderate') if sim_settings else 'moderate'
+        available_cash = sim_settings.get('current_cash', 0) if sim_settings else 0
+
+        logger.info(f"Manual AI market intelligence trigger for {user_email}")
+        logger.info(f"  Holdings: {len(holding_tickers)}, Risk: {risk_profile}, Cash: ${available_cash:,.2f}")
+
+        # Initialize market intelligence service
+        intelligence_service = MarketIntelligenceService(config)
+
+        # Get hours_back from request (default 2 hours for manual trigger)
+        hours_back = request.json.get('hours_back', 2) if request.json else 2
+
+        # Generate intelligence and recommendations
+        sent = intelligence_service.generate_market_intelligence(
+            user_id=user_id,
+            user_email=user_email,
+            user_holdings=holding_tickers,
+            risk_profile=risk_profile,
+            available_cash=available_cash,
+            hours_back=hours_back
+        )
+
+        if sent:
+            return jsonify({
+                "success": True,
+                "message": f"AI market intelligence email sent to {user_email}",
+                "holdings_count": len(holding_tickers),
+                "risk_profile": risk_profile,
+                "available_cash": available_cash,
+                "hours_scanned": hours_back
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "No significant market developments in the last {} hour(s)".format(hours_back),
+                "holdings_count": len(holding_tickers),
+                "risk_profile": risk_profile,
+                "hours_scanned": hours_back
+            })
+
+    except Exception as e:
+        logger.error(f"Manual market intelligence trigger failed: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/market-intelligence/status")
+def get_market_intelligence_status():
+    """
+    Get status of AI market intelligence configuration and diagnostics.
+    """
+    if not hasattr(g, 'user') or not g.user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        from utils import database as db
+
+        user_id = g.user.id
+
+        # Check configuration
+        config = db.get_user_api_keys(user_id, decrypt=True)
+        prefs = db.get_notification_preferences(user_id)
+
+        # Get holdings and portfolio info
+        holdings = db.get_shadow_positions(user_id, is_active=True)
+        holding_tickers = [pos.get('ticker') for pos in holdings if pos.get('ticker')]
+
+        sim_settings = db.get_simulation_settings(user_id)
+        risk_profile = sim_settings.get('risk_profile', 'moderate') if sim_settings else 'moderate'
+        available_cash = sim_settings.get('current_cash', 0) if sim_settings else 0
+
+        status = {
+            "configured": bool(
+                config.get("GMAIL_ADDRESS") and
+                config.get("GMAIL_APP_PASSWORD") and
+                config.get("GEMINI_API_KEY")
+            ),
+            "news_alerts_enabled": prefs.get("news_alerts", True),
+            "notifications_enabled": config.get("notifications_enabled", True),
+            "holdings_count": len(holding_tickers),
+            "risk_profile": risk_profile,
+            "available_cash": available_cash,
+            "gmail_configured": bool(config.get("GMAIL_ADDRESS") and config.get("GMAIL_APP_PASSWORD")),
+            "gemini_configured": bool(config.get("GEMINI_API_KEY")),
+            "finnhub_configured": bool(config.get("FINNHUB_API_KEY")),
+            "scan_schedule": "Every hour (top of the hour)",
+            "features": {
+                "broad_news_scanning": True,
+                "geopolitical_analysis": True,
+                "ai_recommendations": config.get("GEMINI_API_KEY") is not None,
+                "personalized_risk_profile": True,
+                "holdings_impact_analysis": True,
+                "buy_sell_hold_suggestions": config.get("GEMINI_API_KEY") is not None
+            },
+            "missing_config": []
+        }
+
+        # Add missing configuration items
+        if not config.get("GMAIL_ADDRESS") or not config.get("GMAIL_APP_PASSWORD"):
+            status["missing_config"].append("Gmail credentials (REQUIRED for email alerts)")
+        if not config.get("GEMINI_API_KEY"):
+            status["missing_config"].append("Gemini API Key (REQUIRED for AI recommendations)")
+        if not config.get("FINNHUB_API_KEY"):
+            status["missing_config"].append("Finnhub API Key (optional, improves data quality)")
+
+        return jsonify(status)
+
+    except Exception as e:
+        logger.error(f"Failed to get market intelligence status: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500

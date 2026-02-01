@@ -85,6 +85,7 @@ def get_user_profile(user_id: str) -> Optional[Dict[str, Any]]:
     """Get user profile with encrypted API keys."""
     client = get_supabase_client()
     if not client:
+        logger.warning(f"Supabase client not available when fetching profile for {user_id}")
         return None
 
     try:
@@ -96,7 +97,8 @@ def get_user_profile(user_id: str) -> Optional[Dict[str, Any]]:
             .execute()
         )
         return response.data
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to get user profile for {user_id}: {type(e).__name__}: {str(e)}")
         return None
 
 
