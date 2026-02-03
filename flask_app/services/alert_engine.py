@@ -73,7 +73,8 @@ class AlertEngine:
         # 3. Earnings Warning (within 3 days)
         if earnings_data and earnings_data.get("date"):
             try:
-                earn_date = datetime.strptime(earnings_data["date"], "%Y-%m-%d")
+                earn_date = datetime.strptime(
+                    earnings_data["date"], "%Y-%m-%d")
                 days_until = (earn_date - datetime.now()).days
 
                 if 0 <= days_until <= 3:

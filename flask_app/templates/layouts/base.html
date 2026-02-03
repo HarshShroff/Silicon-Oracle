@@ -860,6 +860,13 @@ function appLayout() {
         {% endif %}
         {% endwith %}
 
+        <!-- Global Macro Dashboard (Sticky Ticker Tape) -->
+        {% if current_user and current_user.is_authenticated %}
+        <div class="sticky top-[73px] md:top-[81px] z-30">
+            {% include 'components/macro_dashboard.html' %}
+        </div>
+        {% endif %}
+
         <!-- Page Content -->
         <div id="main-content" class="p-4 md:p-6 animate-fade-in">
             {% block content %}{% endblock %}

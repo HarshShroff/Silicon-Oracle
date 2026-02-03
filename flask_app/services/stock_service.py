@@ -294,7 +294,25 @@ class StockService:
         if self._finnhub_client:
             try:
                 data = self._finnhub_client.stock_insider_transactions(ticker)
-                return data.get('data', [])[:10]
+                trades = data.get('data', [])[:10]
+
+                for trade in trades:
+                    # Finnhub often returns value=0; compute from price * share
+                    if not trade.get('value') and trade.get('price') and trade.get('share'):
+                        trade['value'] = trade['price'] * trade['share']
+
+                    # Normalize transaction type — Finnhub variants like
+                    # "S-Sale!", "S-Sale Ex" must collapse to the canonical
+                    # values the frontend filters on.
+                    txn = trade.get('transaction', '')
+                    if txn.startswith('S-'):
+                        trade['transaction'] = 'S-Sale'
+                    elif txn.startswith('P-'):
+                        trade['transaction'] = 'P-Purchase'
+                    elif txn.startswith('A-'):
+                        trade['transaction'] = 'A-Award'
+
+                return trades
             except Exception:
                 pass
         return None

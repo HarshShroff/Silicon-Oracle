@@ -76,6 +76,61 @@ def is_supabase_enabled() -> bool:
     return get_supabase_client() is not None
 
 
+def run_migrations():
+    """
+    Add any missing columns to existing tables.
+    Idempotent — safe to call on every app startup.
+    Uses DATABASE_URL (psycopg2) for DDL that PostgREST cannot execute.
+    """
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        return
+
+    try:
+        import psycopg2
+
+        conn = psycopg2.connect(database_url)
+        conn.autocommit = True
+        cur = conn.cursor()
+
+        # simulation_settings: trading_style (added for Trading Profile feature)
+        cur.execute("""
+            ALTER TABLE simulation_settings
+            ADD COLUMN IF NOT EXISTS trading_style text DEFAULT 'swing_trading';
+        """)
+
+        # simulation_settings: market_intel_frequency (hourly/daily/weekly)
+        cur.execute("""
+            ALTER TABLE simulation_settings
+            ADD COLUMN IF NOT EXISTS market_intel_frequency text DEFAULT 'hourly';
+        """)
+
+        # market_intelligence_reports: AI memory table (stores per-user reports)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.market_intelligence_reports (
+                id SERIAL PRIMARY KEY,
+                user_id uuid NOT NULL REFERENCES public.user_profiles(id),
+                timestamp timestamp without time zone NOT NULL DEFAULT now(),
+                sentiment_score real,
+                top_catalyst text,
+                recommendations jsonb,
+                market_summary text,
+                full_report jsonb
+            );
+        """)
+
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_market_intelligence_user_timestamp
+                ON public.market_intelligence_reports(user_id, timestamp DESC);
+        """)
+
+        cur.close()
+        conn.close()
+        logger.info("DB migrations completed")
+    except Exception as e:
+        logger.warning(f"DB migration skipped (non-fatal): {e}")
+
+
 # ============================================
 # USER PROFILES (BYOK Keys Storage)
 # ============================================
@@ -411,13 +466,14 @@ def get_shadow_positions(user_id: str, is_active: bool = True) -> List[Dict[str,
         return []
 
     try:
-        response = (
-            client.table("shadow_positions")
-            .select("*")
-            .eq("user_id", user_id)
-            .eq("is_active", is_active)
-            .execute()
-        )
+        query = client.table("shadow_positions").select("*").eq("user_id", user_id)
+        # When fetching active positions, include rows where is_active is True OR NULL
+        # (positions added before is_active was enforced default to NULL)
+        if is_active:
+            query = query.neq("is_active", False)
+        else:
+            query = query.eq("is_active", False)
+        response = query.execute()
         return response.data or []
     except Exception as e:
         logger.error(f"Error getting shadow positions: {e}")
@@ -709,6 +765,76 @@ def get_scan_results(user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
 
 
 # ============================================
+# MARKET INTELLIGENCE REPORTS (AI Memory)
+# ============================================
+
+
+def save_market_intelligence_report(
+    user_id: str,
+    report_data: Dict[str, Any]
+) -> bool:
+    """Save a market intelligence report for AI memory."""
+    client = get_supabase_client()
+    if not client:
+        return False
+
+    try:
+        client.table("market_intelligence_reports").insert({
+            "user_id": user_id,
+            "timestamp": datetime.now().isoformat(),
+            "sentiment_score": report_data.get("sentiment_score"),
+            "top_catalyst": report_data.get("top_catalyst"),
+            "recommendations": json.dumps(report_data.get("recommendations", [])),
+            "market_summary": report_data.get("market_summary"),
+            "full_report": json.dumps(report_data)
+        }).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error saving market intelligence report: {e}")
+        return False
+
+
+def get_latest_market_intelligence_report(
+    user_id: str
+) -> Optional[Dict[str, Any]]:
+    """Get the most recent market intelligence report for context."""
+    client = get_supabase_client()
+    if not client:
+        return None
+
+    try:
+        response = (
+            client.table("market_intelligence_reports")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("timestamp", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        if response.data:
+            report = response.data[0]
+            # Parse JSON fields back to dicts/lists
+            if report.get("recommendations") and isinstance(report["recommendations"], str):
+                try:
+                    report["recommendations"] = json.loads(report["recommendations"])
+                except Exception:
+                    report["recommendations"] = []
+
+            if report.get("full_report") and isinstance(report["full_report"], str):
+                try:
+                    report["full_report"] = json.loads(report["full_report"])
+                except Exception:
+                    report["full_report"] = {}
+
+            return report
+        return None
+    except Exception as e:
+        logger.error(f"Error getting latest market intelligence report: {e}")
+        return None
+
+
+# ============================================
 # DATABASE INITIALIZATION (Run Once)
 # ============================================
 
@@ -832,6 +958,24 @@ CREATE TABLE IF NOT EXISTS public.watchlists (
   CONSTRAINT watchlists_pkey PRIMARY KEY (id),
   CONSTRAINT watchlists_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
 );
+
+-- Market Intelligence Reports (AI Memory)
+CREATE TABLE IF NOT EXISTS public.market_intelligence_reports (
+  id integer NOT NULL DEFAULT nextval('market_intelligence_reports_id_seq'::regclass),
+  user_id uuid NOT NULL,
+  timestamp timestamp without time zone NOT NULL DEFAULT now(),
+  sentiment_score real,
+  top_catalyst text,
+  recommendations jsonb,
+  market_summary text,
+  full_report jsonb,
+  CONSTRAINT market_intelligence_reports_pkey PRIMARY KEY (id),
+  CONSTRAINT market_intelligence_reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_market_intelligence_user_timestamp
+  ON public.market_intelligence_reports(user_id, timestamp DESC);
 
 -- Initial Function/Trigger as before
 CREATE OR REPLACE FUNCTION public.handle_new_user()

@@ -1,0 +1,190 @@
+<!-- Portfolio Correlation Matrix Component -->
+<div class="glass rounded-2xl p-6" x-data="correlationMatrix()">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-white">
+                Portfolio Correlation Matrix
+            </h2>
+            <p class="text-sm text-gray-400 mt-1">
+                Are you really diversified? Or just holding the same stock 3 times?
+            </p>
+        </div>
+        <button @click="fetchCorrelation()" class="text-oracle-primary hover:text-blue-400">
+            <svg class="w-5 h-5" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-oracle-primary"></div>
+        <p class="mt-4 text-gray-400">Calculating correlations...</p>
+    </div>
+
+    <!-- Error State -->
+    <div x-show="error" class="text-center py-12 bg-red-900/20 rounded-lg">
+        <svg class="mx-auto h-12 w-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <p class="mt-4 text-red-600" x-text="error"></p>
+    </div>
+
+    <!-- Correlation Matrix -->
+    <div x-show="!loading && !error && tickers.length > 0" class="overflow-x-auto">
+        <table class="w-full text-xs">
+            <thead>
+                <tr>
+                    <th class="p-2"></th>
+                    <template x-for="ticker in tickers" :key="ticker">
+                        <th class="p-2 font-bold text-gray-300 transform -rotate-45" x-text="ticker"></th>
+                    </template>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="(row, i) in matrix" :key="'row-' + i">
+                    <tr>
+                        <td class="p-2 font-bold text-gray-300" x-text="tickers[i]"></td>
+                        <template x-for="(value, j) in row" :key="'cell-' + j">
+                            <td
+                                class="p-2 text-center font-semibold rounded cursor-pointer hover:scale-110 transition"
+                                :style="'background-color: ' + getColor(value)"
+                                :title="tickers[i] + ' vs ' + tickers[j] + ': ' + (value * 100).toFixed(0) + '%'"
+                                x-text="(value * 100).toFixed(0)"
+                            ></td>
+                        </template>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+
+        <!-- Legend -->
+        <div class="mt-6 flex items-center justify-center space-x-4 text-sm">
+            <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 rounded bg-red-600"></div>
+                <span class="text-gray-400">Negative (-100)</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 rounded glass border border-oracle-border"></div>
+                <span class="text-gray-400">No Correlation (0)</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 rounded bg-green-600"></div>
+                <span class="text-gray-400">Positive (+100)</span>
+            </div>
+        </div>
+
+        <!-- Diversification Score -->
+        <div class="mt-6 p-4 rounded-lg" :class="diversificationScore >= 70 ? 'bg-green-900/20 border-2 border-green-500' : diversificationScore >= 40 ? 'bg-yellow-900/20 border-2 border-yellow-500' : 'bg-red-900/20 border-2 border-red-500'">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold" :class="diversificationScore >= 70 ? 'text-green-300' : diversificationScore >= 40 ? 'text-yellow-300' : 'text-red-300'">
+                        Diversification Score
+                    </h3>
+                    <p class="text-sm" :class="diversificationScore >= 70 ? 'text-green-700' : diversificationScore >= 40 ? 'text-yellow-700' : 'text-red-700'" x-text="diversificationMessage"></p>
+                </div>
+                <div class="text-4xl font-black" :class="diversificationScore >= 70 ? 'text-green-600' : diversificationScore >= 40 ? 'text-yellow-600' : 'text-red-600'">
+                    <span x-text="diversificationScore"></span>/100
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interpretation Guide -->
+    <div class="mt-6 bg-oracle-card border-l-4 border-oracle-primary p-4">
+        <h4 class="text-sm font-bold text-blue-300 mb-2">📚 How to Read This</h4>
+        <ul class="text-xs text-blue-400 space-y-1">
+            <li>• <strong>100:</strong> Perfect correlation - stocks move together identically</li>
+            <li>• <strong>0:</strong> No correlation - stocks move independently</li>
+            <li>• <strong>-100:</strong> Inverse correlation - when one goes up, other goes down</li>
+            <li>• <strong>High correlations (>80):</strong> You're not diversified - consider different sectors</li>
+            <li>• <strong>Example:</strong> NVDA & AMD are usually 85+ correlated (both semis)</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+function correlationMatrix() {
+    return {
+        tickers: [],
+        matrix: [],
+        loading: false,
+        error: '',
+
+        get avgCorrelation() {
+            if (!this.matrix.length) return 0;
+            let sum = 0;
+            let count = 0;
+            for (let i = 0; i < this.matrix.length; i++) {
+                for (let j = 0; j < this.matrix[i].length; j++) {
+                    if (i !== j) {  // Exclude diagonal (self-correlation)
+                        sum += Math.abs(this.matrix[i][j]);
+                        count++;
+                    }
+                }
+            }
+            return count > 0 ? (sum / count) : 0;
+        },
+
+        get diversificationScore() {
+            // Lower average correlation = better diversification
+            // Convert to 0-100 scale (inverse)
+            return Math.round((1 - this.avgCorrelation) * 100);
+        },
+
+        get diversificationMessage() {
+            if (this.diversificationScore >= 70) {
+                return '✅ Well diversified - low correlation between holdings';
+            }
+            if (this.diversificationScore >= 40) {
+                return '⚠️ Moderate - some stocks move together';
+            }
+            return '❌ Poor diversification - holdings are highly correlated';
+        },
+
+        init() {
+            this.fetchCorrelation();
+        },
+
+        async fetchCorrelation() {
+            this.loading = true;
+            this.error = '';
+            try {
+                const response = await fetch('/api/portfolio-correlation');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.tickers = data.tickers;
+                    this.matrix = data.matrix;
+                } else {
+                    const errorData = await response.json();
+                    this.error = errorData.error || 'Failed to calculate correlation';
+                }
+            } catch (error) {
+                console.error('Failed to fetch correlation:', error);
+                this.error = 'Network error - please try again';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        getColor(correlation) {
+            // Color gradient from red (negative) through white (0) to green (positive)
+            const value = correlation;
+
+            if (value > 0.8) return '#16a34a'; // Strong green
+            if (value > 0.6) return '#22c55e';
+            if (value > 0.4) return '#4ade80';
+            if (value > 0.2) return '#86efac';
+            if (value > 0) return '#bbf7d0';
+
+            if (value === 0) return '#ffffff';
+
+            if (value > -0.2) return '#fecaca';
+            if (value > -0.4) return '#fca5a5';
+            if (value > -0.6) return '#f87171';
+            if (value > -0.8) return '#ef4444';
+            return '#dc2626'; // Strong red
+        }
+    }
+}
+</script>

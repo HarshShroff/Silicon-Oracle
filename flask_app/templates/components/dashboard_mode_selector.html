@@ -1,0 +1,177 @@
+<!-- Dashboard Mode Selector Component -->
+<div class="glass rounded-xl p-4 mb-4" x-data="{
+    currentMode: localStorage.getItem('dashboardMode') || 'swing',
+    showModeInfo: false
+}" x-init="$watch('currentMode', value => {
+    localStorage.setItem('dashboardMode', value);
+    $dispatch('mode-changed', { mode: value });
+})">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+            </svg>
+            <h3 class="text-base font-semibold">Trading Mode</h3>
+        </div>
+        <button @click="showModeInfo = !showModeInfo" class="text-gray-400 hover:text-white transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Mode Info Panel -->
+    <div x-show="showModeInfo" x-collapse class="mb-4 p-3 bg-oracle-card rounded-lg border border-oracle-border">
+        <p class="text-xs text-gray-400 mb-2">Choose your trading style to see relevant tools and metrics:</p>
+        <ul class="text-xs text-gray-300 space-y-1">
+            <li><strong>Day Trading:</strong> Real-time data, Level 2, tick charts, momentum indicators</li>
+            <li><strong>Swing Trading:</strong> Multi-timeframe analysis, volatility surface, risk calculator</li>
+            <li><strong>Long-term:</strong> Fundamentals, earnings calendar, dividend tracking, sector rotation</li>
+        </ul>
+    </div>
+
+    <!-- Mode Selection Buttons -->
+    <div class="grid grid-cols-3 gap-2">
+        <!-- Day Trading Mode -->
+        <button @click="currentMode = 'day'"
+                :class="currentMode === 'day' ? 'bg-oracle-primary text-white border-oracle-primary' : 'bg-oracle-card text-gray-400 border-oracle-border hover:bg-oracle-border'"
+                class="flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all group">
+            <svg class="w-6 h-6" :class="currentMode === 'day' ? 'text-white' : 'text-orange-400 group-hover:text-orange-300'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            <div class="text-center">
+                <p class="text-xs font-semibold">Day Trading</p>
+                <p class="text-[10px] text-gray-500" :class="currentMode === 'day' ? 'text-white/70' : ''">Fast-paced</p>
+            </div>
+        </button>
+
+        <!-- Swing Trading Mode (Default) -->
+        <button @click="currentMode = 'swing'"
+                :class="currentMode === 'swing' ? 'bg-oracle-primary text-white border-oracle-primary' : 'bg-oracle-card text-gray-400 border-oracle-border hover:bg-oracle-border'"
+                class="flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all group">
+            <svg class="w-6 h-6" :class="currentMode === 'swing' ? 'text-white' : 'text-blue-400 group-hover:text-blue-300'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+            </svg>
+            <div class="text-center">
+                <p class="text-xs font-semibold">Swing Trading</p>
+                <p class="text-[10px] text-gray-500" :class="currentMode === 'swing' ? 'text-white/70' : ''">Days-Weeks</p>
+            </div>
+        </button>
+
+        <!-- Long-term Investing Mode -->
+        <button @click="currentMode = 'longterm'"
+                :class="currentMode === 'longterm' ? 'bg-oracle-primary text-white border-oracle-primary' : 'bg-oracle-card text-gray-400 border-oracle-border hover:bg-oracle-border'"
+                class="flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all group">
+            <svg class="w-6 h-6" :class="currentMode === 'longterm' ? 'text-white' : 'text-green-400 group-hover:text-green-300'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+            </svg>
+            <div class="text-center">
+                <p class="text-xs font-semibold">Long-term</p>
+                <p class="text-[10px] text-gray-500" :class="currentMode === 'longterm' ? 'text-white/70' : ''">Months-Years</p>
+            </div>
+        </button>
+    </div>
+
+    <!-- Active Mode Indicator -->
+    <div class="mt-3 p-2 bg-oracle-card rounded-lg">
+        <div class="flex items-center justify-between text-xs">
+            <span class="text-gray-400">Active Mode:</span>
+            <span class="font-semibold"
+                  :class="{
+                      'text-orange-400': currentMode === 'day',
+                      'text-blue-400': currentMode === 'swing',
+                      'text-green-400': currentMode === 'longterm'
+                  }"
+                  x-text="currentMode === 'day' ? 'Day Trading' : currentMode === 'swing' ? 'Swing Trading' : 'Long-term Investing'">
+            </span>
+        </div>
+    </div>
+
+    <!-- Mode-specific Quick Stats -->
+    <div class="mt-3 grid grid-cols-3 gap-2">
+        <!-- Day Trading Stats -->
+        <template x-if="currentMode === 'day'">
+            <div class="col-span-3 grid grid-cols-3 gap-2">
+                <div class="bg-oracle-card rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-gray-500">Intraday Vol</p>
+                    <p class="text-sm font-bold text-orange-400">High</p>
+                </div>
+                <div class="bg-oracle-card rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-gray-500">Momentum</p>
+                    <p class="text-sm font-bold text-green-400">Bullish</p>
+                </div>
+                <div class="bg-oracle-card rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-gray-500">Trades Today</p>
+                    <p class="text-sm font-bold">0</p>
+                </div>
+            </div>
+        </template>
+
+        <!-- Swing Trading Stats -->
+        <template x-if="currentMode === 'swing'">
+            <div class="col-span-3 grid grid-cols-3 gap-2">
+                <div class="bg-oracle-card rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-gray-500">Risk/Reward</p>
+                    <p class="text-sm font-bold text-green-400">2.5:1</p>
+                </div>
+                <div class="bg-oracle-card rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-gray-500">Timeframe</p>
+                    <p class="text-sm font-bold text-blue-400">4H</p>
+                </div>
+                <div class="bg-oracle-card rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-gray-500">Open Swings</p>
+                    <p class="text-sm font-bold">3</p>
+                </div>
+            </div>
+        </template>
+
+        <!-- Long-term Stats -->
+        <template x-if="currentMode === 'longterm'">
+            <div class="col-span-3 grid grid-cols-3 gap-2">
+                <div class="bg-oracle-card rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-gray-500">Div Yield</p>
+                    <p class="text-sm font-bold text-green-400">3.2%</p>
+                </div>
+                <div class="bg-oracle-card rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-gray-500">P/E Ratio</p>
+                    <p class="text-sm font-bold">18.5</p>
+                </div>
+                <div class="bg-oracle-card rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-gray-500">Holdings</p>
+                    <p class="text-sm font-bold">12</p>
+                </div>
+            </div>
+        </template>
+    </div>
+</div>
+
+<script>
+// Listen for mode changes and update the page
+document.addEventListener('alpine:init', () => {
+    Alpine.data('dashboardMode', () => ({
+        mode: localStorage.getItem('dashboardMode') || 'swing',
+
+        init() {
+            // Listen for mode changes
+            this.$watch('mode', value => {
+                this.applyModeSettings(value);
+            });
+
+            // Apply initial mode settings
+            this.applyModeSettings(this.mode);
+        },
+
+        applyModeSettings(mode) {
+            // Emit event for other components to listen to
+            window.dispatchEvent(new CustomEvent('dashboard-mode-changed', {
+                detail: { mode }
+            }));
+
+            // Log mode change
+            console.log(`Dashboard mode changed to: ${mode}`);
+        }
+    }));
+});
+</script>

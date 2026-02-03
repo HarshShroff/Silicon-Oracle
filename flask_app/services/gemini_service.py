@@ -10,6 +10,25 @@ from flask import current_app
 
 logger = logging.getLogger(__name__)
 
+TRADING_STYLE_CONTEXT = {
+    "day_trading": (
+        "The user is a DAY TRADER. Tailor analysis to intraday momentum, "
+        "same-day catalysts, and short-term price targets (1-3 days). "
+        "Highlight entry/exit levels, tight stop-losses, and volume-driven moves. "
+        "De-emphasise multi-week fundamentals."
+    ),
+    "swing_trading": (
+        "The user is a SWING TRADER. Focus on 2-10 day setups, breakout patterns, "
+        "and medium-term price targets. Identify swing entry points using "
+        "support/resistance levels and momentum shifts."
+    ),
+    "long_term": (
+        "The user is a LONG-TERM INVESTOR. Focus on fundamentals, competitive moat, "
+        "growth trajectory, and multi-month outlook. Ignore short-term price "
+        "fluctuations and daily noise. Highlight dividend yield where relevant."
+    ),
+}
+
 
 class GeminiService:
     def __init__(self, config: Dict[str, str] = None):
@@ -35,7 +54,7 @@ class GeminiService:
         except Exception as e:
             logger.error(f"Failed to initialize Gemini client: {e}")
 
-    def analyze_ticker(self, ticker: str) -> Tuple[str, int, str]:
+    def analyze_ticker(self, ticker: str, trading_style: str = "swing_trading") -> Tuple[str, int, str]:
         """
         Analyzes a stock using Google Search Grounding.
         Returns: (analysis_html, score, label)
@@ -47,6 +66,7 @@ class GeminiService:
             from google.genai import types
 
             current_date = datetime.now().strftime("%B %d, %Y")
+            style_context = TRADING_STYLE_CONTEXT.get(trading_style, TRADING_STYLE_CONTEXT["swing_trading"])
 
             # 1. Define the Grounding Tool
             google_search_tool = types.Tool(
@@ -56,10 +76,11 @@ class GeminiService:
             # 2. The Prompt
             prompt = f"""
             Today is {current_date}.
+            Trading context: {style_context}
 
             Perform a Google Search for the latest news, risks, and catalysts for {ticker} stock.
 
-            Based on search results, provide a structured HTML analysis. Follow this EXACT template:
+            Based on search results, provide a structured HTML analysis tailored to the user's trading style. Follow this EXACT template:
 
             <div class="space-y-3">
               <h4 class="text-sm font-semibold text-oracle-primary mb-1">Recent News (Last 7 Days)</h4>
@@ -178,7 +199,7 @@ class GeminiService:
             logger.error(f"Quick insight failed for {ticker}: {e}")
             return "Insight currently unavailable."
 
-    def get_factor_interpretation(self, ticker: str, oracle_data: Dict[str, Any]) -> str:
+    def get_factor_interpretation(self, ticker: str, oracle_data: Dict[str, Any], trading_style: str = "swing_trading") -> str:
         """
         Get AI interpretation of Oracle's 15 quantitative factors.
         Explains WHY the score is what it is in plain English.
@@ -186,6 +207,7 @@ class GeminiService:
         Args:
             ticker: Stock ticker symbol
             oracle_data: Oracle score data with factors breakdown
+            trading_style: User's trading style preference
 
         Returns:
             3-4 sentence interpretation
@@ -207,7 +229,10 @@ class GeminiService:
             bullish_summary = ", ".join([f"{f['name']}: {f['detail']}" for f in bullish_factors])
             bearish_summary = ", ".join([f"{f['name']}: {f['detail']}" for f in bearish_factors])
 
+            style_label = {"day_trading": "day trader", "swing_trading": "swing trader", "long_term": "long-term investor"}.get(trading_style, "swing trader")
+
             prompt = f"""You are analyzing {ticker} stock's Oracle Score: {score:.1f}/{max_score} ({verdict}).
+The user is a {style_label}. Frame your takeaway in terms of relevance to their holding horizon.
 
 Bullish Factors: {bullish_summary if bullish_summary else "None"}
 Bearish Factors: {bearish_summary if bearish_summary else "None"}
@@ -216,7 +241,7 @@ Provide a 3-4 sentence interpretation that:
 1. Explains WHY the score is {score:.1f}/{max_score} in plain English
 2. Highlights the strongest bullish signals (if any)
 3. Warns about the biggest risks (if any)
-4. Ends with a concise takeaway
+4. Ends with a concise takeaway relevant to a {style_label}
 
 Keep it conversational and actionable. No markdown formatting, just plain text."""
 

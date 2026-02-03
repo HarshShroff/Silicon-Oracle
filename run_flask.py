@@ -16,6 +16,17 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("✓ Loaded environment variables from .env")
+except ImportError:
+    print("⚠ python-dotenv not installed. Install with: pip install python-dotenv")
+    print("  Continuing without .env file...")
+except Exception as e:
+    print(f"⚠ Could not load .env file: {e}")
+
 
 # Create the Flask application
 # Load secrets into environment variables for shared utilities
@@ -41,19 +52,6 @@ except Exception as e:
 app = create_app(os.environ.get('FLASK_ENV', 'development'))
 
 if __name__ == '__main__':
-    print("""
-    ╔═══════════════════════════════════════════════════════════╗
-    ║                                                           ║
-    ║     ⚡ SILICON ORACLE - Flask Edition                     ║
-    ║                                                           ║
-    ║     AI-Powered Stock Analysis & Paper Trading             ║
-    ║                                                           ║
-    ║     🌐 Open: http://localhost:5001                        ║
-    ║     📊 Demo: username=demo, password=demo                 ║
-    ║                                                           ║
-    ╚═══════════════════════════════════════════════════════════╝
-    """)
-
     # Run the development server
     # Note: Use gunicorn for production deployment
     is_production = os.environ.get('FLASK_ENV') == 'production'

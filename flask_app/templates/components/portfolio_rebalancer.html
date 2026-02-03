@@ -1,0 +1,320 @@
+<!-- AI-Powered Portfolio Rebalancing -->
+<div class="glass rounded-2xl p-6" x-data="portfolioRebalancer()">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-white">
+                Portfolio Rebalancing AI
+            </h2>
+            <p class="text-sm text-gray-400 mt-1">
+                AI-suggested rebalancing based on drift and market conditions
+            </p>
+        </div>
+        <button @click="analyze()" class="text-oracle-primary hover:text-blue-400">
+            <svg class="w-5 h-5" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-oracle-primary"></div>
+        <p class="mt-4 text-gray-400">Analyzing portfolio balance...</p>
+    </div>
+
+    <!-- Error State -->
+    <div x-show="error" class="text-center py-12 bg-red-900/20 rounded-lg">
+        <p class="text-red-600" x-text="error"></p>
+    </div>
+
+    <!-- Results -->
+    <div x-show="!loading && !error && analysis" class="space-y-6">
+
+        <!-- Rebalancing Status -->
+        <div class="rounded-xl p-4 border-2"
+             :class="driftScore < 5 ? 'bg-green-900/20 border-green-500' : driftScore < 15 ? 'bg-yellow-900/20 border-yellow-500' : 'bg-red-900/20 border-red-500'">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold"
+                        :class="driftScore < 5 ? 'text-green-300' : driftScore < 15 ? 'text-yellow-300' : 'text-red-300'">
+                        Rebalancing Status
+                    </h3>
+                    <p class="text-sm mt-1"
+                       :class="driftScore < 5 ? 'text-green-700' : driftScore < 15 ? 'text-yellow-700' : 'text-red-700'"
+                       x-text="getStatusMessage()"></p>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-black"
+                         :class="driftScore < 5 ? 'text-green-600' : driftScore < 15 ? 'text-yellow-600' : 'text-red-600'"
+                         x-text="driftScore.toFixed(1) + '%'"></div>
+                    <p class="text-xs text-gray-500">Avg Drift</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current vs Target Allocations -->
+        <div>
+            <h3 class="text-lg font-semibold text-white mb-4">Current vs Target Allocation</h3>
+            <div class="space-y-3">
+                <template x-for="holding in (analysis?.holdings || [])" :key="holding.ticker">
+                    <div class="border border-oracle-border rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-white" x-text="holding.ticker"></span>
+                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold"
+                                      :class="Math.abs(holding.drift) < 5 ? 'bg-green-100 text-green-400' : Math.abs(holding.drift) < 10 ? 'bg-yellow-100 text-yellow-400' : 'bg-red-100 text-red-400'"
+                                      x-text="(holding.drift > 0 ? '+' : '') + holding.drift.toFixed(1) + '%'"></span>
+                            </div>
+                            <span class="text-sm font-medium text-gray-400" x-text="'$' + holding.value.toLocaleString()"></span>
+                        </div>
+
+                        <!-- Allocation Bars -->
+                        <div class="space-y-1">
+                            <!-- Current -->
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-500 w-16">Current</span>
+                                <div class="flex-1 h-6 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="h-full bg-oracle-card0 flex items-center justify-end px-2 text-xs font-medium text-white"
+                                         :style="'width: ' + holding.currentPercent + '%'"
+                                         x-text="holding.currentPercent.toFixed(1) + '%'"></div>
+                                </div>
+                            </div>
+                            <!-- Target -->
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-500 w-16">Target</span>
+                                <div class="flex-1 h-6 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="h-full bg-green-900/200 flex items-center justify-end px-2 text-xs font-medium text-white"
+                                         :style="'width: ' + holding.targetPercent + '%'"
+                                         x-text="holding.targetPercent.toFixed(1) + '%'"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Required -->
+                        <div x-show="holding.action" class="mt-2 pt-2 border-t border-oracle-border">
+                            <p class="text-xs"
+                               :class="holding.action?.includes('BUY') ? 'text-green-700' : 'text-red-700'"
+                               x-text="holding.action"></p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- AI Recommendations -->
+        <div class="bg-gradient-to-r from-oracle-card to-oracle-card border border-oracle-border rounded-xl p-4">
+            <h3 class="text-lg font-bold text-white mb-3">AI Recommendations</h3>
+            <div class="space-y-3">
+                <template x-for="(rec, index) in (analysis?.recommendations || [])" :key="index">
+                    <div class="bg-oracle-card rounded-lg p-3 border border-oracle-border">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                 :class="rec.priority === 'high' ? 'bg-red-100 text-red-600' : rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' : 'bg-blue-100 text-oracle-primary'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-white" x-text="rec.title"></p>
+                                <p class="text-xs text-gray-400 mt-1" x-text="rec.description"></p>
+                                <div x-show="rec.trades" class="mt-2 flex gap-2">
+                                    <template x-for="trade in rec.trades" :key="trade">
+                                        <span class="px-2 py-1 text-xs rounded"
+                                              :class="trade.includes('BUY') ? 'bg-green-100 text-green-400' : 'bg-red-100 text-red-400'"
+                                              x-text="trade"></span>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Rebalancing Scenarios -->
+        <div>
+            <h3 class="text-lg font-semibold text-white mb-3">Rebalancing Scenarios</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Conservative (5% threshold) -->
+                <div class="border border-oracle-border rounded-lg p-4">
+                    <h4 class="font-semibold text-white mb-2">Conservative (5% threshold)</h4>
+                    <p class="text-xs text-gray-400 mb-3">Only rebalance positions that drifted >5%</p>
+                    <div class="space-y-1 text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Trades Required:</span>
+                            <span class="font-medium text-white" x-text="analysis?.scenarios?.conservative?.trades || '0'"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Est. Cost:</span>
+                            <span class="font-medium text-white" x-text="'$' + (analysis?.scenarios?.conservative?.cost || 0).toFixed(0)"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aggressive (15% threshold) -->
+                <div class="border border-oracle-border rounded-lg p-4">
+                    <h4 class="font-semibold text-white mb-2">Aggressive (15% threshold)</h4>
+                    <p class="text-xs text-gray-400 mb-3">Only rebalance major drifts >15%</p>
+                    <div class="space-y-1 text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Trades Required:</span>
+                            <span class="font-medium text-white" x-text="analysis?.scenarios?.aggressive?.trades || '0'"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Est. Cost:</span>
+                            <span class="font-medium text-white" x-text="'$' + (analysis?.scenarios?.aggressive?.cost || 0).toFixed(0)"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Execute Rebalancing Button -->
+        <div x-show="driftScore >= 5" class="flex gap-3">
+            <button @click="executeRebalance('conservative')"
+                    class="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                Execute Conservative Rebalance
+            </button>
+            <button @click="showDetails = true"
+                    class="px-4 py-3 border border-oracle-border rounded-lg hover:bg-oracle-card font-medium text-gray-300">
+                View Details
+            </button>
+        </div>
+
+        <!-- Details Modal -->
+        <div x-show="showDetails" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="showDetails = false">
+            <div class="bg-gray-900 border border-oracle-border rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto p-6">
+                <div class="flex items-center justify-between mb-5">
+                    <h3 class="text-lg font-bold text-white">Rebalance Trade Plan</h3>
+                    <button @click="showDetails = false" class="text-gray-400 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Summary Row -->
+                <div class="grid grid-cols-3 gap-3 mb-5">
+                    <div class="bg-oracle-card rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400">Total Value</p>
+                        <p class="text-sm font-bold text-white" x-text="'$' + (analysis?.holdings || []).reduce((s,h) => s + h.value, 0).toLocaleString()"></p>
+                    </div>
+                    <div class="bg-oracle-card rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400">Positions</p>
+                        <p class="text-sm font-bold text-white" x-text="(analysis?.holdings || []).length"></p>
+                    </div>
+                    <div class="bg-oracle-card rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400">Avg Drift</p>
+                        <p class="text-sm font-bold" :class="driftScore < 5 ? 'text-green-400' : driftScore < 15 ? 'text-yellow-400' : 'text-red-400'" x-text="driftScore.toFixed(1) + '%'"></p>
+                    </div>
+                </div>
+
+                <!-- Per-Holding Trade Details -->
+                <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Trade Breakdown</h4>
+                <div class="space-y-2">
+                    <template x-for="h in (analysis?.holdings || [])" :key="h.ticker">
+                        <div class="flex items-center justify-between bg-oracle-card rounded-lg px-4 py-3">
+                            <div class="flex items-center gap-3">
+                                <span class="font-bold text-white text-sm" x-text="h.ticker"></span>
+                                <span class="text-xs text-gray-500" x-text="h.currentPercent + '% → ' + h.targetPercent + '%'"></span>
+                            </div>
+                            <span class="text-xs font-semibold px-2 py-1 rounded"
+                                  :class="!h.action ? 'bg-green-900/30 text-green-400' : h.action.includes('BUY') ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'"
+                                  x-text="h.action || 'Balanced'"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Target note -->
+                <div class="mt-5 p-3 bg-oracle-card border border-oracle-border rounded-lg">
+                    <p class="text-xs text-gray-400">Target allocation is <strong class="text-white">equal weight</strong> across all positions. Trades shown use the 5% drift threshold (conservative scenario).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Panel -->
+        <div class="bg-oracle-card border-l-4 border-oracle-primary p-4">
+            <h4 class="text-sm font-bold text-blue-300 mb-2">Rebalancing Tips</h4>
+            <ul class="text-xs text-blue-400 space-y-1">
+                <li>• <strong>Monthly:</strong> Check rebalancing monthly to avoid over-trading</li>
+                <li>• <strong>Threshold:</strong> 5% drift is good balance between precision and costs</li>
+                <li>• <strong>Tax Loss:</strong> Consider selling losers for tax harvesting when rebalancing</li>
+                <li>• <strong>New Money:</strong> Use new deposits to rebalance without selling winners</li>
+                <li>• <strong>Market Timing:</strong> AI considers market conditions for optimal timing</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+function portfolioRebalancer() {
+    return {
+        loading: false,
+        error: '',
+        analysis: null,
+        showDetails: false,
+
+        get driftScore() {
+            if (!this.analysis?.holdings) return 0;
+            const drifts = this.analysis.holdings.map(h => Math.abs(h.drift));
+            return drifts.reduce((a, b) => a + b, 0) / drifts.length;
+        },
+
+        init() {
+            this.analyze();
+        },
+
+        async analyze() {
+            this.loading = true;
+            this.error = '';
+
+            try {
+                const response = await fetch('/api/portfolio-rebalance');
+                if (response.ok) {
+                    this.analysis = await response.json();
+                } else {
+                    const errorData = await response.json();
+                    this.error = errorData.error || 'Failed to analyze portfolio';
+                }
+            } catch (error) {
+                console.error('Rebalancing error:', error);
+                this.error = 'Network error - please try again';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        getStatusMessage() {
+            if (this.driftScore < 5) {
+                return 'Portfolio is well-balanced - no action needed';
+            } else if (this.driftScore < 15) {
+                return 'Moderate drift detected - consider rebalancing soon';
+            } else {
+                return 'Significant drift - rebalancing recommended';
+            }
+        },
+
+        async executeRebalance(scenario) {
+            if (!confirm('Execute ' + scenario + ' rebalancing? This will place trades.')) return;
+
+            try {
+                const response = await fetch('/api/portfolio-rebalance/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scenario })
+                });
+
+                if (response.ok) {
+                    alert('Rebalancing trades submitted successfully!');
+                    this.analyze(); // Refresh
+                } else {
+                    const errorData = await response.json();
+                    alert('Error: ' + (errorData.error || 'Failed to execute'));
+                }
+            } catch (error) {
+                alert('Network error - please try again');
+            }
+        }
+    }
+}
+</script>

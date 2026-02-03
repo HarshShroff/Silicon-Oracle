@@ -38,6 +38,43 @@
         </div>
     </div>
 
+    <!-- Dashboard Mode Selector -->
+    {% include 'components/dashboard_mode_selector.html' %}
+
+    <!-- Trading Profile -->
+    <div class="glass rounded-2xl overflow-hidden">
+        <div class="p-5 border-b border-oracle-border">
+            <h2 class="font-semibold">Trading Profile</h2>
+            <p class="text-xs text-gray-400">AI recommendations and emails will be tailored to your style</p>
+        </div>
+        <div class="p-5">
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <button type="button" @click="tradingStyle = 'day_trading'"
+                        class="p-4 rounded-xl border text-left transition-colors"
+                        :class="tradingStyle === 'day_trading' ? 'border-oracle-primary bg-oracle-primary/10' : 'border-oracle-border bg-oracle-card hover:border-oracle-border'">
+                    <p class="text-sm font-semibold text-white">Day Trading</p>
+                    <p class="text-xs text-gray-400 mt-1">Intraday momentum, high liquidity, tight stops</p>
+                </button>
+                <button type="button" @click="tradingStyle = 'swing_trading'"
+                        class="p-4 rounded-xl border text-left transition-colors"
+                        :class="tradingStyle === 'swing_trading' ? 'border-oracle-primary bg-oracle-primary/10' : 'border-oracle-border bg-oracle-card hover:border-oracle-border'">
+                    <p class="text-sm font-semibold text-white">Swing Trading</p>
+                    <p class="text-xs text-gray-400 mt-1">2-10 day setups, breakouts, medium-term holds</p>
+                </button>
+                <button type="button" @click="tradingStyle = 'long_term'"
+                        class="p-4 rounded-xl border text-left transition-colors"
+                        :class="tradingStyle === 'long_term' ? 'border-oracle-primary bg-oracle-primary/10' : 'border-oracle-border bg-oracle-card hover:border-oracle-border'">
+                    <p class="text-sm font-semibold text-white">Long Term</p>
+                    <p class="text-xs text-gray-400 mt-1">Fundamentals, dividends, multi-month holds</p>
+                </button>
+            </div>
+            <button type="button" @click="saveTradingProfile()" :disabled="savingProfile"
+                    class="w-full py-3 rounded-xl bg-gradient-to-r from-oracle-primary to-oracle-secondary hover:opacity-90 font-semibold text-white">
+                <span x-text="savingProfile ? 'Saving...' : 'Save Trading Profile'"></span>
+            </button>
+        </div>
+    </div>
+
     <!-- API Keys Section -->
     <div class="glass rounded-2xl overflow-hidden">
         <div class="p-5 border-b border-oracle-border">
@@ -157,7 +194,9 @@ function settingsPage() {
     return {
         saving: false,
         savingEmail: false,
+        savingProfile: false,
         testingEmail: false,
+        tradingStyle: '{{ trading_style | default("swing_trading", true) }}',
         apiKeys: {
             finnhub: '{{ finnhub_key | default("", true) }}',
             alpaca_key: '{{ alpaca_key | default("", true) }}',
@@ -166,7 +205,7 @@ function settingsPage() {
         },
         emailSettings: {
             gmail_address: '{{ gmail_address | default("", true) }}',
-            gmail_password: '',
+            gmail_password: '{{ gmail_password_masked | default("", true) }}',
             price_alerts: {{ 'true' if alert_price else 'false' }},
             news_alerts: {{ 'true' if alert_positions else 'false' }},
             daily_digest: {{ 'true' if alert_daily_digest else 'false' }}
@@ -192,6 +231,25 @@ function settingsPage() {
                 this.$dispatch('show-toast', { message: 'Error saving', type: 'error' });
             } finally {
                 this.saving = false;
+            }
+        },
+        async saveTradingProfile() {
+            this.savingProfile = true;
+            try {
+                const formData = new FormData();
+                formData.append('save_trading_style', '1');
+                formData.append('trading_style', this.tradingStyle);
+                const response = await fetch('{{ url_for("main.settings") }}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+                });
+                const data = await response.json();
+                this.$dispatch('show-toast', { message: data.success ? 'Trading profile saved!' : 'Failed to save', type: data.success ? 'success' : 'error' });
+            } catch (e) {
+                this.$dispatch('show-toast', { message: 'Error saving', type: 'error' });
+            } finally {
+                this.savingProfile = false;
             }
         },
         async saveEmailSettings() {

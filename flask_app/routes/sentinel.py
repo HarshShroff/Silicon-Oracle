@@ -45,6 +45,7 @@ def add_position():
             "highest_price_seen": float(data["average_entry_price"]),
             "last_oracle_score": data.get("oracle_score"),
             "next_earnings_date": earnings_date,
+            "is_active": True,
         }
 
         success = db.add_shadow_position(user_id, position_data)

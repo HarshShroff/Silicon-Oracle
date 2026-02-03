@@ -251,13 +251,33 @@ def position_alert_email(
 
 
 def daily_digest_email(
-    portfolio_summary: Dict, top_opportunities: List[Dict], market_status: Dict
+    portfolio_summary: Dict, top_opportunities: List[Dict], market_status: Dict,
+    holdings: List[Dict] = None
 ) -> str:
     """Generate daily digest email content."""
     total_value = portfolio_summary.get("total_value", 0)
+    portfolio_value = portfolio_summary.get("portfolio_value", total_value)
+    cash = portfolio_summary.get("cash", 0)
     days_pnl = portfolio_summary.get("days_pnl", 0)
     days_pnl_pct = portfolio_summary.get("days_pnl_percent", 0)
     pnl_class = "positive" if days_pnl >= 0 else "negative"
+
+    # Shadow portfolio holdings table
+    holdings_html = ""
+    if holdings:
+        for h in holdings:
+            h_pnl_class = "positive" if h.get('pnl', 0) >= 0 else "negative"
+            holdings_html += f"""
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>{h.get('ticker', '')}</strong></td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">{h.get('shares', 0):.2f}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">${h.get('price', 0):.2f}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">${h.get('market_value', 0):,.2f}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <span class="metric {h_pnl_class}">${h.get('pnl', 0):+,.2f} ({h.get('pnl_pct', 0):+.1f}%)</span>
+                </td>
+            </tr>
+            """
 
     opportunities_html = ""
     for opp in top_opportunities[:5]:
@@ -282,39 +302,51 @@ def daily_digest_email(
 
     content = f"""
         <h2>📈 Silicon Oracle Daily Digest</h2>
-        <p>Market Summary for {datetime.now().strftime("%B %d, %Y")}</p>
-        
+        <p>Shadow Portfolio Summary for {datetime.now().strftime("%B %d, %Y")}</p>
+
         <h3>Portfolio Summary</h3>
         <div style="text-align: center; margin: 30px 0;">
             <div class="metric">
-                Total Value: ${total_value:,.2f}
+                Total Equity: ${total_value:,.2f}
             </div>
-            <div class="metric {pnl_class}">
-                Day's P&L: ${days_pnl:+.2f} ({days_pnl_pct:+.2f}%)
+            <div style="display: flex; justify-content: center; gap: 40px; margin-top: 10px;">
+                <div class="metric" style="font-size: 14px;">Positions: ${portfolio_value:,.2f}</div>
+                <div class="metric" style="font-size: 14px;">Cash: ${cash:,.2f}</div>
+            </div>
+            <div class="metric {pnl_class}" style="margin-top: 15px;">
+                P&L: ${days_pnl:+,.2f} ({days_pnl_pct:+.2f}%)
             </div>
         </div>
-        
+
         <h3>Market Status</h3>
         <div style="text-align: center; margin: 20px 0; font-size: 18px;">
             {market_signal}
         </div>
-        
+
+        <h3>💼 Shadow Portfolio Holdings</h3>
+        {f'''<table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+            <thead><tr style="background-color: #f8f9fa;">
+                <th style="padding: 10px; text-align: left;">Ticker</th>
+                <th style="padding: 10px; text-align: right;">Shares</th>
+                <th style="padding: 10px; text-align: right;">Price</th>
+                <th style="padding: 10px; text-align: right;">Value</th>
+                <th style="padding: 10px; text-align: right;">P&L</th>
+            </tr></thead>
+            <tbody>{holdings_html}</tbody>
+        </table>''' if holdings_html else '<p style="color: #888; font-size: 14px;">No shadow positions yet. Portfolio Sentinel will add positions automatically when it detects opportunities.</p>'}
+
         <h3>🎯 Top Opportunities</h3>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-            <thead>
-                <tr style="background-color: #f8f9fa;">
-                    <th style="padding: 10px; text-align: left;">Ticker</th>
-                    <th style="padding: 10px; text-align: right;">Price</th>
-                    <th style="padding: 10px; text-align: center;">Score</th>
-                    <th style="padding: 10px; text-align: left;">Verdict</th>
-                </tr>
-            </thead>
-            <tbody>
-                {opportunities_html}
-            </tbody>
-        </table>
-        
-        <p><em>This is an automated daily digest. Configure alerts in Settings.</em></p>
+        {f'''<table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+            <thead><tr style="background-color: #f8f9fa;">
+                <th style="padding: 10px; text-align: left;">Ticker</th>
+                <th style="padding: 10px; text-align: right;">Price</th>
+                <th style="padding: 10px; text-align: center;">Score</th>
+                <th style="padding: 10px; text-align: left;">Verdict</th>
+            </tr></thead>
+            <tbody>{opportunities_html}</tbody>
+        </table>''' if opportunities_html else '<p style="color: #888; font-size: 14px;">Run a market scan to populate top opportunities.</p>'}
+
+        <p><em>This is an automated daily digest for your shadow portfolio. Configure alerts in Settings.</em></p>
     """
 
     return get_base_template(content, "Daily Digest")
@@ -385,16 +417,17 @@ def send_daily_digest(
     top_opportunities: List[Dict],
     market_status: Dict,
     sender_email: Optional[str] = None,
+    holdings: List[Dict] = None,
 ) -> Dict[str, Any]:
     """Send daily digest notification."""
     if not target_email or not app_password:
         return {"success": False, "error": "Email credentials not configured"}
 
     body_html = daily_digest_email(
-        portfolio_summary, top_opportunities, market_status)
+        portfolio_summary, top_opportunities, market_status, holdings=holdings)
     return send_email(
         target_email,
-        "Daily Digest",
+        "Daily Digest - Shadow Portfolio",
         body_html,
         from_email=sender_email or target_email,
         app_password=app_password

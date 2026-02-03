@@ -60,6 +60,13 @@ def create_app(config_name=None):
     except Exception as e:
         app.logger.warning(f"Scheduler initialization failed: {e}")
 
+    # Run DB migrations (adds missing columns — idempotent)
+    try:
+        from utils.database import run_migrations
+        run_migrations()
+    except Exception as e:
+        app.logger.warning(f"DB migrations skipped: {e}")
+
     # ============================================
     # MIDDLEWARE (ORDER MATTERS)
     # ============================================
@@ -154,6 +161,12 @@ def create_app(config_name=None):
                 g.user.gemini_api_key = user_api_keys.get('GEMINI_API_KEY', '')
                 g.user.is_authenticated = True
 
+                # Debug logging
+                app.logger.debug(f"User {profile.get('email')} loaded:")
+                app.logger.debug(f"  Finnhub: {'SET' if g.user.finnhub_api_key else 'MISSING'}")
+                app.logger.debug(f"  Alpaca: {'SET' if g.user.alpaca_api_key else 'MISSING'}")
+                app.logger.debug(f"  Gemini: {'SET' if g.user.gemini_api_key else 'MISSING'}")
+
                 # Store email in session for fallback
                 if not session.get('user_email'):
                     session['user_email'] = profile.get('email')
@@ -194,6 +207,12 @@ def create_app(config_name=None):
         if hasattr(g, 'user') and g.user and g.user.is_authenticated:
             user_keys = g.user.get_api_keys()
             has_finnhub = bool(user_keys.get('FINNHUB_API_KEY'))
+
+            # Debug logging
+            app.logger.debug(f"API Key Check for {request.endpoint}:")
+            app.logger.debug(f"  User: {g.user.email}")
+            app.logger.debug(f"  Finnhub key present: {has_finnhub}")
+            app.logger.debug(f"  Finnhub key value: {user_keys.get('FINNHUB_API_KEY', 'NOT_SET')[:10]}...")
 
             if not has_finnhub:
                 session['redirect_after_setup'] = request.url

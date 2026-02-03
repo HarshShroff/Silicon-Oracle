@@ -1,0 +1,187 @@
+<!-- Sector Rotation Heatmap Component -->
+<div class="glass rounded-2xl p-6" x-data="sectorRotation()">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-white">
+                Sector Rotation Heatmap
+            </h2>
+            <p class="text-sm text-gray-400 mt-1">Follow the money - see which sectors are hot or cold today</p>
+        </div>
+        <button @click="fetchSectors()" class="text-oracle-primary hover:text-blue-400">
+            <svg class="w-5 h-5" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-oracle-primary"></div>
+    </div>
+
+    <!-- Error State -->
+    <div x-show="!loading && error" class="text-center py-12 px-4">
+        <div class="inline-block p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <p class="text-red-400 font-medium mb-2">Data Unavailable</p>
+            <p class="text-gray-400 text-sm" x-text="error"></p>
+            <a href="/settings" class="inline-block mt-3 px-4 py-2 bg-oracle-primary hover:bg-blue-600 rounded-lg text-sm font-medium transition-colors">
+                Configure API Keys →
+            </a>
+        </div>
+    </div>
+
+    <!-- Heatmap Grid -->
+    <div x-show="!loading && !error" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <template x-for="sector in sectors" :key="sector.etf">
+            <div
+                class="rounded-lg p-4 text-center transition-all hover:scale-105 cursor-pointer shadow-md"
+                :style="'background-color: ' + getColor(sector.change)"
+                @click="showDetail(sector)"
+            >
+                <div class="text-white">
+                    <p class="text-xs font-semibold opacity-90" x-text="sector.etf"></p>
+                    <p class="text-sm font-bold mt-1" x-text="sector.sector"></p>
+                    <p class="text-2xl font-black mt-2" x-text="sector.change + '%'"></p>
+                    <p class="text-xs mt-1 opacity-75" x-text="getLabel(sector.change)"></p>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Legend -->
+    <div class="mt-6 flex items-center justify-center space-x-4 text-sm">
+        <div class="flex items-center space-x-2">
+            <div class="w-4 h-4 rounded bg-red-600"></div>
+            <span class="text-gray-400">Strong Sell-off</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <div class="w-4 h-4 rounded bg-yellow-900/200"></div>
+            <span class="text-gray-400">Neutral</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <div class="w-4 h-4 rounded bg-green-600"></div>
+            <span class="text-gray-400">Strong Rally</span>
+        </div>
+    </div>
+
+    <!-- Market Insight -->
+    <div x-show="marketInsight" class="mt-6 p-4 bg-oracle-card border-l-4 border-oracle-primary rounded">
+        <h4 class="font-bold text-blue-300 mb-2">💡 Market Insight</h4>
+        <p class="text-sm text-blue-400" x-text="marketInsight"></p>
+    </div>
+
+    <!-- Sector Detail Modal -->
+    <div x-show="selectedSector" x-transition class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click.away="selectedSector = null">
+        <div class="glass rounded-lg p-6 max-w-md w-full mx-4" @click.stop>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold" x-text="selectedSector?.sector"></h3>
+                <button @click="selectedSector = null" class="text-gray-400 hover:text-gray-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="space-y-2">
+                <p><strong>ETF:</strong> <span x-text="selectedSector?.etf"></span></p>
+                <p><strong>Today's Change:</strong>
+                    <span
+                        class="font-bold"
+                        :class="selectedSector?.change > 0 ? 'text-green-600' : 'text-red-600'"
+                        x-text="(selectedSector?.change > 0 ? '+' : '') + selectedSector?.change + '%'"
+                    ></span>
+                </p>
+                <p><strong>Current Price:</strong> $<span x-text="selectedSector?.price?.toFixed(2)"></span></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function sectorRotation() {
+    return {
+        sectors: [],
+        loading: false,
+        error: null,
+        marketInsight: '',
+        selectedSector: null,
+
+        init() {
+            this.fetchSectors();
+        },
+
+        async fetchSectors() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const response = await fetch('/api/sector-rotation');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.error) {
+                        this.error = data.error;
+                        this.sectors = [];
+                    } else {
+                        this.sectors = data;
+                        this.generateInsight();
+                    }
+                } else {
+                    const errorData = await response.json();
+                    this.error = errorData.error || 'Failed to fetch sector rotation data';
+                    this.sectors = [];
+                }
+            } catch (error) {
+                console.error('Failed to fetch sector rotation:', error);
+                this.error = 'Unable to connect to server. Please try again later.';
+                this.sectors = [];
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        getColor(change) {
+            // Color gradient from red (negative) to green (positive)
+            if (change >= 2) return '#16a34a'; // Strong green
+            if (change >= 1) return '#22c55e';
+            if (change >= 0.5) return '#4ade80';
+            if (change >= 0) return '#86efac';
+            if (change >= -0.5) return '#fbbf24';
+            if (change >= -1) return '#f97316';
+            if (change >= -2) return '#ef4444';
+            return '#dc2626'; // Strong red
+        },
+
+        getLabel(change) {
+            if (change >= 2) return 'Hot 🔥';
+            if (change >= 1) return 'Strong';
+            if (change >= 0) return 'Gaining';
+            if (change >= -1) return 'Weak';
+            return 'Cold ❄️';
+        },
+
+        generateInsight() {
+            if (this.sectors.length === 0) return;
+
+            const best = this.sectors[0];
+            const worst = this.sectors[this.sectors.length - 1];
+
+            if (best.sector === 'Technology' && best.change > 1) {
+                this.marketInsight = `Tech is leading today (+${best.change}%). Risk-on environment - growth stocks rallying.`;
+            } else if (worst.sector === 'Technology' && worst.change < -1) {
+                this.marketInsight = `Tech is lagging (${worst.change}%). Risk-off - consider defensive sectors.`;
+            } else if (best.sector === 'Energy' && best.change > 1.5) {
+                this.marketInsight = `Energy is surging (+${best.change}%). Oil prices likely rising.`;
+            } else if (best.sector === 'Utilities' || best.sector === 'Consumer Staples') {
+                this.marketInsight = `Defensive sectors leading. Market showing risk-off behavior.`;
+            } else {
+                this.marketInsight = `${best.sector} leading (+${best.change}%), ${worst.sector} lagging (${worst.change}%).`;
+            }
+        },
+
+        showDetail(sector) {
+            this.selectedSector = sector;
+        }
+    }
+}
+</script>

@@ -274,9 +274,9 @@ def settings():
                 "notifications_enabled": True,
             }
 
-            # Only update password if provided
+            # Only update password if provided and not a masked placeholder
             gmail_password = request.form.get("gmail_password", "").strip()
-            if gmail_password:
+            if gmail_password and not gmail_password.startswith("***"):
                 email_data["gmail_app_password_encrypted"] = encrypt_value(
                     gmail_password)
 
@@ -293,6 +293,16 @@ def settings():
             db.update_simulation_settings(user_id, notification_prefs)
 
             flash("Email settings saved successfully!", "success")
+            return jsonify({"success": True})
+
+        elif "save_trading_style" in request.form:
+            # Save trading style preference
+            valid_styles = ("day_trading", "swing_trading", "long_term")
+            trading_style = request.form.get("trading_style", "swing_trading").strip()
+            if trading_style not in valid_styles:
+                return jsonify({"success": False, "error": "Invalid trading style"})
+
+            db.update_simulation_settings(user_id, {"trading_style": trading_style})
             return jsonify({"success": True})
 
         elif "test_connections" in request.form:
@@ -359,6 +369,11 @@ def settings():
     # Fetch from database (BYOK)
     user_keys = db.get_user_api_keys(g.user.id, decrypt=True)
     notif_prefs = db.get_notification_preferences(g.user.id)
+    sim_settings = db.get_simulation_settings(g.user.id) or {}
+
+    # Mask gmail password like other API keys (show last 4 chars only)
+    raw_gmail_pwd = user_keys.get("GMAIL_APP_PASSWORD", "")
+    gmail_password_masked = ("***" + raw_gmail_pwd[-4:]) if raw_gmail_pwd and len(raw_gmail_pwd) > 4 else ""
 
     return render_template(
         "pages/settings.html",
@@ -367,6 +382,8 @@ def settings():
         finnhub_key=user_keys.get("FINNHUB_API_KEY", ""),
         gemini_key=user_keys.get("GEMINI_API_KEY", ""),
         gmail_address=user_keys.get("GMAIL_ADDRESS", ""),
+        gmail_password_masked=gmail_password_masked,
+        trading_style=sim_settings.get("trading_style", "swing_trading"),
         alert_price=notif_prefs.get("price_alerts", False),
         alert_positions=notif_prefs.get("news_alerts", False),
         alert_daily_digest=notif_prefs.get("daily_digest", False),

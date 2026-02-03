@@ -1,0 +1,238 @@
+<!-- Insider Trading Tracker Component -->
+<div class="glass rounded-2xl p-6" x-data="insiderTracker()" x-init="init()">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-white">
+                👔 Insider Trading - <span class="text-oracle-primary" x-text="ticker"></span>
+            </h2>
+            <p class="text-sm text-gray-400 mt-1">Insiders know more than analysts - track what CEOs are doing</p>
+        </div>
+        <button
+            @click="fetchInsiderTrades()"
+            class="px-4 py-2 bg-oracle-primary text-white rounded-md hover:bg-oracle-secondary transition text-sm"
+            :disabled="loading"
+        >
+            <span x-show="!loading">🔄 Refresh</span>
+            <span x-show="loading">Loading...</span>
+        </button>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-oracle-primary"></div>
+    </div>
+
+    <!-- Error State -->
+    <div x-show="!loading && error" class="text-center py-12 px-4">
+        <div class="inline-block p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <p class="text-red-400 font-medium mb-2">Data Unavailable</p>
+            <p class="text-gray-400 text-sm" x-text="error"></p>
+            <a href="/settings" class="inline-block mt-3 px-4 py-2 bg-oracle-primary hover:bg-blue-600 rounded-lg text-sm font-medium transition-colors">
+                Configure API Keys →
+            </a>
+        </div>
+    </div>
+
+    <!-- No Data State -->
+    <div x-show="!loading && !error && trades.length === 0 && searched" class="text-center py-12 bg-oracle-card rounded-lg">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        <p class="mt-4 text-gray-400">No insider trades found for <strong x-text="ticker.toUpperCase()"></strong></p>
+    </div>
+
+    <!-- Insider Trades List -->
+    <div x-show="!loading && trades.length > 0" class="space-y-3">
+        <!-- Summary Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-green-900/20 rounded-lg p-4 text-center border-2"
+                 :class="clusterBuyDetected ? 'border-green-500' : 'border-transparent'">
+                <p class="text-2xl font-bold text-green-600" x-text="buyCount"></p>
+                <p class="text-xs text-gray-400">Buy Transactions</p>
+                <div x-show="clusterBuyDetected" class="mt-1">
+                    <span class="text-xs font-bold text-green-400">🔥 CLUSTER BUY</span>
+                </div>
+            </div>
+            <div class="bg-red-900/20 rounded-lg p-4 text-center">
+                <p class="text-2xl font-bold text-red-600" x-text="sellCount"></p>
+                <p class="text-xs text-gray-400">Sell Transactions</p>
+            </div>
+            <div class="bg-oracle-card rounded-lg p-4 text-center">
+                <p class="text-2xl font-bold text-oracle-primary">$<span x-text="(totalValue / 1000).toFixed(0)"></span>K</p>
+                <p class="text-xs text-gray-400">Total Value</p>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-4 text-center">
+                <p class="text-2xl font-bold text-purple-600" x-text="sentiment"></p>
+                <p class="text-xs text-gray-400">Sentiment</p>
+            </div>
+        </div>
+
+        <!-- Cluster Buy Alert -->
+        <div x-show="clusterBuyDetected" class="bg-green-900/30 border-2 border-green-500 rounded-lg p-4 mb-4">
+            <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <h4 class="text-sm font-bold text-green-300 mb-1">Strong Buy Signal Detected</h4>
+                    <p class="text-xs text-green-400">
+                        <span x-text="clusterBuyCount"></span> insiders bought within the last 30 days. Cluster buying (multiple insiders buying together) is a statistically significant bullish indicator for swing trading.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <template x-for="(trade, index) in trades.slice(0, 10)" :key="`${trade.filing_date}-${trade.name}-${index}`">
+            <div class="border border-oracle-border rounded-lg p-4 hover:shadow-md transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2 mb-2">
+                            <span class="px-2 py-1 text-xs font-semibold rounded"
+                                  :class="trade.transaction === 'P-Purchase' || trade.transaction === 'A-Award' ? 'bg-green-100 text-green-400' : 'bg-red-100 text-red-400'">
+                                <span x-text="trade.transaction === 'P-Purchase' || trade.transaction === 'A-Award' ? '🟢 BUY' : '🔴 SELL'"></span>
+                            </span>
+                            <span class="text-sm font-bold text-white" x-text="trade.name"></span>
+                        </div>
+                        <p class="text-xs text-gray-400 mb-2" x-text="trade.position || 'Insider'"></p>
+
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <p class="text-gray-500">Shares</p>
+                                <p class="font-bold" x-text="formatNumber(trade.share)"></p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500">Value</p>
+                                <p class="font-bold">$<span x-text="formatNumber(Math.abs(trade.value))"></span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-right ml-4">
+                        <p class="text-xs text-gray-500" x-text="formatDate(trade.filing_date)"></p>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Interpretation Guide -->
+    <div class="mt-6 bg-oracle-card border-l-4 border-oracle-primary p-4">
+        <h4 class="text-sm font-bold text-blue-300 mb-2">📚 Insider Trading for Swing Traders</h4>
+        <ul class="text-xs text-blue-400 space-y-1">
+            <li>• <strong>🔥 Cluster Buys = STRONG SIGNAL:</strong> 3+ insiders buying within 30 days is the <em>only</em> statistically significant bullish indicator. This suggests insider conviction.</li>
+            <li>• <strong>Single Buys = Weak Signal:</strong> One insider buying could be personal reasons, not actionable for swing trades</li>
+            <li>• <strong>Insider Selling = NOISE:</strong> Insiders sell for many reasons (taxes, buying a house, diversification). Selling is NOT a sell signal.</li>
+            <li>• <strong>Time Mismatch:</strong> Insiders invest for years, you swing trade for days. Use cluster buys as a floor support indicator, not a timing signal.</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+function insiderTracker() {
+    return {
+        ticker: '{{ ticker }}' || '',
+        trades: [],
+        loading: false,
+        searched: false,
+        error: null,
+
+        init() {
+            // Auto-fetch on load if ticker is available
+            if (this.ticker) {
+                this.fetchInsiderTrades();
+            }
+        },
+
+        get buyCount() {
+            return this.trades.filter(t => t.transaction === 'P-Purchase' || t.transaction === 'A-Award').length;
+        },
+
+        get sellCount() {
+            return this.trades.filter(t => t.transaction === 'S-Sale').length;
+        },
+
+        get totalValue() {
+            return this.trades.reduce((sum, t) => sum + Math.abs(t.value || 0), 0);
+        },
+
+        get sentiment() {
+            if (this.clusterBuyDetected) return 'Strong Buy 🔥';
+            if (this.buyCount > this.sellCount * 2) return 'Bullish 🟢';
+            if (this.sellCount > this.buyCount * 2) return 'Bearish 🔴';
+            return 'Neutral ⚪';
+        },
+
+        // Detect cluster buys: 3+ insiders buying within 30 days
+        get clusterBuyDetected() {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const recentBuys = this.trades.filter(t => {
+                const isBuy = t.transaction === 'P-Purchase' || t.transaction === 'A-Award';
+                const isRecent = new Date(t.filing_date) >= thirtyDaysAgo;
+                return isBuy && isRecent;
+            });
+
+            return recentBuys.length >= 3;
+        },
+
+        get clusterBuyCount() {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            return this.trades.filter(t => {
+                const isBuy = t.transaction === 'P-Purchase' || t.transaction === 'A-Award';
+                const isRecent = new Date(t.filing_date) >= thirtyDaysAgo;
+                return isBuy && isRecent;
+            }).length;
+        },
+
+        async fetchInsiderTrades() {
+            if (!this.ticker) return;
+
+            this.loading = true;
+            this.searched = true;
+            this.error = null;
+            try {
+                const response = await fetch(`/api/insider-trades/${this.ticker.toUpperCase()}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.error) {
+                        this.error = data.error;
+                        this.trades = [];
+                    } else {
+                        this.trades = data;
+                    }
+                } else {
+                    const errorData = await response.json();
+                    this.error = errorData.error || 'Failed to fetch insider trades';
+                    this.trades = [];
+                }
+            } catch (error) {
+                console.error('Failed to fetch insider trades:', error);
+                this.error = 'Unable to connect to server. Please try again later.';
+                this.trades = [];
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        formatNumber(num) {
+            if (!num) return '0';
+            return num.toLocaleString();
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+    }
+}
+</script>

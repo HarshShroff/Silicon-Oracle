@@ -1,0 +1,292 @@
+<!-- Multi-Timeframe Analysis for Swing Trading -->
+<div class="glass rounded-2xl p-6" x-data="multiTimeframe()">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-white">
+                Multi-Timeframe Analysis
+            </h2>
+            <p class="text-sm text-gray-400 mt-1">
+                Align weekly trend, daily entry, 4H confirmation
+                <span x-show="data?.trading_style_label" class="ml-2 inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-oracle-primary/20 text-oracle-primary border border-oracle-primary/30" x-text="'— ' + (data?.trading_style_label || '')"></span>
+            </p>
+        </div>
+        <button @click="fetchAnalysis()" class="text-oracle-primary hover:text-blue-400">
+            <svg class="w-5 h-5" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-oracle-primary"></div>
+        <p class="mt-4 text-gray-400">Analyzing timeframes...</p>
+    </div>
+
+    <!-- Error State -->
+    <div x-show="error" class="text-center py-12 bg-red-900/20 rounded-lg">
+        <p class="text-red-600" x-text="error"></p>
+    </div>
+
+    <!-- Timeframe Grid -->
+    <div x-show="!loading && !error && data" class="space-y-6">
+
+        <!-- Alignment Score -->
+        <div class="bg-gradient-to-r from-oracle-card to-oracle-card border border-oracle-border rounded-xl p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-white">Timeframe Alignment</h3>
+                    <p class="text-sm text-gray-400" x-text="getAlignmentMessage()"></p>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-black"
+                         :class="alignmentScore >= 80 ? 'text-green-600' : alignmentScore >= 50 ? 'text-yellow-600' : 'text-red-600'"
+                         x-text="alignmentScore + '/100'"></div>
+                    <p class="text-xs text-gray-500 mt-1">Alignment Score</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timeframe Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            <!-- Weekly (Trend) -->
+            <div class="border rounded-xl p-4"
+                 :class="data?.weekly?.trend === 'bullish' ? 'border-green-500/50 bg-green-900/20' : data?.weekly?.trend === 'bearish' ? 'border-red-500/50 bg-red-900/20' : 'border-oracle-border bg-oracle-card'">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold text-white">Weekly (Trend)</h4>
+                    <span class="px-2 py-1 rounded-full text-xs font-semibold"
+                          :class="data?.weekly?.trend === 'bullish' ? 'bg-green-500/30 text-green-400' : data?.weekly?.trend === 'bearish' ? 'bg-red-500/30 text-red-400' : 'bg-oracle-border text-gray-300'"
+                          x-text="data?.weekly?.trend?.toUpperCase()"></span>
+                </div>
+
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">SMA 20:</span>
+                        <span class="font-medium text-white" x-text="data?.weekly?.sma20 ? '$' + data.weekly.sma20.toFixed(2) : '--'"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">SMA 50:</span>
+                        <span class="font-medium text-white" x-text="data?.weekly?.sma50 ? '$' + data.weekly.sma50.toFixed(2) : '--'"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">RSI:</span>
+                        <span class="font-medium"
+                              :class="(data?.weekly?.rsi || 50) < 30 ? 'text-green-600' : (data?.weekly?.rsi || 50) > 70 ? 'text-red-600' : 'text-white'"
+                              x-text="data?.weekly?.rsi ? data.weekly.rsi.toFixed(0) : '--'"></span>
+                    </div>
+                    <div class="pt-2 border-t border-oracle-border">
+                        <p class="text-xs text-gray-400">
+                            <strong>Signal:</strong> <span x-text="data?.weekly?.signal || 'No clear signal'"></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily (Entry/Exit) -->
+            <div class="border rounded-xl p-4"
+                 :class="data?.daily?.trend === 'bullish' ? 'border-green-500/50 bg-green-900/20' : data?.daily?.trend === 'bearish' ? 'border-red-500/50 bg-red-900/20' : 'border-oracle-border bg-oracle-card'">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold text-white">Daily (Entry)</h4>
+                    <span class="px-2 py-1 rounded-full text-xs font-semibold"
+                          :class="data?.daily?.trend === 'bullish' ? 'bg-green-500/30 text-green-400' : data?.daily?.trend === 'bearish' ? 'bg-red-500/30 text-red-400' : 'bg-oracle-border text-gray-300'"
+                          x-text="data?.daily?.trend?.toUpperCase()"></span>
+                </div>
+
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Support:</span>
+                        <span class="font-medium text-green-600" x-text="data?.daily?.support ? '$' + data.daily.support.toFixed(2) : '--'"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Resistance:</span>
+                        <span class="font-medium text-red-600" x-text="data?.daily?.resistance ? '$' + data.daily.resistance.toFixed(2) : '--'"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">MACD:</span>
+                        <span class="font-medium"
+                              :class="(data?.daily?.macd || 0) > 0 ? 'text-green-600' : 'text-red-600'"
+                              x-text="data?.daily?.macd ? data.daily.macd.toFixed(2) : '--'"></span>
+                    </div>
+                    <div class="pt-2 border-t border-oracle-border">
+                        <p class="text-xs text-gray-400">
+                            <strong>Entry Zone:</strong> <span x-text="data?.daily?.entryZone || 'Wait for setup'"></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4-Hour (Confirmation) -->
+            <div class="border rounded-xl p-4"
+                 :class="data?.fourHour?.trend === 'bullish' ? 'border-green-500/50 bg-green-900/20' : data?.fourHour?.trend === 'bearish' ? 'border-red-500/50 bg-red-900/20' : 'border-oracle-border bg-oracle-card'">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold text-white">4-Hour (Confirm)</h4>
+                    <span class="px-2 py-1 rounded-full text-xs font-semibold"
+                          :class="data?.fourHour?.trend === 'bullish' ? 'bg-green-500/30 text-green-400' : data?.fourHour?.trend === 'bearish' ? 'bg-red-500/30 text-red-400' : 'bg-oracle-border text-gray-300'"
+                          x-text="data?.fourHour?.trend?.toUpperCase()"></span>
+                </div>
+
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Momentum:</span>
+                        <span class="font-medium"
+                              :class="(data?.fourHour?.momentum || 0) > 0 ? 'text-green-600' : 'text-red-600'"
+                              x-text="data?.fourHour?.momentum ? (data.fourHour.momentum > 0 ? '+' : '') + data.fourHour.momentum.toFixed(1) + '%' : '--'"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Volume:</span>
+                        <span class="font-medium text-white" x-text="data?.fourHour?.volume || '--'"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Stoch RSI:</span>
+                        <span class="font-medium"
+                              :class="(data?.fourHour?.stochRsi || 50) < 20 ? 'text-green-600' : (data?.fourHour?.stochRsi || 50) > 80 ? 'text-red-600' : 'text-white'"
+                              x-text="data?.fourHour?.stochRsi ? data.fourHour.stochRsi.toFixed(0) : '--'"></span>
+                    </div>
+                    <div class="pt-2 border-t border-oracle-border">
+                        <p class="text-xs text-gray-400">
+                            <strong>Timing:</strong> <span x-text="data?.fourHour?.timing || 'Wait'"></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade Setup Suggestion -->
+        <div class="border-l-4 rounded-lg p-4"
+             :class="tradeSetup?.action === 'BUY' ? 'bg-green-900/20 border-green-500' : tradeSetup?.action === 'SELL' ? 'bg-red-900/20 border-red-500' : 'bg-yellow-900/20 border-yellow-500'">
+            <h4 class="text-sm font-bold mb-2"
+                :class="tradeSetup?.action === 'BUY' ? 'text-green-300' : tradeSetup?.action === 'SELL' ? 'text-red-300' : 'text-yellow-300'"
+                x-text="(data?.trading_style_label || 'Swing') + ' Trade Setup'">
+            </h4>
+            <p class="text-sm mb-3"
+               :class="tradeSetup?.action === 'BUY' ? 'text-green-400' : tradeSetup?.action === 'SELL' ? 'text-red-400' : 'text-yellow-400'"
+               x-html="tradeSetup?.description || 'Analyzing trade setup...'"></p>
+
+            <div x-show="tradeSetup?.levels" class="grid grid-cols-3 gap-3 text-xs">
+                <div>
+                    <p class="text-gray-400">Entry</p>
+                    <p class="font-bold text-white" x-text="tradeSetup?.levels?.entry ? '$' + tradeSetup.levels.entry.toFixed(2) : '--'"></p>
+                </div>
+                <div>
+                    <p class="text-gray-400">Stop Loss</p>
+                    <p class="font-bold text-red-600" x-text="tradeSetup?.levels?.stopLoss ? '$' + tradeSetup.levels.stopLoss.toFixed(2) : '--'"></p>
+                </div>
+                <div>
+                    <p class="text-gray-400">Target</p>
+                    <p class="font-bold text-green-600" x-text="tradeSetup?.levels?.target ? '$' + tradeSetup.levels.target.toFixed(2) : '--'"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interpretation Guide -->
+        <div class="bg-oracle-card border-l-4 border-oracle-primary p-4">
+            <h4 class="text-sm font-bold text-blue-300 mb-2">How to Use This</h4>
+            <ul class="text-xs text-blue-400 space-y-1">
+                <li>• <strong>Weekly:</strong> Defines the overall trend - trade WITH this direction</li>
+                <li>• <strong>Daily:</strong> Find entry points near support (uptrend) or resistance (downtrend)</li>
+                <li>• <strong>4-Hour:</strong> Confirm momentum before entering - look for alignment</li>
+                <li>• <strong>Best Setup:</strong> All 3 timeframes align in same direction (80+ score)</li>
+                <li>• <strong>Risk Management:</strong> Always use stop losses at daily support/resistance</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+function multiTimeframe() {
+    return {
+        loading: false,
+        error: '',
+        data: null,
+
+        get alignmentScore() {
+            if (!this.data) return 0;
+
+            const weekly = this.data.weekly?.trend || 'neutral';
+            const daily = this.data.daily?.trend || 'neutral';
+            const fourHour = this.data.fourHour?.trend || 'neutral';
+
+            // Perfect alignment
+            if (weekly === daily && daily === fourHour && weekly !== 'neutral') return 100;
+
+            // 2 out of 3 align
+            if ((weekly === daily && weekly !== 'neutral') ||
+                (weekly === fourHour && weekly !== 'neutral') ||
+                (daily === fourHour && daily !== 'neutral')) return 65;
+
+            // No clear alignment
+            return 30;
+        },
+
+        get tradeSetup() {
+            if (!this.data) return null;
+
+            const score = this.alignmentScore;
+            const weekly = this.data.weekly?.trend;
+            const daily = this.data.daily;
+
+            if (score >= 80) {
+                if (weekly === 'bullish') {
+                    return {
+                        action: 'BUY',
+                        description: '<strong>Strong Buy Setup:</strong> All timeframes aligned bullish. Enter near daily support with tight stop.',
+                        levels: {
+                            entry: daily?.support || null,
+                            stopLoss: daily?.support ? daily.support * 0.97 : null,
+                            target: daily?.resistance || null
+                        }
+                    };
+                } else if (weekly === 'bearish') {
+                    return {
+                        action: 'SELL',
+                        description: '<strong>Strong Sell Setup:</strong> All timeframes aligned bearish. Short near daily resistance.',
+                        levels: {
+                            entry: daily?.resistance || null,
+                            stopLoss: daily?.resistance ? daily.resistance * 1.03 : null,
+                            target: daily?.support || null
+                        }
+                    };
+                }
+            }
+
+            return {
+                action: 'WAIT',
+                description: '<strong>No Clear Setup:</strong> Timeframes not aligned. Wait for better confluence or trade smaller size.',
+                levels: null
+            };
+        },
+
+        init() {
+            this.fetchAnalysis();
+        },
+
+        async fetchAnalysis() {
+            this.loading = true;
+            this.error = '';
+
+            try {
+                const response = await fetch('/api/multi-timeframe');
+                if (response.ok) {
+                    this.data = await response.json();
+                } else {
+                    const errorData = await response.json();
+                    this.error = errorData.error || 'Failed to load timeframe data';
+                }
+            } catch (error) {
+                console.error('Multi-timeframe error:', error);
+                this.error = 'Network error - please try again';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        getAlignmentMessage() {
+            const score = this.alignmentScore;
+            if (score >= 80) return 'Excellent alignment - High probability setup';
+            if (score >= 50) return 'Moderate alignment - Proceed with caution';
+            return 'Poor alignment - Wait for better setup';
+        }
+    }
+}
+</script>

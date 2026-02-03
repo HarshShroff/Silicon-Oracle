@@ -1,0 +1,132 @@
+<!-- Risk Management Calculator Component -->
+<div class="glass rounded-2xl p-6 mb-6" x-data="{
+    portfolioValue: 10000,
+    maxRisk: 2,
+    stopLossPct: 5,
+    sharePrice: 100,
+    get riskAmount() { return this.portfolioValue * (this.maxRisk / 100); },
+    get maxShares() { return Math.floor(this.riskAmount / (this.sharePrice * (this.stopLossPct / 100))); },
+    get positionSize() { return (this.maxShares * this.sharePrice).toFixed(2); },
+    get positionPct() { return ((this.positionSize / this.portfolioValue) * 100).toFixed(1); }
+}">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold text-white">
+            ⚖️ Risk Calculator
+        </h2>
+        <span class="text-sm text-gray-500">Kelly Criterion</span>
+    </div>
+
+    <p class="text-sm text-gray-400 mb-6">
+        Calculate optimal position size based on your risk tolerance. Most traders lose by over-sizing - this prevents blow-ups.
+    </p>
+
+    <!-- Input Fields -->
+    <div class="space-y-4 mb-6">
+        <!-- Portfolio Value -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+                Portfolio Value: $<span x-text="portfolioValue.toLocaleString()"></span>
+            </label>
+            <input
+                type="range"
+                x-model.number="portfolioValue"
+                min="1000"
+                max="1000000"
+                step="1000"
+                class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer slider"
+            >
+        </div>
+
+        <!-- Max Risk Per Trade -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+                Max Risk Per Trade: <span x-text="maxRisk"></span>%
+                <span class="text-xs text-gray-500">(Recommended: 1-2%)</span>
+            </label>
+            <input
+                type="range"
+                x-model.number="maxRisk"
+                min="0.5"
+                max="10"
+                step="0.5"
+                class="w-full h-2 bg-yellow-200 rounded-lg appearance-none cursor-pointer"
+            >
+        </div>
+
+        <!-- Stop Loss -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+                Stop Loss: <span x-text="stopLossPct"></span>%
+            </label>
+            <input
+                type="range"
+                x-model.number="stopLossPct"
+                min="1"
+                max="20"
+                step="0.5"
+                class="w-full h-2 bg-red-200 rounded-lg appearance-none cursor-pointer"
+            >
+        </div>
+
+        <!-- Share Price -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+                Share Price: $<span x-text="sharePrice"></span>
+            </label>
+            <input
+                type="number"
+                x-model.number="sharePrice"
+                min="1"
+                step="0.01"
+                class="w-full px-4 py-2 border border-oracle-border rounded-md focus:ring-2 focus:ring-blue-500"
+            >
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg p-6">
+        <h3 class="text-lg font-bold text-white mb-4">📊 Recommended Position</h3>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="glass rounded-lg p-4 shadow">
+                <p class="text-sm text-gray-400">Max Shares</p>
+                <p class="text-3xl font-bold text-oracle-primary" x-text="maxShares"></p>
+            </div>
+            <div class="glass rounded-lg p-4 shadow">
+                <p class="text-sm text-gray-400">Position Size</p>
+                <p class="text-3xl font-bold text-green-600">$<span x-text="positionSize"></span></p>
+            </div>
+        </div>
+
+        <div class="glass rounded-lg p-4 shadow">
+            <p class="text-sm text-gray-400">Portfolio Allocation</p>
+            <div class="flex items-center justify-between">
+                <p class="text-2xl font-bold text-purple-600"><span x-text="positionPct"></span>%</p>
+                <p class="text-xs text-gray-500">of total portfolio</p>
+            </div>
+        </div>
+
+        <!-- Warning if over-sized -->
+        <div x-show="positionPct > 20" class="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+            <strong class="font-bold">⚠️ Warning:</strong>
+            <span class="block sm:inline">Position size >20% is risky. Consider reducing or widening stop-loss.</span>
+        </div>
+
+        <!-- Risk Amount -->
+        <div class="mt-4 text-sm text-gray-400">
+            <p>💰 <strong>Risk Amount:</strong> $<span x-text="riskAmount.toFixed(2)"></span></p>
+            <p class="text-xs mt-1">If stop-loss hits, you'll lose this amount</p>
+        </div>
+    </div>
+
+    <!-- Quick Tips -->
+    <div class="mt-6 bg-oracle-card border-l-4 border-oracle-primary p-4">
+        <h4 class="text-sm font-bold text-blue-300 mb-2">💡 Pro Tips</h4>
+        <ul class="text-xs text-blue-400 space-y-1">
+            <li>• Never risk more than 2% of your portfolio on a single trade</li>
+            <li>• Wider stop-losses allow larger position sizes but more drawdown</li>
+            <li>• Position size should decrease as volatility increases</li>
+            <li>• Kelly Criterion assumes you know your win rate (most don't)</li>
+        </ul>
+    </div>
+</div>

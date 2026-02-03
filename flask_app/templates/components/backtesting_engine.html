@@ -1,0 +1,310 @@
+<!-- Backtesting Engine for Swing Trading -->
+<div class="glass rounded-2xl p-6" x-data="backtestEngine()">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-white">
+                Backtesting Engine
+            </h2>
+            <p class="text-sm text-gray-400 mt-1">
+                Test swing trading strategies on historical data
+            </p>
+        </div>
+        <button @click="runBacktest()"
+                :disabled="loading"
+                class="px-4 py-2 bg-oracle-primary hover:bg-oracle-secondary text-white rounded-lg disabled:opacity-50">
+            <span x-show="!loading">Run Test</span>
+            <span x-show="loading">Testing...</span>
+        </button>
+    </div>
+
+    <!-- Configuration -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <!-- Ticker Input -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Ticker</label>
+            <input type="text" x-model="ticker" placeholder="AAPL"
+                   class="w-full px-3 py-2 border border-oracle-border rounded-lg bg-oracle-card text-white focus:ring-2 focus:ring-oracle-primary focus:border-oracle-primary">
+        </div>
+
+        <!-- Strategy Selection -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Strategy</label>
+            <select x-model="strategy" class="w-full px-3 py-2 border border-oracle-border rounded-lg bg-oracle-card text-white focus:ring-2 focus:ring-oracle-primary focus:border-oracle-primary">
+                <option value="rsi">RSI Mean Reversion (30/70)</option>
+                <option value="ma_crossover">MA Crossover (20/50)</option>
+                <option value="breakout">Breakout (20-day high)</option>
+                <option value="support_resistance">Support/Resistance Bounce</option>
+            </select>
+        </div>
+
+        <!-- Period Selection -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Test Period</label>
+            <select x-model="period" class="w-full px-3 py-2 border border-oracle-border rounded-lg bg-oracle-card text-white focus:ring-2 focus:ring-oracle-primary focus:border-oracle-primary">
+                <option value="6mo">6 Months</option>
+                <option value="1y">1 Year</option>
+                <option value="2y">2 Years</option>
+                <option value="5y">5 Years</option>
+            </select>
+        </div>
+
+        <!-- Holding Period (Swing Trading Specific) -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Avg Hold Days</label>
+            <input type="number" x-model="holdDays" min="1" max="30" value="5"
+                   class="w-full px-3 py-2 border border-oracle-border rounded-lg bg-oracle-card text-white focus:ring-2 focus:ring-oracle-primary focus:border-oracle-primary">
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-oracle-primary"></div>
+        <p class="mt-4 text-gray-400">Running backtest simulation...</p>
+    </div>
+
+    <!-- Error State -->
+    <div x-show="error" class="bg-red-900/20 border border-red-500/50 rounded-lg p-4 mb-6">
+        <p class="text-red-600 text-sm" x-text="error"></p>
+    </div>
+
+    <!-- Results -->
+    <div x-show="!loading && results" class="space-y-6">
+        <!-- Performance Metrics -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-oracle-card rounded-lg p-4">
+                <p class="text-sm text-gray-400">Total Return</p>
+                <p class="text-2xl font-bold"
+                   :class="results?.totalReturn >= 0 ? 'text-green-600' : 'text-red-600'"
+                   x-text="results?.totalReturn ? (results.totalReturn >= 0 ? '+' : '') + results.totalReturn.toFixed(1) + '%' : '--'"></p>
+            </div>
+
+            <div class="bg-oracle-card rounded-lg p-4">
+                <p class="text-sm text-gray-400">Win Rate</p>
+                <p class="text-2xl font-bold text-white"
+                   x-text="results?.winRate ? results.winRate.toFixed(0) + '%' : '--'"></p>
+            </div>
+
+            <div class="bg-oracle-card rounded-lg p-4">
+                <p class="text-sm text-gray-400">Total Trades</p>
+                <p class="text-2xl font-bold text-white"
+                   x-text="results?.totalTrades || '--'"></p>
+            </div>
+
+            <div class="bg-oracle-card rounded-lg p-4">
+                <p class="text-sm text-gray-400">Max Drawdown</p>
+                <p class="text-2xl font-bold text-red-600"
+                   x-text="results?.maxDrawdown ? results.maxDrawdown.toFixed(1) + '%' : '--'"></p>
+            </div>
+        </div>
+
+        <!-- Additional Metrics -->
+        <div class="grid grid-cols-3 gap-4">
+            <div class="text-center p-3 bg-oracle-card rounded-lg">
+                <p class="text-xs text-gray-500">Profit Factor</p>
+                <p class="text-lg font-bold text-white"
+                   x-text="results?.profitFactor ? results.profitFactor.toFixed(2) : '--'"></p>
+            </div>
+
+            <div class="text-center p-3 bg-oracle-card rounded-lg">
+                <p class="text-xs text-gray-500">Sharpe Ratio</p>
+                <p class="text-lg font-bold"
+                   :class="(results?.sharpeRatio || 0) >= 1 ? 'text-green-600' : 'text-white'"
+                   x-text="results?.sharpeRatio ? results.sharpeRatio.toFixed(2) : '--'"></p>
+            </div>
+
+            <div class="text-center p-3 bg-oracle-card rounded-lg">
+                <p class="text-xs text-gray-500">Avg Hold</p>
+                <p class="text-lg font-bold text-white"
+                   x-text="results?.avgHoldDays ? results.avgHoldDays.toFixed(1) + ' days' : '--'"></p>
+            </div>
+        </div>
+
+        <!-- Equity Curve Chart -->
+        <div>
+            <h3 class="text-lg font-semibold text-white mb-3">Equity Curve</h3>
+            <div class="h-64 relative">
+                <canvas id="equityCurveChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Trade Log (Latest 10) -->
+        <div>
+            <h3 class="text-lg font-semibold text-white mb-3">Recent Trades</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-oracle-card">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-gray-400">Entry Date</th>
+                            <th class="px-3 py-2 text-left text-gray-400">Exit Date</th>
+                            <th class="px-3 py-2 text-right text-gray-400">Entry</th>
+                            <th class="px-3 py-2 text-right text-gray-400">Exit</th>
+                            <th class="px-3 py-2 text-right text-gray-400">P&L %</th>
+                            <th class="px-3 py-2 text-center text-gray-400">Hold</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-oracle-border">
+                        <template x-for="trade in (results?.trades || []).slice(0, 10)" :key="trade.id">
+                            <tr>
+                                <td class="px-3 py-2 text-white" x-text="trade.entryDate"></td>
+                                <td class="px-3 py-2 text-white" x-text="trade.exitDate"></td>
+                                <td class="px-3 py-2 text-right text-white" x-text="'$' + trade.entryPrice.toFixed(2)"></td>
+                                <td class="px-3 py-2 text-right text-white" x-text="'$' + trade.exitPrice.toFixed(2)"></td>
+                                <td class="px-3 py-2 text-right font-semibold"
+                                    :class="trade.pnlPercent >= 0 ? 'text-green-600' : 'text-red-600'"
+                                    x-text="(trade.pnlPercent >= 0 ? '+' : '') + trade.pnlPercent.toFixed(1) + '%'"></td>
+                                <td class="px-3 py-2 text-center text-gray-400" x-text="trade.holdDays + 'd'"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Strategy Description -->
+        <div class="bg-oracle-card border-l-4 border-oracle-primary p-4">
+            <h4 class="text-sm font-bold text-blue-300 mb-2">Strategy Details</h4>
+            <p class="text-xs text-blue-400" x-text="getStrategyDescription()"></p>
+        </div>
+
+        <!-- Overfitting Warning -->
+        <div class="bg-yellow-900/20 border-l-4 border-yellow-500 p-4 rounded-lg">
+            <h4 class="text-sm font-bold text-yellow-300 mb-2 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                Overfitting Warning
+            </h4>
+            <p class="text-xs text-yellow-400 mb-2">
+                <strong>Past performance is not indicative of future results.</strong> Use backtesting to validate trading logic and understand strategy behavior, not to predict future returns.
+            </p>
+            <ul class="text-xs text-yellow-400 space-y-1">
+                <li>• <strong>Don't Overfit:</strong> Avoid tweaking parameters until you get perfect results</li>
+                <li>• <strong>Market Changes:</strong> Conditions that worked in the past may not repeat</li>
+                <li>• <strong>Use for Learning:</strong> Understand how strategies behave in different market conditions</li>
+                <li>• <strong>Walk Forward:</strong> Test on out-of-sample data to validate robustness</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+function backtestEngine() {
+    return {
+        ticker: 'AAPL',
+        strategy: 'rsi',
+        period: '1y',
+        holdDays: 5,
+        loading: false,
+        error: '',
+        results: null,
+        chart: null,
+
+        async runBacktest() {
+            if (!this.ticker) {
+                this.error = 'Please enter a ticker symbol';
+                return;
+            }
+
+            this.loading = true;
+            this.error = '';
+            this.results = null;
+
+            try {
+                const response = await fetch('/api/backtest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticker: this.ticker.toUpperCase(),
+                        strategy: this.strategy,
+                        period: this.period,
+                        hold_days: parseInt(this.holdDays)
+                    })
+                });
+
+                if (response.ok) {
+                    this.results = await response.json();
+                    this.$nextTick(() => this.renderChart());
+                } else {
+                    const errorData = await response.json();
+                    this.error = errorData.error || 'Failed to run backtest';
+                }
+            } catch (error) {
+                console.error('Backtest error:', error);
+                this.error = 'Network error - please try again';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        renderChart() {
+            const canvas = document.getElementById('equityCurveChart');
+            if (!canvas || !this.results?.equityCurve) return;
+
+            if (this.chart) this.chart.destroy();
+
+            const ctx = canvas.getContext('2d');
+            const data = this.results.equityCurve;
+
+            this.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.date),
+                    datasets: [{
+                        label: 'Portfolio Value',
+                        data: data.map(d => d.value),
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return '$' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            grid: { display: false },
+                            ticks: {
+                                color: '#6b7280',
+                                maxTicksLimit: 8
+                            }
+                        },
+                        y: {
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            ticks: {
+                                color: '#6b7280',
+                                callback: function(value) {
+                                    return '$' + value.toFixed(0);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        },
+
+        getStrategyDescription() {
+            const descriptions = {
+                'rsi': 'Buy when RSI < 30 (oversold), Sell when RSI > 70 (overbought). Classic mean reversion for swing trading.',
+                'ma_crossover': 'Buy when 20-day MA crosses above 50-day MA, Sell on reverse. Trend-following approach.',
+                'breakout': 'Buy on breakout above 20-day high, Sell after momentum fades. Momentum strategy.',
+                'support_resistance': 'Buy at support levels, Sell at resistance. Price action-based entries.'
+            };
+            return descriptions[this.strategy] || '';
+        }
+    }
+}
+</script>

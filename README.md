@@ -23,10 +23,21 @@
 - Multiple timeframe charts (1D, 5D, 1M, 6M, 1Y)
 
 ###  AI-Powered Insights
-- **Oracle Score™** - Proprietary AI rating system (0-100)
+- **Oracle Score™** - Proprietary 15-factor technical analysis system
+- **Trading Profile** - Set your style (Day / Swing / Long-Term) and every AI output adapts:
+  - Deep-dive analysis, Oracle factor interpretations, email recommendations, backtesting defaults, and rebalancer thresholds all adjust to your horizon
+- **AI Market Intelligence** - Automated hourly email alerts with:
+  - Gemini 2.0 Flash AI with Google Search grounding
+  - Personalized stock recommendations (BUY/HOLD/SELL) with confidence scores, locked to your trading-style timeframe
+  - Portfolio impact analysis with Oracle-based stop-loss suggestions
+  - Market catalysts with clickable source links
+  - Watchlist generation for emerging opportunities
+  - TL;DR summaries and portfolio health metrics
+  - Customizable frequency (hourly/daily/weekly)
+- **Market Preview** — Pre-market heads-up every weekday at 9 AM
+- **Market Close Summary** — End-of-day recap at 5 PM (Mon-Fri)
 - Sentiment analysis from news and social media
 - Pattern recognition and trend prediction
-- AI-generated investment recommendations
 
 ###  Paper Trading
 - Risk-free practice trading with Alpaca
@@ -134,7 +145,23 @@
 |---------|---------|-----------|--------|
 | **Finnhub** | Market data | 60 calls/min | [finnhub.io](https://finnhub.io) |
 | **Alpaca** | Paper trading | Unlimited paper trading | [alpaca.markets](https://alpaca.markets) |
-| **Gemini** | AI analysis | 60 requests/min | [ai.google.dev](https://ai.google.dev) |
+| **Gemini** | AI analysis & market intelligence | 60 requests/min | [ai.google.dev](https://ai.google.dev) |
+| **Gmail** | Email alerts (optional) | Free | Use your Gmail + [App Password](https://support.google.com/accounts/answer/185833) |
+
+---
+
+##  Email Schedule (all times server-local, Mon-Fri unless noted)
+
+| Job | When | What |
+|-----|------|------|
+| **Market Preview** | 9:00 AM | Pre-market heads-up & portfolio impact |
+| **Sentinel Monitor** | Every 5 min, 9 AM – 4 PM | Real-time position alerts |
+| **AI Market Intelligence** | Every hour, 10 AM – 4 PM | Personalized stock picks via Gemini |
+| **Market Close Summary** | 5:00 PM | Today's performance recap |
+| **Daily Digest** | 5:30 PM | Full portfolio summary + top opportunities |
+
+> All jobs respect your per-user notification preferences (toggle in Settings → Email).
+> Any job can be triggered manually from the browser console — see [API docs](DOCS.md).
 
 ---
 
@@ -349,7 +376,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ##  Support
 
-- **Documentation**: [DEPLOYMENT.md](DEPLOYMENT.md)
+- **Full Docs (pages, APIs, architecture)**: [DOCS.md](DOCS.md)
+- **Deployment Guide**: [DEPLOYMENT.md](DEPLOYMENT.md)
 - **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
 - **Issues**: [GitHub Issues](https://github.com/HarshShroff/Silicon-Oracle/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/HarshShroff/Silicon-Oracle/discussions)
@@ -358,12 +386,19 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ##  Roadmap
 
-### Current Version (v2.0)
+### Current Version (v2.1)
 -  Real-time stock analysis
--  AI-powered Oracle scoring
+-  AI-powered Oracle scoring (15-factor system)
+-  Trading Profile (Day / Swing / Long-Term) — AI adapts everywhere
+-  AI Market Intelligence with automated email alerts
+-  Market Preview (pre-market) & Close Summary (post-market) emails
 -  Paper trading with Alpaca
 -  Multi-user BYOK system
--  Watchlists and alerts
+-  Watchlists and smart alerts
+-  Portfolio Sentinel monitoring with shadow positions
+-  Portfolio rebalancer with style-aware thresholds
+-  Backtesting engine with style-matched defaults
+-  Manual email-job trigger endpoint for testing
 -  Responsive design
 
 ### Coming Soon (v2.1)
@@ -375,7 +410,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Social features (share trades, strategies)
 
 ### Future (v3.0)
-- [ ] Real money trading (broker integration)
 - [ ] Custom indicators and strategies
 - [ ] Machine learning models
 - [ ] Automated trading bots

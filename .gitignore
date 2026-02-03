@@ -28,8 +28,12 @@ env/
 # IDE
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
+
+# Node.js
+node_modules/
 
 # OS
 .DS_Store
@@ -40,6 +44,7 @@ Thumbs.db
 
 # Cache
 .cache/
+.ruff_cache/
 
 # Backups and Old Files
 backup*/
