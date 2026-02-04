@@ -21,9 +21,11 @@ from utils import database as db
 auth_bp = Blueprint("auth", __name__)
 
 
-def setup_user_session(user_id: str):
+def setup_user_session(user_id: str, email: str = None):
     """Set up a persistent user session across all tabs."""
     session["user_id"] = user_id
+    if email:
+        session["user_email"] = email
     session["logged_in_at"] = datetime.now().isoformat()
     session.permanent = True  # Use PERMANENT_SESSION_LIFETIME from config
 
@@ -56,8 +58,8 @@ def login():
                 user = res.user
 
                 if user:
-                    # Set up persistent session
-                    setup_user_session(user.id)
+                    # Set up persistent session (email stored for fallback)
+                    setup_user_session(user.id, email=email)
 
                     # Ensure profile exists (Supabase trigger may have created it)
                     profile = db.get_user_profile(user.id)
@@ -66,7 +68,7 @@ def login():
 
                     # Check if user has API keys configured
                     api_keys = db.get_user_api_keys(user.id, decrypt=True)
-                    if not api_keys.get("finnhub_api_key_encrypted"):
+                    if not api_keys.get("FINNHUB_API_KEY"):
                         flash("Welcome back! Please configure your API keys to use all features.", "info")
                         return redirect(url_for("main.settings"))
 
@@ -127,7 +129,7 @@ def signup():
 
             if user:
                 # Set up persistent session immediately
-                setup_user_session(user.id)
+                setup_user_session(user.id, email=email)
 
                 # Try to create/update profile with username
                 # Note: Supabase trigger may have already created the profile

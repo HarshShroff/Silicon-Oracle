@@ -148,10 +148,10 @@ def get_user_profile(user_id: str) -> Optional[Dict[str, Any]]:
             client.table("user_profiles")
             .select("*")
             .eq("id", user_id)
-            .single()
             .execute()
         )
-        return response.data
+        # Don't use .single() — it throws PGRST116 on 0 rows instead of returning None
+        return response.data[0] if response.data else None
     except Exception as e:
         logger.error(f"Failed to get user profile for {user_id}: {type(e).__name__}: {str(e)}")
         return None
@@ -168,10 +168,9 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
             client.table("user_profiles")
             .select("*")
             .eq("email", email)
-            .single()
             .execute()
         )
-        return response.data
+        return response.data[0] if response.data else None
     except Exception:
         return None
 
@@ -578,10 +577,9 @@ def get_simulation_settings(user_id: str) -> Optional[Dict[str, Any]]:
             client.table("simulation_settings")
             .select("*")
             .eq("user_id", user_id)
-            .single()
             .execute()
         )
-        return response.data
+        return response.data[0] if response.data else None
     except Exception:
         return None
 
