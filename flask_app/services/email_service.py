@@ -59,7 +59,10 @@ class EmailService:
             # Send via Gmail SMTP
             logger.info(
                 f"Attempting to send email to {to_email} via {self.gmail_address}...")
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
                 server.login(self.gmail_address, self.gmail_app_password)
                 server.sendmail(self.gmail_address, to_email, msg.as_string())
 

@@ -1625,6 +1625,17 @@ def get_insider_trades(ticker):
             insiders = stock_service.get_insider_trades(ticker)
             if insiders is None:
                 return jsonify({"error": "No insider data available for this ticker"}), 404
+
+            # Finnhub often returns both value=0 and price=0 for insider trades.
+            # Fall back to current price for any trades that still have no value.
+            if insiders and any(not t.get('value') for t in insiders):
+                quote = stock_service.get_realtime_quote(ticker)
+                current_price = quote.get('current', 0) if quote else 0
+                if current_price:
+                    for t in insiders:
+                        if not t.get('value'):
+                            t['value'] = current_price * t.get('share', 0)
+
             return jsonify(insiders if insiders else [])
         except Exception as method_error:
             logger.error(f"Failed to fetch insider trades: {method_error}")

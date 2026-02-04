@@ -60,7 +60,10 @@ def send_email(
         msg.attach(MIMEText(body_html, "html"))
 
         # Send via Gmail SMTP
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
             server.login(sender, password)
             server.send_message(msg)
 
