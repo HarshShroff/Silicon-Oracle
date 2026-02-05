@@ -23,7 +23,7 @@ from flask_app.services.notifications_service import (
     test_email_config,
 )
 from flask_app.services.scanner_service import WATCHLISTS
-from flask_app.extensions import cache
+from flask_app.extensions import cache, csrf
 
 logger = logging.getLogger(__name__)
 api_bp = Blueprint("api", __name__)
@@ -2400,6 +2400,7 @@ def execute_portfolio_rebalance():
 
 
 @api_bp.route("/trigger-email-job", methods=["POST"])
+@csrf.exempt
 def trigger_email_job():
     """Manually trigger an email job for the CURRENT user with step-by-step diagnostics."""
     if not hasattr(g, 'user') or not g.user:
