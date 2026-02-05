@@ -129,16 +129,23 @@ def get_user_profile(user_id: str) -> Optional[Dict[str, Any]]:
         return None
 
     try:
+        logger.info(f"[DEBUG] Querying user_profiles for user_id: {user_id} (type: {type(user_id)})")
         response = (
             client.table("user_profiles")
             .select("*")
             .eq("id", user_id)
             .execute()
         )
+        logger.info(f"[DEBUG] Supabase response.data: {response.data}")
+        logger.info(f"[DEBUG] Response count: {response.count if hasattr(response, 'count') else 'N/A'}")
+
         # Don't use .single() — it throws PGRST116 on 0 rows instead of returning None
-        return response.data[0] if response.data else None
+        result = response.data[0] if response.data else None
+        logger.info(f"[DEBUG] Returning profile: {'FOUND' if result else 'NOT FOUND'}")
+        return result
     except Exception as e:
         logger.error(f"Failed to get user profile for {user_id}: {type(e).__name__}: {str(e)}")
+        logger.error(f"[DEBUG] Exception details: {e}", exc_info=True)
         return None
 
 
