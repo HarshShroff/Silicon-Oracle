@@ -13,6 +13,8 @@ services:
         value: production
       - key: SECRET_KEY
         generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
       - key: PYTHON_VERSION
         value: 3.11.0
       # NOTE: API keys are NOT needed here!

@@ -2401,47 +2401,154 @@ def execute_portfolio_rebalance():
 
 @api_bp.route("/trigger-email-job", methods=["POST"])
 def trigger_email_job():
-    """Manually trigger any scheduled email job for testing."""
+    """Manually trigger an email job for the CURRENT user with step-by-step diagnostics."""
     if not hasattr(g, 'user') or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     data = request.get_json()
     job = data.get("job", "").strip().lower()
 
-    valid_jobs = {
-        "preview": "market_preview_job",
-        "intelligence": "market_intelligence_job",
-        "close": "market_close_summary_job",
-        "digest": "daily_digest_job",
-    }
-
+    valid_jobs = ["preview", "intelligence", "close", "digest"]
     if job not in valid_jobs:
-        return jsonify({"error": f"Unknown job. Valid: {list(valid_jobs.keys())}"}), 400
+        return jsonify({"error": f"Unknown job. Valid: {valid_jobs}"}), 400
+
+    from utils import database as db
+
+    user_id = g.user.id
+    diag = {"user_id": user_id, "job": job, "steps": []}
+
+    def step(name, ok, detail=""):
+        diag["steps"].append({"step": name, "ok": ok, "detail": detail})
+        return ok
 
     try:
-        from flask_app.scheduler import (
-            market_preview_job,
-            market_intelligence_job,
-            market_close_summary_job,
-            daily_digest_job,
-        )
+        # 1: Supabase connectivity
+        client = db.get_supabase_client()
+        if not step("supabase", bool(client), "OK" if client else "MISSING SUPABASE_URL or key"):
+            return jsonify({**diag, "email_sent": False})
 
-        job_funcs = {
-            "preview": market_preview_job,
-            "intelligence": market_intelligence_job,
-            "close": market_close_summary_job,
-            "digest": daily_digest_job,
-        }
+        # 2: User profile
+        profile = db.get_user_profile(user_id)
+        if not step("user_profile", bool(profile), "found" if profile else "NOT FOUND in user_profiles"):
+            return jsonify({**diag, "email_sent": False})
 
-        logger.info(
-            f"Manually triggering {valid_jobs[job]} for user {g.user.id}")
-        job_funcs[job]()
+        user_email = profile.get("email", "")
+        step("user_email", bool(user_email), user_email or "MISSING")
 
-        return jsonify({"success": True, "message": f"Triggered {valid_jobs[job]}"})
+        # 3: Decrypt API keys
+        config = db.get_user_api_keys(user_id, decrypt=True)
+        step("api_keys", bool(config), f"keys: {list(config.keys())}" if config else "EMPTY — profile exists but no encrypted keys or decryption failed")
+
+        # 4: Gmail credentials
+        has_gmail = bool(config.get("GMAIL_ADDRESS") and config.get("GMAIL_APP_PASSWORD"))
+        if not step("gmail", has_gmail, f"addr={'set' if config.get('GMAIL_ADDRESS') else 'MISSING'}, pwd={'set' if config.get('GMAIL_APP_PASSWORD') else 'MISSING'}"):
+            return jsonify({**diag, "email_sent": False})
+
+        # 5: Gemini key (required for intelligence / close / preview)
+        if job in ("intelligence", "close", "preview"):
+            has_gemini = bool(config.get("GEMINI_API_KEY"))
+            if not step("gemini", has_gemini, "set" if has_gemini else "MISSING"):
+                return jsonify({**diag, "email_sent": False})
+
+        # 6: Wire lowercase keys that EmailService expects
+        config["gmail_address"] = config.get("GMAIL_ADDRESS")
+        config["gmail_app_password"] = config.get("GMAIL_APP_PASSWORD")
+
+        # 7: Holdings & simulation context
+        holdings = db.get_shadow_positions(user_id, is_active=True)
+        holding_tickers = [p.get("ticker") for p in holdings if p.get("ticker")]
+        sim = db.get_simulation_settings(user_id) or {}
+        risk_profile = sim.get("risk_profile", "moderate")
+        available_cash = sim.get("current_cash", 0)
+        trading_style = sim.get("trading_style", "swing_trading")
+        step("context", True, f"{len(holding_tickers)} holdings, risk={risk_profile}, style={trading_style}, cash=${available_cash:,.0f}")
+
+        # 8: Run the targeted job
+        sent = False
+        if job in ("intelligence", "close", "preview"):
+            from flask_app.services.market_intelligence_service import MarketIntelligenceService
+            svc = MarketIntelligenceService(config)
+            step("gemini_client", bool(svc.gemini_service.client), "ready" if svc.gemini_service.client else "FAILED to init")
+
+            if job == "intelligence":
+                sent = svc.generate_market_intelligence(
+                    user_id=user_id, user_email=user_email,
+                    user_holdings=holding_tickers, risk_profile=risk_profile,
+                    available_cash=available_cash, trading_style=trading_style
+                )
+            elif job == "close":
+                sent = svc.generate_market_close_summary(
+                    user_id=user_id, user_email=user_email,
+                    user_holdings=holding_tickers, risk_profile=risk_profile,
+                    available_cash=available_cash, trading_style=trading_style
+                )
+            else:  # preview
+                sent = svc.generate_market_preview(
+                    user_id=user_id, user_email=user_email,
+                    user_holdings=holding_tickers, risk_profile=risk_profile,
+                    available_cash=available_cash, trading_style=trading_style
+                )
+
+        elif job == "digest":
+            from flask_app.services.notifications_service import send_daily_digest
+            from flask_app.services.stock_service import StockService
+            stock_svc = StockService(config)
+
+            holdings_data = []
+            total_value = 0.0
+            total_cost = 0.0
+            for pos in holdings:
+                ticker = pos.get("ticker")
+                qty = pos.get("quantity", 0)
+                entry = pos.get("average_entry_price", 0)
+                if not ticker or qty <= 0:
+                    continue
+                quote = stock_svc.get_realtime_quote(ticker)
+                price = quote.get("current", entry) if quote else entry
+                mv = qty * price
+                cb = qty * entry
+                holdings_data.append({
+                    "ticker": ticker, "shares": qty, "price": price,
+                    "market_value": mv, "cost_basis": cb,
+                    "pnl": mv - cb,
+                    "pnl_pct": ((price - entry) / entry * 100) if entry > 0 else 0
+                })
+                total_value += mv
+                total_cost += cb
+
+            cash = sim.get("current_cash", 0)
+            summary = {
+                "total_value": total_value + cash,
+                "portfolio_value": total_value,
+                "cash": cash,
+                "days_pnl": total_value - total_cost,
+                "days_pnl_percent": ((total_value - total_cost) / total_cost * 100) if total_cost > 0 else 0
+            }
+            market_status = stock_svc.get_market_status()
+            top_opps = db.get_scan_results(user_id, limit=5)
+
+            result = send_daily_digest(
+                target_email=user_email,
+                app_password=config.get("GMAIL_APP_PASSWORD"),
+                portfolio_summary=summary,
+                top_opportunities=top_opps,
+                market_status=market_status,
+                sender_email=config.get("GMAIL_ADDRESS"),
+                holdings=holdings_data
+            )
+            sent = result.get("success", False) if isinstance(result, dict) else bool(result)
+            if not sent and isinstance(result, dict):
+                step("digest_error", False, result.get("error", "unknown"))
+
+        step("email_result", sent, f"{'SENT' if sent else 'NOT sent'} to {user_email}")
+        logger.info(f"Trigger {job} for {user_id}: sent={sent}, diag={diag}")
+        return jsonify({**diag, "email_sent": sent})
 
     except Exception as e:
+        import traceback
+        step("exception", False, traceback.format_exc())
         logger.error(f"Manual trigger of {job} failed: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({**diag, "email_sent": False, "error": str(e)}), 500
 
 
 # Helper functions
