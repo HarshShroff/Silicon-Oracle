@@ -38,26 +38,11 @@ def get_supabase_client():
     try:
         from supabase import create_client, Client
 
-        url = None
-        key = None
-
-        # Try Streamlit secrets first (if available)
-        try:
-            import streamlit as st
-            url = st.secrets.get("supabase", {}).get("url")
-            key = st.secrets.get("supabase", {}).get("service_role_key")
-            if not key:
-                key = st.secrets.get("supabase", {}).get("anon_key")
-        except Exception:
-            pass
-
-        # Fallback to Environment Variables
-        if not url:
-            url = os.environ.get("SUPABASE_URL")
-
-        if not key:
-            key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get(
-                "SUPABASE_ANON_KEY")
+        # run_flask.py already maps streamlit secrets → env vars at startup,
+        # so env vars are the single source of truth here.
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get(
+            "SUPABASE_ANON_KEY")
 
         if url and key:
             _supabase_client = create_client(url, key)
@@ -89,7 +74,7 @@ def run_migrations():
     try:
         import psycopg2
 
-        conn = psycopg2.connect(database_url)
+        conn = psycopg2.connect(database_url, connect_timeout=5)
         conn.autocommit = True
         cur = conn.cursor()
 
