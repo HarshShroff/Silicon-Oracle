@@ -53,9 +53,6 @@ SQLAlchemy>=2.0.0  # ORM for database operations
 # Security
 cryptography>=41.0.0  # For API key encryption (BYOK)
 
-# Email
-sendgrid>=6.11.0  # SendGrid API for cloud email (Render-compatible)
-
 # Config
 pyyaml>=6.0.0
 

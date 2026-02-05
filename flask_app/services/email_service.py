@@ -20,15 +20,9 @@ class EmailService:
         self.config = config or {}
         self.gmail_address = self.config.get('gmail_address')
         self.gmail_app_password = self.config.get('gmail_app_password')
-        self.sendgrid_api_key = self.config.get('sendgrid_api_key')
-        self.from_email = self.config.get('from_email', self.gmail_address)  # For SendGrid
         self.base_url = self.config.get(
             'base_url', 'http://localhost:5000')  # Default
-
-        # Prefer SendGrid (cloud-compatible) over SMTP
-        self.use_sendgrid = bool(self.sendgrid_api_key and self.from_email)
-        self.use_gmail_smtp = bool(self.gmail_address and self.gmail_app_password)
-        self.enabled = self.use_sendgrid or self.use_gmail_smtp
+        self.enabled = bool(self.gmail_address and self.gmail_app_password)
 
     def is_configured(self) -> bool:
         """Check if email service is properly configured."""
@@ -41,62 +35,13 @@ class EmailService:
         html_body: str,
         text_body: str = None
     ) -> bool:
-        """Send an email via SendGrid API or Gmail SMTP."""
+        """Send an email via Gmail SMTP."""
         if not self.enabled:
             logger.warning(
                 "Email service not configured. Skipping notification.")
             return False
 
-        # Try SendGrid first (cloud-compatible)
-        if self.use_sendgrid:
-            return self._send_via_sendgrid(to_email, subject, html_body, text_body)
-
-        # Fallback to Gmail SMTP (works locally, blocked on some cloud platforms)
-        if self.use_gmail_smtp:
-            return self._send_via_gmail_smtp(to_email, subject, html_body, text_body)
-
-        return False
-
-    def _send_via_sendgrid(
-        self,
-        to_email: str,
-        subject: str,
-        html_body: str,
-        text_body: str = None
-    ) -> bool:
-        """Send email via SendGrid API (cloud-compatible)."""
-        try:
-            from sendgrid import SendGridAPIClient
-            from sendgrid.helpers.mail import Mail, Content
-
-            logger.info(f"Attempting to send email to {to_email} via SendGrid...")
-
-            # Build message
-            message = Mail(
-                from_email=self.from_email,
-                to_emails=to_email,
-                subject=subject
-            )
-
-            # Add content
-            if text_body:
-                message.add_content(Content("text/plain", text_body))
-            message.add_content(Content("text/html", html_body))
-
-            # Send via SendGrid
-            sg = SendGridAPIClient(self.sendgrid_api_key)
-            response = sg.send(message)
-
-            if response.status_code in [200, 201, 202]:
-                logger.info(f"Email sent successfully to {to_email} via SendGrid")
-                return True
-            else:
-                logger.error(f"SendGrid returned status {response.status_code}: {response.body}")
-                return False
-
-        except Exception as e:
-            logger.error(f"Failed to send email via SendGrid to {to_email}: {e}")
-            return False
+        return self._send_via_gmail_smtp(to_email, subject, html_body, text_body)
 
     def _send_via_gmail_smtp(
         self,
@@ -105,43 +50,58 @@ class EmailService:
         html_body: str,
         text_body: str = None
     ) -> bool:
-        """Send email via Gmail SMTP (may be blocked on cloud platforms)."""
+        """Send email via Gmail SMTP (tries port 465 SSL, then 587 STARTTLS)."""
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = f"Silicon Oracle <{self.gmail_address}>"
+        msg['To'] = to_email
+
+        # Plain text fallback
+        if text_body:
+            part1 = MIMEText(text_body, 'plain')
+            msg.attach(part1)
+
+        # HTML content
+        part2 = MIMEText(html_body, 'html')
+        msg.attach(part2)
+
+        # Try port 465 with SSL first (may work on cloud platforms that block 587)
         try:
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = f"Silicon Oracle <{self.gmail_address}>"
-            msg['To'] = to_email
-
-            # Plain text fallback
-            if text_body:
-                part1 = MIMEText(text_body, 'plain')
-                msg.attach(part1)
-
-            # HTML content
-            part2 = MIMEText(html_body, 'html')
-            msg.attach(part2)
-
-            # Send via Gmail SMTP
             logger.info(
-                f"Attempting to send email to {to_email} via Gmail SMTP {self.gmail_address}...")
-            with smtplib.SMTP('smtp.gmail.com', 587) as server:
-                server.ehlo()
-                server.starttls()
+                f"Attempting to send email to {to_email} via Gmail SMTP SSL (port 465)...")
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
                 server.ehlo()
                 server.login(self.gmail_address, self.gmail_app_password)
                 server.sendmail(self.gmail_address, to_email, msg.as_string())
 
-            logger.info(f"Email sent successfully to {to_email} via Gmail SMTP")
+            logger.info(f"Email sent successfully to {to_email} via Gmail SMTP SSL")
             return True
 
-        except smtplib.SMTPAuthenticationError:
-            logger.error(
-                f"Gmail Auth Failed for {self.gmail_address}. Check App Password.")
-            return False
-        except Exception as e:
-            logger.error(
-                f"Failed to send email to {to_email} via Gmail SMTP: {e}")
-            return False
+        except Exception as e_ssl:
+            logger.warning(f"Gmail SMTP SSL (465) failed: {e_ssl}. Trying STARTTLS (587)...")
+
+            # Fallback to port 587 with STARTTLS (works locally)
+            try:
+                logger.info(
+                    f"Attempting to send email to {to_email} via Gmail SMTP STARTTLS (port 587)...")
+                with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                    server.ehlo()
+                    server.starttls()
+                    server.ehlo()
+                    server.login(self.gmail_address, self.gmail_app_password)
+                    server.sendmail(self.gmail_address, to_email, msg.as_string())
+
+                logger.info(f"Email sent successfully to {to_email} via Gmail SMTP STARTTLS")
+                return True
+
+            except smtplib.SMTPAuthenticationError:
+                logger.error(
+                    f"Gmail Auth Failed for {self.gmail_address}. Check App Password.")
+                return False
+            except Exception as e_starttls:
+                logger.error(
+                    f"Both Gmail SMTP methods failed. SSL (465): {e_ssl}, STARTTLS (587): {e_starttls}")
+                return False
 
     def send_alert_notification(
         self,
