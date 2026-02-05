@@ -5,6 +5,7 @@ Page rendering routes
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, g
 from functools import wraps
+from flask_app.extensions import limiter
 from flask_app.services import (
     StockService,
     OracleService,
@@ -53,6 +54,7 @@ def get_config():
 
 
 @main_bp.route("/health")
+@limiter.exempt
 def health():
     """Health check endpoint for monitoring."""
     return {"status": "ok", "service": "silicon-oracle"}, 200

@@ -3,7 +3,7 @@ Silicon Oracle - Flask Application Factory
 AI-Powered Stock Analysis & Paper Trading Platform
 """
 
-from flask_app.extensions import cache, csrf
+from flask_app.extensions import cache, csrf, limiter
 import os
 import sys
 from flask import Flask, g, session, request, redirect, url_for, flash
@@ -31,6 +31,7 @@ def create_app(config_name=None):
     # Initialize extensions with app
     cache.init_app(app)
     csrf.init_app(app)
+    limiter.init_app(app)
 
     # Register blueprints
     from flask_app.routes.main import main_bp

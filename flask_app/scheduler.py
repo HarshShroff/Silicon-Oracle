@@ -51,7 +51,7 @@ def daily_digest_job():
         users = client.table("user_profiles").select(
             "id, email, notifications_enabled").execute()
         for user_data in users.data:
-            if not user_data.get("notifications_enabled"):
+            if user_data.get("notifications_enabled") is False:
                 continue
 
             user_id = user_data['id']
@@ -160,7 +160,7 @@ def market_intelligence_job():
             "id, email, notifications_enabled").execute()
 
         for user_data in users.data:
-            if not user_data.get("notifications_enabled"):
+            if user_data.get("notifications_enabled") is False:
                 continue
 
             user_id = user_data['id']
@@ -257,7 +257,7 @@ def market_close_summary_job():
             "id, email, notifications_enabled").execute()
 
         for user_data in users.data:
-            if not user_data.get("notifications_enabled"):
+            if user_data.get("notifications_enabled") is False:
                 continue
 
             user_id = user_data['id']
@@ -340,7 +340,7 @@ def market_preview_job():
             "id, email, notifications_enabled").execute()
 
         for user_data in users.data:
-            if not user_data.get("notifications_enabled"):
+            if user_data.get("notifications_enabled") is False:
                 continue
 
             user_id = user_data['id']

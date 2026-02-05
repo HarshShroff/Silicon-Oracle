@@ -212,6 +212,9 @@ class ProductionConfig(Config):
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
 
+    # Don't expose scheduler job-management API in production
+    SCHEDULER_API_ENABLED = False
+
 
 class TestingConfig(Config):
     """Testing configuration."""
