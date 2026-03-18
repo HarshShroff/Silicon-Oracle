@@ -90,6 +90,12 @@ def run_migrations():
             ADD COLUMN IF NOT EXISTS market_intel_frequency text DEFAULT 'hourly';
         """)
 
+        # simulation_settings: alpaca_enabled (user can disable Alpaca paper trading)
+        cur.execute("""
+            ALTER TABLE simulation_settings
+            ADD COLUMN IF NOT EXISTS alpaca_enabled boolean DEFAULT true;
+        """)
+
         # market_intelligence_reports: AI memory table (stores per-user reports)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS public.market_intelligence_reports (

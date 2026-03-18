@@ -255,10 +255,17 @@
                                 ></a>
 
                                 <!-- LIVE badge -->
-                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/20 text-green-400 border border-green-500/30">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-green-400 live-indicator"></span>
-                                    LIVE
-                                </span>
+                                <template x-if="isMarketOpen">
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/20 text-green-400 border border-green-500/30">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-green-400 live-indicator"></span>
+                                        LIVE
+                                    </span>
+                                </template>
+                                <template x-if="!isMarketOpen">
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                                        CLOSED
+                                    </span>
+                                </template>
                             </div>
 
                             <p class="text-xs text-gray-400 truncate"

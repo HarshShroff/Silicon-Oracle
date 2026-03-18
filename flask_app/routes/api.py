@@ -54,17 +54,29 @@ def handle_api_error(error):
 
 
 def get_config():
-    """Get API config from current user ONLY - no fallback to app config."""
+    """Get API config from current user ONLY - no fallback to app config.
+    Respects alpaca_enabled flag — if disabled, Alpaca keys are omitted so
+    TradingService.is_connected() returns False everywhere automatically.
+    """
     from flask import g
+    from utils import database as db
 
-    # ONLY use authenticated user's API keys from database
-    # NO fallback to secrets.toml - users MUST add their own keys
     if hasattr(g, 'user') and g.user and g.user.is_authenticated:
         user_keys = g.user.get_api_keys()
         if user_keys:
+            from flask import session as _sess
+            if 'alpaca_enabled' in _sess:
+                alpaca_enabled = bool(_sess['alpaca_enabled'])
+            else:
+                sim = db.get_simulation_settings(g.user.id) or {}
+                val = sim.get("alpaca_enabled", None)
+                alpaca_enabled = bool(val) if val is not None else True
+            if not alpaca_enabled:
+                user_keys = dict(user_keys)
+                user_keys["ALPACA_API_KEY"] = ""
+                user_keys["ALPACA_SECRET_KEY"] = ""
             return user_keys
 
-    # Return empty config - user must add their own keys
     return {
         "FINNHUB_API_KEY": "",
         "ALPACA_API_KEY": "",
@@ -77,7 +89,8 @@ def get_trading_style():
     """Get the current user's trading style from simulation settings."""
     from utils import database as db
 
-    user_id = g.user.id if hasattr(g, 'user') and g.user else session.get("user_id")
+    user_id = g.user.id if hasattr(
+        g, 'user') and g.user else session.get("user_id")
     if user_id:
         sim_settings = db.get_simulation_settings(user_id)
         if sim_settings:
@@ -1517,9 +1530,10 @@ def get_macro_data():
         # Fetch key macro indicators
         macro_tickers = {
             'SPY': 'spy',
-            'VIX': 'vix',
+            '^VIX': 'vix',      # correct yfinance symbol for CBOE VIX
             '^TNX': 'yield10y',  # 10-Year Treasury Yield
-            'DX-Y.NYB': 'dxy',  # Dollar Index
+            # Dollar Index futures (DX-Y.NYB is delisted on yfinance)
+            'DX=F': 'dxy',
             'BTC-USD': 'btc',
             'GC=F': 'gold',
             'CL=F': 'oil'
@@ -2219,7 +2233,8 @@ def get_portfolio_rebalance():
             "swing_trading": {"min": 5, "moderate": 10, "high": 15},
             "long_term":     {"min": 8, "moderate": 15, "high": 25},
         }
-        thresholds = DRIFT_THRESHOLDS.get(trading_style, DRIFT_THRESHOLDS["swing_trading"])
+        thresholds = DRIFT_THRESHOLDS.get(
+            trading_style, DRIFT_THRESHOLDS["swing_trading"])
         min_drift = thresholds["min"]
         moderate_thresh = thresholds["moderate"]
         high_thresh = thresholds["high"]
@@ -2257,7 +2272,8 @@ def get_portfolio_rebalance():
         recommendations = []
 
         # High drift warning
-        high_drift = [h for h in analyzed_holdings if abs(h['drift']) > high_thresh]
+        high_drift = [h for h in analyzed_holdings if abs(
+            h['drift']) > high_thresh]
         if high_drift:
             recommendations.append({
                 'priority': 'high',
@@ -2399,6 +2415,232 @@ def execute_portfolio_rebalance():
         return jsonify({"error": str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Macro Intelligence Dashboard
+# ---------------------------------------------------------------------------
+
+@api_bp.route("/macro-intel/scan")
+def macro_intel_scan():
+    """
+    Macro intelligence pipeline.
+
+    Query params:
+      source = alpaca | sentinel | both  (default: both)
+
+    Events are cached 30 min (module-level). Positions/impact/suggestions are
+    computed fresh on every call so toggling sources is instant.
+    """
+    from flask_app.services.macro_intel_service import MacroIntelService
+    from utils import database as db
+
+    source = request.args.get("source", "both")  # alpaca | sentinel | both
+    force_refresh = request.args.get("refresh", "0") == "1"
+
+    config = get_config()
+    service = MacroIntelService(config)
+    trading_service = TradingService(config)
+
+    # ── User profile: risk + trading style ───────────────────────────────
+    risk_profile = "moderate"
+    trading_style = "swing_trading"
+    if hasattr(g, "user") and g.user:
+        try:
+            profile = db.get_user_profile(g.user.id)
+            if profile:
+                risk_profile = profile.get(
+                    "risk_profile", "moderate") or "moderate"
+        except Exception:
+            pass
+        try:
+            sim = db.get_simulation_settings(g.user.id)
+            if sim:
+                trading_style = sim.get(
+                    "trading_style", "swing_trading") or "swing_trading"
+        except Exception:
+            pass
+
+    # ── Alpaca positions ──────────────────────────────────────────────────
+    account = None
+    alpaca_positions: list = []
+    if source in ("alpaca", "both") and trading_service.is_connected():
+        account = trading_service.get_account()
+        alpaca_positions = trading_service.get_positions()
+
+    # ── Sentinel (shadow) positions ───────────────────────────────────────
+    sentinel_positions: list = []
+    if source in ("sentinel", "both") and hasattr(g, "user") and g.user:
+        try:
+            raw = db.get_shadow_positions(g.user.id, is_active=True)
+            alpaca_tickers = {p["ticker"] for p in alpaca_positions}
+            for p in raw:
+                ticker = p.get("ticker", "")
+                qty = float(p.get("quantity", 0) or 0)
+                avg_price = float(p.get("average_entry_price", 0) or 0)
+                # Skip if already in Alpaca list (avoid duplicates in 'both' mode)
+                if ticker and ticker not in alpaca_tickers:
+                    sentinel_positions.append({
+                        "ticker": ticker,
+                        "shares": qty,
+                        "avg_price": avg_price,
+                        "market_value": qty * avg_price,
+                        "unrealized_pl": 0.0,
+                        "source": "sentinel",
+                    })
+        except Exception as e:
+            logger.warning(f"Sentinel positions fetch failed: {e}")
+
+    # ── Fetch live prices for sentinel tickers BEFORE analysis ───────────────
+    # Sentinel positions stored with avg_price often 0 → market_value = 0 →
+    # portfolio_value = 0 → get_trade_suggestions returns [] immediately.
+    # Fix: enrich with real prices first so analysis has accurate position sizing.
+    live_prices: dict = {}
+    oracle_scores: dict = {}
+
+    sentinel_tickers = [p["ticker"] for p in sentinel_positions]
+    if sentinel_tickers:
+        try:
+            import yfinance as yf
+            import pandas as pd
+            raw_yf = yf.download(
+                tickers=" ".join(sentinel_tickers),
+                period="5d",
+                interval="1d",
+                auto_adjust=True,
+                progress=False,
+                threads=True,
+            )
+            close_col = "Close"
+            if raw_yf is not None and not raw_yf.empty:
+                if isinstance(raw_yf.columns, pd.MultiIndex):
+                    closes = raw_yf[close_col] if close_col in raw_yf.columns.get_level_values(
+                        0) else pd.DataFrame()
+                elif close_col in raw_yf.columns:
+                    closes = raw_yf[[close_col]].rename(
+                        columns={close_col: sentinel_tickers[0]})
+                else:
+                    closes = pd.DataFrame()
+
+                for tk in sentinel_tickers:
+                    if tk not in closes.columns:
+                        continue
+                    series = closes[tk].dropna()
+                    if len(series) < 2:
+                        continue
+                    price_now = float(series.iloc[-1])
+                    price_prev = float(series.iloc[-2])
+                    chg_pct = round((price_now - price_prev) /
+                                    price_prev * 100, 2) if price_prev else 0.0
+                    live_prices[tk] = {"current": round(
+                        price_now, 4), "change_pct": chg_pct}
+                    pct_5d = (price_now - float(series.iloc[0])) / float(
+                        series.iloc[0]) * 100 if float(series.iloc[0]) else 0
+                    oracle_scores[tk] = int(min(100, max(0, 50 + pct_5d * 5)))
+        except Exception as e:
+            logger.warning(f"Sentinel live price fetch failed: {e}")
+
+    # Apply live prices to sentinel positions so portfolio_value is accurate
+    for p in sentinel_positions:
+        tk = p["ticker"]
+        if tk in live_prices:
+            price = live_prices[tk]["current"]
+            p["market_value"] = round(p["shares"] * price, 2)
+            p["unrealized_pl"] = round(
+                p["shares"] * (price - p["avg_price"]), 2)
+
+    positions = alpaca_positions + sentinel_positions
+
+    data = service.run_full_analysis(
+        positions=positions,
+        account=account,
+        force_refresh=force_refresh,
+        risk_profile=risk_profile,
+        trading_style=trading_style,
+    )
+
+    # ── Enrich suggestion tickers with live prices + oracle scores ────────
+    suggestion_tickers = [s["ticker"]
+                          for s in data.get("trade_suggestions", [])]
+    extra_tickers = [t for t in suggestion_tickers if t not in live_prices]
+
+    if extra_tickers:
+        try:
+            import yfinance as yf
+            import pandas as pd
+            raw_yf2 = yf.download(
+                tickers=" ".join(extra_tickers),
+                period="5d",
+                interval="1d",
+                auto_adjust=True,
+                progress=False,
+                threads=True,
+            )
+            close_col = "Close"
+            if raw_yf2 is not None and not raw_yf2.empty:
+                if isinstance(raw_yf2.columns, pd.MultiIndex):
+                    closes2 = raw_yf2[close_col] if close_col in raw_yf2.columns.get_level_values(
+                        0) else pd.DataFrame()
+                elif close_col in raw_yf2.columns:
+                    closes2 = raw_yf2[[close_col]].rename(
+                        columns={close_col: extra_tickers[0]})
+                else:
+                    closes2 = pd.DataFrame()
+
+                for tk in extra_tickers:
+                    if tk not in closes2.columns:
+                        continue
+                    series = closes2[tk].dropna()
+                    if len(series) < 2:
+                        continue
+                    price_now = float(series.iloc[-1])
+                    price_prev = float(series.iloc[-2])
+                    chg_pct = round((price_now - price_prev) /
+                                    price_prev * 100, 2) if price_prev else 0.0
+                    live_prices[tk] = {"current": round(
+                        price_now, 4), "change_pct": chg_pct}
+                    pct_5d = (price_now - float(series.iloc[0])) / float(
+                        series.iloc[0]) * 100 if float(series.iloc[0]) else 0
+                    oracle_scores[tk] = int(min(100, max(0, 50 + pct_5d * 5)))
+        except Exception as e:
+            logger.warning(f"Suggestion price fetch failed: {e}")
+
+    # Patch trade suggestions with live price + real oracle score
+    for s in data.get("trade_suggestions", []):
+        tk = s["ticker"]
+        if tk in live_prices:
+            s["current_price"] = live_prices[tk]["current"]
+            s["price_change_pct"] = live_prices[tk]["change_pct"]
+        if tk in oracle_scores:
+            s["oracle_score"] = oracle_scores[tk]
+        # Compute approx share count if we have price
+        if "current_price" in s and s["current_price"] > 0:
+            s["approx_shares"] = round(
+                s["dollar_amount"] / s["current_price"], 2)
+
+    # Rebuild positions for response (sentinel now has live values)
+    positions = alpaca_positions + sentinel_positions
+    # Re-run impact with corrected sentinel values (lightweight, no Gemini re-call)
+    if sentinel_positions and live_prices:
+        classified = data.get("events", [])
+        data["portfolio_impact"] = service.get_portfolio_impact(classified, positions)[
+            :10]
+
+    data["source_mode"] = source
+    data["alpaca_positions"] = len(alpaca_positions)
+    data["sentinel_positions"] = len(sentinel_positions)
+    data["risk_profile"] = risk_profile
+    data["trading_style"] = trading_style
+    return jsonify(data)
+
+
+@api_bp.route("/macro-intel/refresh")
+def macro_intel_refresh():
+    """Force-bust the event cache and re-run the full scan."""
+    from flask_app.services.macro_intel_service import _event_cache
+    _event_cache["data"] = None
+    _event_cache["expires"] = 0.0
+    return macro_intel_scan()
+
+
 @api_bp.route("/trigger-email-job", methods=["POST"])
 @csrf.exempt
 def trigger_email_job():
@@ -2438,10 +2680,12 @@ def trigger_email_job():
 
         # 3: Decrypt API keys
         config = db.get_user_api_keys(user_id, decrypt=True)
-        step("api_keys", bool(config), f"keys: {list(config.keys())}" if config else "EMPTY — profile exists but no encrypted keys or decryption failed")
+        step("api_keys", bool(
+            config), f"keys: {list(config.keys())}" if config else "EMPTY — profile exists but no encrypted keys or decryption failed")
 
         # 4: Gmail credentials
-        has_gmail = bool(config.get("GMAIL_ADDRESS") and config.get("GMAIL_APP_PASSWORD"))
+        has_gmail = bool(config.get("GMAIL_ADDRESS")
+                         and config.get("GMAIL_APP_PASSWORD"))
         if not step("gmail", has_gmail, f"addr={'set' if config.get('GMAIL_ADDRESS') else 'MISSING'}, pwd={'set' if config.get('GMAIL_APP_PASSWORD') else 'MISSING'}"):
             return jsonify({**diag, "email_sent": False})
 
@@ -2457,19 +2701,22 @@ def trigger_email_job():
 
         # 7: Holdings & simulation context
         holdings = db.get_shadow_positions(user_id, is_active=True)
-        holding_tickers = [p.get("ticker") for p in holdings if p.get("ticker")]
+        holding_tickers = [p.get("ticker")
+                           for p in holdings if p.get("ticker")]
         sim = db.get_simulation_settings(user_id) or {}
         risk_profile = sim.get("risk_profile", "moderate")
         available_cash = sim.get("current_cash", 0)
         trading_style = sim.get("trading_style", "swing_trading")
-        step("context", True, f"{len(holding_tickers)} holdings, risk={risk_profile}, style={trading_style}, cash=${available_cash:,.0f}")
+        step("context", True,
+             f"{len(holding_tickers)} holdings, risk={risk_profile}, style={trading_style}, cash=${available_cash:,.0f}")
 
         # 8: Run the targeted job
         sent = False
         if job in ("intelligence", "close", "preview"):
             from flask_app.services.market_intelligence_service import MarketIntelligenceService
             svc = MarketIntelligenceService(config)
-            step("gemini_client", bool(svc.gemini_service.client), "ready" if svc.gemini_service.client else "FAILED to init")
+            step("gemini_client", bool(svc.gemini_service.client),
+                 "ready" if svc.gemini_service.client else "FAILED to init")
 
             if job == "intelligence":
                 sent = svc.generate_market_intelligence(
@@ -2537,11 +2784,13 @@ def trigger_email_job():
                 sender_email=config.get("GMAIL_ADDRESS"),
                 holdings=holdings_data
             )
-            sent = result.get("success", False) if isinstance(result, dict) else bool(result)
+            sent = result.get("success", False) if isinstance(
+                result, dict) else bool(result)
             if not sent and isinstance(result, dict):
                 step("digest_error", False, result.get("error", "unknown"))
 
-        step("email_result", sent, f"{'SENT' if sent else 'NOT sent'} to {user_email}")
+        step("email_result", sent,
+             f"{'SENT' if sent else 'NOT sent'} to {user_email}")
         logger.info(f"Trigger {job} for {user_id}: sent={sent}, diag={diag}")
         return jsonify({**diag, "email_sent": sent})
 

@@ -27,17 +27,24 @@
                     <span class="text-gray-400 text-xs md:text-sm truncate max-w-[100px] md:max-w-[200px]">{{ stock_data.company.name }}</span>
                     {% endif %}
                     <!-- Live Indicator -->
-                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-green-500/20 text-green-400 border border-green-500/30">
-                        <span class="w-1.5 h-1.5 rounded-full bg-green-400 live-indicator"></span>
-                        LIVE
-                    </span>
+                    <template x-if="isMarketOpen">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-green-500/20 text-green-400 border border-green-500/30">
+                            <span class="w-1.5 h-1.5 rounded-full bg-green-400 live-indicator"></span>
+                            LIVE
+                        </span>
+                    </template>
+                    <template x-if="!isMarketOpen">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                            CLOSED
+                        </span>
+                    </template>
                 </div>
 
                 {% if stock_data.quote and stock_data.quote.current %}
                 <div class="flex items-baseline gap-2">
-                    <span id="live-price" class="text-2xl md:text-3xl font-bold tracking-tight transition-all duration-300">${{ "%.2f"|format(stock_data.quote.current) }}</span>
-                    <span id="live-change" class="text-sm md:text-base font-semibold transition-all duration-300 {% if stock_data.quote.change >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
-                        {{ "%+.2f"|format(stock_data.quote.change) }} ({{ "%+.2f"|format(stock_data.quote.percent_change) }}%)
+                    <span id="live-price" class="text-2xl md:text-3xl font-bold tracking-tight transition-all duration-300 tabular-nums">${{ "%.2f"|format(stock_data.quote.current) }}</span>
+                    <span id="live-change" class="text-sm md:text-base font-semibold transition-all duration-300 tabular-nums {% if stock_data.quote.change >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
+                        {% if stock_data.quote.change >= 0 %}↑{% else %}↓{% endif %} {{ "%.2f"|format(stock_data.quote.change|abs) }} ({{ "%.2f"|format(stock_data.quote.percent_change|abs) }}%)
                     </span>
                 </div>
                 {% else %}
@@ -92,309 +99,238 @@
     </div>
 
     <!-- Mobile Tab Navigation -->
-    <div class="mb-4 md:hidden sticky top-16 z-30 bg-oracle-darker/95 backdrop-blur-md -mx-4 px-4 py-2 border-b border-oracle-border">
-        <div class="flex gap-1 overflow-x-auto hide-scrollbar">
+    <!-- Tab Navigation -->
+    <div class="mb-4 sticky top-16 z-30 bg-oracle-darker/95 backdrop-blur-md -mx-4 px-4 py-3 border-b border-oracle-border lg:static lg:bg-transparent lg:border-none lg:mx-0 lg:px-0 lg:z-0 lg:mb-6 rounded-t-xl overflow-hidden">
+        <div class="flex gap-2 overflow-x-auto hide-scrollbar lg:bg-oracle-card lg:p-1.5 lg:rounded-xl lg:inline-flex shadow-sm">
             <button @click="activeTab = 'chart'" 
-                    :class="activeTab === 'chart' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
-                    class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
-                 Chart
+                    :class="activeTab === 'chart' ? 'bg-oracle-primary text-white shadow-lg' : 'lg:text-gray-400 lg:hover:text-white bg-oracle-card text-gray-400 lg:bg-transparent'"
+                    class="px-5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all">
+                 Technical
             </button>
             <button @click="activeTab = 'oracle'" 
-                    :class="activeTab === 'oracle' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
-                    class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
-                 Oracle
+                    :class="activeTab === 'oracle' ? 'bg-oracle-primary text-white shadow-lg' : 'lg:text-gray-400 lg:hover:text-white bg-oracle-card text-gray-400 lg:bg-transparent'"
+                    class="px-5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all">
+                 Fundamentals
             </button>
             <button @click="activeTab = 'ai'" 
-                    :class="activeTab === 'ai' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
-                    class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
-                 AI
+                    :class="activeTab === 'ai' ? 'bg-oracle-primary text-white shadow-lg' : 'lg:text-gray-400 lg:hover:text-white bg-oracle-card text-gray-400 lg:bg-transparent'"
+                    class="px-5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all">
+                 AI Intelligence
             </button>
             <button @click="activeTab = 'more'" 
-                    :class="activeTab === 'more' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
-                    class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
+                    :class="activeTab === 'more' ? 'bg-oracle-primary text-white shadow-lg' : 'lg:text-gray-400 lg:hover:text-white bg-oracle-card text-gray-400 lg:bg-transparent'"
+                    class="px-5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all">
                  More
             </button>
         </div>
     </div>
 
-    <!-- Desktop: Grid Layout, Mobile: Tabbed Content -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+    <!-- Tabbed Content Area -->
+    <div class="max-w-4xl space-y-4 md:space-y-6">
 
-        <!-- Main Content (Chart + Metrics) -->
-        <div class="lg:col-span-2 space-y-4 md:space-y-6" :class="{ 'hidden md:block': activeTab !== 'chart' && activeTab !== 'more' }">
-
-            <!-- Chart - Always Visible on Chart Tab -->
-            <div x-show="activeTab === 'chart' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
-                <div class="flex items-center justify-between mb-3 md:mb-4">
-                    <h3 class="text-base md:text-lg font-semibold">Price Chart</h3>
-                    <div class="flex gap-1 md:gap-2">
-                        {% for period in ['1D', '5D', '1M', '3M', '1Y'] %}
-                        <button @click="loadChart('{{ period }}')"
-                                :class="chartPeriod === '{{ period }}' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
-                                class="px-2 py-1 md:px-4 md:py-2 rounded text-xs md:text-sm font-medium transition-colors min-w-[32px] md:min-w-[48px]">
-                            {{ period }}
-                        </button>{% endfor %}
-                    </div>
-                </div>
-                <div class="h-48 md:h-80 relative">
-                    <div x-show="chartLoading" class="absolute inset-0 flex items-center justify-center bg-oracle-card/50 rounded-xl z-10">
-                        <div class="flex items-center gap-2 text-gray-400">
-                            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                            </svg>
-                            <span class="text-sm">Loading...</span>
-                        </div>
-                    </div>
-                    <div x-show="chartError" class="absolute inset-0 flex items-center justify-center text-red-400 text-sm">
-                        <span x-text="chartError"></span>
-                    </div>
-                    <canvas id="priceChart" class="w-full h-full"></canvas>
+        <!-- Chart - Always Visible on Chart Tab -->
+        <div x-show="activeTab === 'chart'" x-transition.opacity.duration.300ms class="glass rounded-2xl p-4 md:p-6">
+            <div class="flex items-center justify-between mb-3 md:mb-4">
+                <h3 class="text-base md:text-lg font-semibold">Price Chart</h3>
+                <div class="flex gap-1 md:gap-2">
+                    {% for period in ['1D', '5D', '1M', '3M', '1Y'] %}
+                    <button @click="loadChart('{{ period }}')"
+                            :class="chartPeriod === '{{ period }}' ? 'bg-oracle-primary text-white' : 'bg-oracle-card text-gray-400'"
+                            class="px-2 py-1 md:px-4 md:py-2 rounded text-xs md:text-sm font-medium transition-colors min-w-[32px] md:min-w-[48px]">
+                        {{ period }}
+                    </button>{% endfor %}
                 </div>
             </div>
-
-            <!-- Quick Metrics - Compact for mobile -->
-            <div x-show="activeTab === 'chart' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-base font-semibold">Quick Metrics</h3>
+            <div class="h-48 md:h-80 relative">
+                <div x-show="chartLoading" class="absolute inset-0 loading-skeleton rounded-xl z-10 opacity-70"></div>
+                <div x-show="chartError" class="absolute inset-0 flex items-center justify-center text-red-400 text-sm z-20">
+                    <span x-text="chartError"></span>
                 </div>
-                <div class="grid grid-cols-4 gap-2 md:gap-4">
-                    <div class="text-center p-2 md:p-3 bg-oracle-card rounded-lg">
-                        <p class="text-gray-500 text-xs mb-1">RSI</p>
-                        <p class="text-lg md:text-xl font-bold {% if stock_data.technicals and stock_data.technicals.rsi and stock_data.technicals.rsi < 30 %}text-green-400{% elif stock_data.technicals and stock_data.technicals.rsi and stock_data.technicals.rsi > 70 %}text-red-400{% endif %}">
-                            {% if stock_data.technicals and stock_data.technicals.rsi %}{{ "%.0f"|format(stock_data.technicals.rsi) }}{% else %}--{% endif %}
-                        </p>
-                    </div>
-                    <div class="text-center p-2 md:p-3 bg-oracle-card rounded-lg">
-                        <p class="text-gray-500 text-xs mb-1">P/E</p>
-                        <p class="text-lg md:text-xl font-bold">{{ "%.0f"|format(stock_data.company.pe_ratio) if stock_data.company and stock_data.company.pe_ratio else '--' }}</p>
-                    </div>
-                    <div class="text-center p-2 md:p-3 bg-oracle-card rounded-lg">
-                        <p class="text-gray-500 text-xs mb-1">Vol%</p>
-                        <p class="text-lg md:text-xl font-bold">{% if stock_data.technicals and stock_data.technicals.volatility %}{{ "%.0f"|format(stock_data.technicals.volatility) }}{% else %}--{% endif %}</p>
-                    </div>
-                    <div class="text-center p-2 md:p-3 bg-oracle-card rounded-lg">
-                        <p class="text-gray-500 text-xs mb-1">Trend</p>
-                        <p class="text-lg md:text-xl font-bold {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 and stock_data.technicals.price > stock_data.technicals.sma_50 %}text-green-400{% else %}text-red-400{% endif %}">
-                            {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 %}
-                                {% if stock_data.technicals.price > stock_data.technicals.sma_50 %}↑{% else %}↓{% endif %}
-                            {% else %}--{% endif %}
-                        </p>
-                    </div>
-                </div>
+                <div id="priceChartContainer" class="w-full h-full absolute inset-0"></div>
             </div>
-
-            <!-- Risk Calculator -->
-            {# Temporarily commented out
-            <div x-show="activeTab === 'chart' || window.innerWidth >= 768">
-                {% include 'components/risk_calculator.html' %}
-            </div>
-            #}
-
-            <!-- Multi-Timeframe Analysis (Swing Trading) -->
-            <div x-show="activeTab === 'chart' || window.innerWidth >= 768">
-                {% include 'components/multi_timeframe.html' %}
-            </div>
-
-            <!-- Volatility Surface (Swing Trading) -->
-            <div x-show="activeTab === 'chart' || window.innerWidth >= 768">
-                {% include 'components/volatility_surface.html' %}
-            </div>
-
-            <!-- More Tab Content (News, Backtesting, Insider Tracker) -->
-            <template x-if="activeTab === 'more' || window.innerWidth >= 768">
-                <div class="space-y-4 md:space-y-6">
-                    <!-- Backtesting Engine (Swing Trading) -->
-                    {% include 'components/backtesting_engine.html' %}
-
-                    <!-- Insider Trading Tracker -->
-                    {% include 'components/insider_tracker.html' %}
-                    <!-- Monte Carlo - Commented out for now
-                    <div class="glass rounded-2xl overflow-hidden" x-data="{ expanded: false }">
-                        <button @click="expanded = !expanded" class="w-full p-4 md:p-6 flex items-center justify-between md:cursor-default">
-                            <h3 class="text-base md:text-lg font-semibold"> Monte Carlo Simulation</h3>
-                            <div class="flex items-center gap-2">
-                                <button @click.stop="runMonteCarlo()" :disabled="monteCarloLoading" 
-                                        class="px-3 py-1.5 rounded-lg bg-oracle-primary hover:bg-blue-600 disabled:opacity-50 text-xs font-medium">
-                                    <span x-show="!monteCarloLoading">Run</span>
-                                    <span x-show="monteCarloLoading">...</span>
-                                </button>
-                                <svg class="w-5 h-5 text-gray-400 md:hidden transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                                </svg>
-                            </div>
-                        </button>
-                        <div x-show="expanded || window.innerWidth >= 768" x-collapse class="px-4 pb-4 md:px-6 md:pb-6">
-                            <div class="h-48 md:h-64 relative">
-                                <div x-show="!monteCarloLoading && !monteCarloData" class="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
-                                    Click "Run" to project prices
-                                </div>
-                                <canvas id="monteCarloChart" x-show="monteCarloData" class="w-full h-full"></canvas>
-                            </div>
-                            <div x-show="monteCarloData" class="grid grid-cols-3 gap-2 mt-3 text-center">
-                                <div class="p-2 bg-oracle-card rounded-lg">
-                                    <p class="text-gray-500 text-xs">Worst (5%)</p>
-                                    <p class="text-base font-bold text-red-400" x-text="'$' + monteCarloWorst.toFixed(0)">--</p>
-                                </div>
-                                <div class="p-2 bg-oracle-card rounded-lg">
-                                    <p class="text-gray-500 text-xs">Expected</p>
-                                    <p class="text-base font-bold" x-text="'$' + monteCarloMean.toFixed(0)">--</p>
-                                </div>
-                                <div class="p-2 bg-oracle-card rounded-lg">
-                                    <p class="text-gray-500 text-xs">Best (95%)</p>
-                                    <p class="text-base font-bold text-green-400" x-text="'$' + monteCarloBest.toFixed(0)">--</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    -->
-
-                    <!-- News - Collapsible -->
-                    {% if stock_data.news %}
-                    <div class="glass rounded-2xl overflow-hidden" x-data="{ expanded: false }">
-                        <button @click="expanded = !expanded" class="w-full p-4 md:p-6 flex items-center justify-between md:cursor-default">
-                            <h3 class="text-base md:text-lg font-semibold"> Latest News</h3>
-                            <span class="text-xs text-gray-400 bg-oracle-card px-2 py-1 rounded">{{ stock_data.news|length }} articles</span>
-                        </button>
-                        <div x-show="expanded || window.innerWidth >= 768" x-collapse class="px-4 pb-4 md:px-6 md:pb-6 space-y-2 max-h-80 overflow-y-auto">
-                            {% for item in stock_data.news %}
-                            <a href="{{ item.url }}" target="_blank" class="block p-3 bg-oracle-card rounded-lg hover:bg-oracle-border transition-colors">
-                                <h4 class="text-sm font-medium line-clamp-2">{{ item.headline }}</h4>
-                                <p class="text-xs text-gray-500 mt-1">{{ item.source }}</p>
-                            </a>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    <!-- Peers -->
-                    {% if stock_data.peers %}
-                    <div class="glass rounded-2xl p-4 md:p-6">
-                        <h3 class="text-base font-semibold mb-3">Similar Stocks</h3>
-                        <div class="flex flex-wrap gap-2">
-                            {% for peer in stock_data.peers[:8] %}
-                            <a href="{{ url_for('main.analysis', ticker=peer) }}" class="px-3 py-1.5 bg-oracle-card rounded-lg hover:bg-oracle-border text-sm font-medium">{{ peer }}</a>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-            </template>
         </div>
 
-        <!-- Sidebar: Oracle Score (Mobile: Oracle Tab) -->
-        <div class="space-y-4 md:space-y-6" :class="{ 'hidden md:block': activeTab !== 'oracle' && activeTab !== 'ai' }">
-
-            <!-- Oracle Verdict - Compact -->
-            <div x-show="activeTab === 'oracle' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
-                <h3 class="text-base md:text-lg font-semibold mb-4 text-center"> Oracle Verdict</h3>
-                
-                <!-- Compact Score Display -->
-                <div class="flex items-center justify-center gap-6 mb-4">
-                    <div class="relative w-24 h-24 md:w-32 md:h-32">
-                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                            <circle cx="50" cy="50" r="42" fill="none" stroke="#1e293b" stroke-width="8"/>
-                            <circle cx="50" cy="50" r="42" fill="none" stroke="url(#gradient)" stroke-width="8" stroke-linecap="round"
-                                    stroke-dasharray="{{ oracle.confidence * 2.64 }} 264"/>
-                            <defs>
-                                <linearGradient id="gradient">
-                                    <stop offset="0%" stop-color="#22c55e"/>
-                                    <stop offset="50%" stop-color="#eab308"/>
-                                    <stop offset="100%" stop-color="#ef4444"/>
-                                </linearGradient>
-                            </defs>
-                        </svg>
-                        <div class="absolute inset-0 flex flex-col items-center justify-center">
-                            <span class="text-2xl md:text-3xl font-bold">{{ "%.2f"|format(oracle.confidence) }}%</span>
-                        </div>
+        <!-- Quick Metrics - Compact for mobile -->
+        <div x-show="activeTab === 'chart'" x-transition.opacity.duration.300ms class="glass rounded-2xl p-4 md:p-6">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base font-semibold">Quick Metrics</h3>
+            </div>
+            <div class="grid grid-cols-4 gap-2 md:gap-4">
+                <div x-data="{ tip: false }" @mouseenter="tip = true" @mouseleave="tip = false" @click="tip = !tip" class="text-center p-2 md:p-3 bg-oracle-card rounded-lg relative cursor-help">
+                    <!-- Tooltip -->
+                    <div x-show="tip" x-transition.opacity class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-800 text-white text-xs p-2 rounded shadow-lg z-[100] normal-case border border-oracle-border font-normal pointer-events-none">
+                        Relative Strength Index: >70 is Overbought, <30 is Oversold.
                     </div>
-                    <div class="text-center">
-                        {% set verdict_colors = { 'STRONG_BUY': 'bg-green-500', 'BUY': 'bg-green-400', 'HOLD': 'bg-yellow-500', 'AVOID': 'bg-orange-500', 'STRONG_SELL': 'bg-red-500' } %}
-                        <span class="inline-block px-4 py-1.5 rounded-full text-sm md:text-base font-bold {{ verdict_colors.get(oracle.verdict, 'bg-gray-500') }}">
-                            {{ oracle.verdict_text }}
-                        </span>
-                        <p class="text-gray-400 mt-2 text-xs md:text-sm">{{ oracle.verdict_detail }}</p>
+                    <p class="text-gray-500 text-xs mb-1 border-b border-dashed border-gray-600 inline-block">RSI</p>
+                    <p class="text-lg md:text-xl font-bold {% if stock_data.technicals and stock_data.technicals.rsi and stock_data.technicals.rsi < 30 %}text-green-400{% elif stock_data.technicals and stock_data.technicals.rsi and stock_data.technicals.rsi > 70 %}text-red-400{% endif %}">
+                        {% if stock_data.technicals and stock_data.technicals.rsi %}{{ "%.0f"|format(stock_data.technicals.rsi) }}{% else %}--{% endif %}
+                    </p>
+                </div>
+                <div x-data="{ tip: false }" @mouseenter="tip = true" @mouseleave="tip = false" @click="tip = !tip" class="text-center p-2 md:p-3 bg-oracle-card rounded-lg relative cursor-help">
+                    <div x-show="tip" x-transition.opacity class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-800 text-white text-xs p-2 rounded shadow-lg z-[100] normal-case border border-oracle-border font-normal pointer-events-none">
+                        Price-to-Earnings Ratio. A lower number *may* indicate undervaluation.
+                    </div>
+                    <p class="text-gray-500 text-xs mb-1 border-b border-dashed border-gray-600 inline-block">P/E</p>
+                    <p class="text-lg md:text-xl font-bold">{{ "%.0f"|format(stock_data.company.pe_ratio) if stock_data.company and stock_data.company.pe_ratio else '--' }}</p>
+                </div>
+                <div x-data="{ tip: false }" @mouseenter="tip = true" @mouseleave="tip = false" @click="tip = !tip" class="text-center p-2 md:p-3 bg-oracle-card rounded-lg relative cursor-help">
+                    <div x-show="tip" x-transition.opacity class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-800 text-white text-xs p-2 rounded shadow-lg z-[100] normal-case border border-oracle-border font-normal pointer-events-none">
+                        Annualized historical volatility percent over 30 days.
+                    </div>
+                    <p class="text-gray-500 text-xs mb-1 border-b border-dashed border-gray-600 inline-block">Vol%</p>
+                    <p class="text-lg md:text-xl font-bold">{% if stock_data.technicals and stock_data.technicals.volatility %}{{ "%.0f"|format(stock_data.technicals.volatility) }}{% else %}--{% endif %}</p>
+                </div>
+                <div x-data="{ tip: false }" @mouseenter="tip = true" @mouseleave="tip = false" @click="tip = !tip" class="text-center p-2 md:p-3 bg-oracle-card rounded-lg relative cursor-help">
+                    <div x-show="tip" x-transition.opacity class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-800 text-white text-xs p-2 rounded shadow-lg z-[100] normal-case border border-oracle-border font-normal pointer-events-none">
+                        Price compared to the 50-day Simple Moving Average.
+                    </div>
+                    <p class="text-gray-500 text-xs mb-1 border-b border-dashed border-gray-600 inline-block">Trend</p>
+                    <p class="text-lg md:text-xl font-bold {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 and stock_data.technicals.price > stock_data.technicals.sma_50 %}text-green-400{% else %}text-red-400{% endif %}">
+                        {% if stock_data.technicals and stock_data.technicals.price and stock_data.technicals.sma_50 %}
+                            {% if stock_data.technicals.price > stock_data.technicals.sma_50 %}↑{% else %}↓{% endif %}
+                        {% else %}--{% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Multi-Timeframe Analysis (Swing Trading) -->
+        <div x-show="activeTab === 'chart'" x-transition.opacity.duration.300ms>
+            {% include 'components/multi_timeframe.html' %}
+        </div>
+
+        <!-- Volatility Surface (Swing Trading) -->
+        <div x-show="activeTab === 'chart'" x-transition.opacity.duration.300ms>
+            {% include 'components/volatility_surface.html' %}
+        </div>
+
+        <!-- Oracle Verdict - Fundamentals -->
+        <div x-show="activeTab === 'oracle'" x-transition.opacity.duration.300ms class="glass rounded-2xl p-4 md:p-6">
+            <h3 class="text-base md:text-lg font-semibold mb-4 text-center flex items-center justify-center gap-2">
+                Oracle Verdict
+                <div x-data="{ tip: false }" @mouseenter="tip = true" @mouseleave="tip = false" @click="tip = !tip" class="relative inline-flex items-center justify-center cursor-help">
+                    <svg class="w-4 h-4 text-gray-500 hover:text-oracle-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div x-show="tip" x-transition.opacity class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-800 text-white text-xs p-2 rounded shadow-lg z-[100] text-left normal-case border border-oracle-border font-normal pointer-events-none">
+                        Our proprietary algorithm combining 12 distinct fundamental and technical signals.
                     </div>
                 </div>
-
-                <!-- Factor Summary - Collapsible -->
-                <div x-data="{ showFactors: false }">
-                    <button @click="showFactors = !showFactors" class="w-full flex items-center justify-between p-3 bg-oracle-card rounded-lg">
-                        <span class="text-sm font-medium">Factor Breakdown</span>
-                        <span class="text-xs text-gray-400">{{ oracle.available_factors }}/{{ oracle.total_factors }} factors</span>
-                    </button>
-                    <div x-show="showFactors" x-collapse class="mt-2 space-y-1">
-                        {% for factor in oracle.factors %}
-                        <div class="flex items-center justify-between p-2 text-sm">
-                            <span class="flex items-center gap-2">
-                                {% if factor.signal == 'Bullish' %}<span class="w-2 h-2 rounded-full bg-green-400"></span>
-                                {% elif factor.signal == 'Bearish' %}<span class="w-2 h-2 rounded-full bg-red-400"></span>
-                                {% else %}<span class="w-2 h-2 rounded-full bg-gray-500"></span>{% endif %}
-                                {{ factor.name }}
-                            </span>
-                            <span class="{% if factor.signal == 'Bullish' %}text-green-400{% elif factor.signal == 'Bearish' %}text-red-400{% else %}text-gray-400{% endif %}">
-                                {{ factor.signal }}
-                            </span>
-                        </div>
-                        {% endfor %}
+            </h3>
+            
+            <!-- Compact Score Display -->
+            <div class="flex items-center justify-center gap-6 mb-4">
+                <div class="relative w-24 h-24 md:w-32 md:h-32">
+                    <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="#1e293b" stroke-width="8"/>
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#gradient)" stroke-width="8" stroke-linecap="round"
+                                stroke-dasharray="{{ oracle.confidence * 2.64 }} 264"/>
+                        <defs>
+                            <linearGradient id="gradient">
+                                <stop offset="0%" stop-color="#22c55e"/>
+                                <stop offset="50%" stop-color="#eab308"/>
+                                <stop offset="100%" stop-color="#ef4444"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span class="text-2xl md:text-3xl font-bold">{{ "%.2f"|format(oracle.confidence) }}%</span>
                     </div>
+                </div>
+                <div class="text-center">
+                    {% set verdict_colors = { 'STRONG_BUY': 'bg-green-500', 'BUY': 'bg-green-400', 'HOLD': 'bg-yellow-500', 'AVOID': 'bg-orange-500', 'STRONG_SELL': 'bg-red-500' } %}
+                    <span class="inline-block px-4 py-1.5 rounded-full text-sm md:text-base font-bold {{ verdict_colors.get(oracle.verdict, 'bg-gray-500') }}">
+                        {{ oracle.verdict_text }}
+                    </span>
+                    <p class="text-gray-400 mt-2 text-xs md:text-sm">{{ oracle.verdict_detail }}</p>
                 </div>
             </div>
 
-            <!-- Analyst Recommendations - Compact -->
-            {% if stock_data and stock_data.recommendations and stock_data.recommendations|length > 0 %}
-            <div x-show="activeTab === 'oracle' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
-                <h3 class="text-base font-semibold mb-3"> Analysts</h3>
-                {% set latest = stock_data.recommendations[0] %}
-                {% set total = (latest.strongBuy|default(0)) + (latest.buy|default(0)) + (latest.hold|default(0)) + (latest.sell|default(0)) + (latest.strongSell|default(0)) %}
-                {% if total > 0 %}
-                {% set bullish_pct = ((latest.strongBuy|default(0) + latest.buy|default(0)) / total * 100)|round(2) %}
-                <div class="flex items-center gap-4">
-                    <div class="flex-1">
-                        <div class="h-3 rounded-full bg-oracle-card overflow-hidden flex">
-                            <div class="bg-green-500 h-full" style="width: {{ ((latest.strongBuy|default(0)) / total * 100)|round(2) }}%"></div>
-                            <div class="bg-green-400 h-full" style="width: {{ ((latest.buy|default(0)) / total * 100)|round(2) }}%"></div>
-                            <div class="bg-yellow-500 h-full" style="width: {{ ((latest.hold|default(0)) / total * 100)|round(2) }}%"></div>
-                            <div class="bg-orange-500 h-full" style="width: {{ ((latest.sell|default(0)) / total * 100)|round(2) }}%"></div>
-                            <div class="bg-red-500 h-full" style="width: {{ ((latest.strongSell|default(0)) / total * 100)|round(2) }}%"></div>
-                        </div>
-                        <div class="flex justify-between text-xs text-gray-400 mt-1">
-                            <span>Buy: {{ latest.strongBuy|default(0) + latest.buy|default(0) }}</span>
-                            <span>Hold: {{ latest.hold|default(0) }}</span>
-                            <span>Sell: {{ latest.sell|default(0) + latest.strongSell|default(0) }}</span>
-                        </div>
+            <!-- Factor Summary - Collapsible -->
+            <div x-data="{ showFactors: false }">
+                <button @click="showFactors = !showFactors" class="w-full flex items-center justify-between p-3 bg-oracle-card rounded-lg">
+                    <span class="text-sm font-medium">Factor Breakdown</span>
+                    <span class="text-xs text-gray-400">{{ oracle.available_factors }}/{{ oracle.total_factors }} factors</span>
+                </button>
+                <div x-show="showFactors" x-collapse class="mt-2 space-y-1">
+                    {% for factor in oracle.factors %}
+                    <div class="flex items-center justify-between p-2 text-sm">
+                        <span class="flex items-center gap-2">
+                            {% if factor.signal == 'Bullish' %}<span class="w-2 h-2 rounded-full bg-green-400"></span>
+                            {% elif factor.signal == 'Bearish' %}<span class="w-2 h-2 rounded-full bg-red-400"></span>
+                            {% else %}<span class="w-2 h-2 rounded-full bg-gray-500"></span>{% endif %}
+                            {{ factor.name }}
+                        </span>
+                        <span class="{% if factor.signal == 'Bullish' %}text-green-400{% elif factor.signal == 'Bearish' %}text-red-400{% else %}text-gray-400{% endif %}">
+                            {{ factor.signal }}
+                        </span>
                     </div>
-                    <div class="text-center">
-                        <span class="text-xl font-bold {% if bullish_pct >= 60 %}text-green-400{% elif bullish_pct >= 40 %}text-yellow-400{% else %}text-red-400{% endif %}">{{ "%.2f"|format(bullish_pct) }}%</span>
-                        <p class="text-xs text-gray-400">Bullish</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Analyst Recommendations -->
+        {% if stock_data and stock_data.recommendations and stock_data.recommendations|length > 0 %}
+        <div x-show="activeTab === 'oracle'" x-transition.opacity.duration.300ms class="glass rounded-2xl p-4 md:p-6">
+            <h3 class="text-base font-semibold mb-3"> Analysts</h3>
+            {% set latest = stock_data.recommendations[0] %}
+            {% set total = (latest.strongBuy|default(0)) + (latest.buy|default(0)) + (latest.hold|default(0)) + (latest.sell|default(0)) + (latest.strongSell|default(0)) %}
+            {% if total > 0 %}
+            {% set bullish_pct = ((latest.strongBuy|default(0) + latest.buy|default(0)) / total * 100)|round(2) %}
+            <div class="flex items-center gap-4">
+                <div class="flex-1">
+                    <div class="h-3 rounded-full bg-oracle-card overflow-hidden flex">
+                        <div class="bg-green-500 h-full" style="width: {{ ((latest.strongBuy|default(0)) / total * 100)|round(2) }}%"></div>
+                        <div class="bg-green-400 h-full" style="width: {{ ((latest.buy|default(0)) / total * 100)|round(2) }}%"></div>
+                        <div class="bg-yellow-500 h-full" style="width: {{ ((latest.hold|default(0)) / total * 100)|round(2) }}%"></div>
+                        <div class="bg-orange-500 h-full" style="width: {{ ((latest.sell|default(0)) / total * 100)|round(2) }}%"></div>
+                        <div class="bg-red-500 h-full" style="width: {{ ((latest.strongSell|default(0)) / total * 100)|round(2) }}%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>Buy: {{ latest.strongBuy|default(0) + latest.buy|default(0) }}</span>
+                        <span>Hold: {{ latest.hold|default(0) }}</span>
+                        <span>Sell: {{ latest.sell|default(0) + latest.strongSell|default(0) }}</span>
                     </div>
                 </div>
-                {% endif %}
+                <div class="text-center">
+                    <span class="text-xl font-bold {% if bullish_pct >= 60 %}text-green-400{% elif bullish_pct >= 40 %}text-yellow-400{% else %}text-red-400{% endif %}">{{ "%.2f"|format(bullish_pct) }}%</span>
+                    <p class="text-xs text-gray-400">Bullish</p>
+                </div>
             </div>
             {% endif %}
+        </div>
+        {% endif %}
 
-            <!-- AI Deep Dive (Mobile: AI Tab) -->
-            <div x-show="activeTab === 'ai' || window.innerWidth >= 768" class="glass rounded-2xl p-4 md:p-6">
-                <div class="flex items-center justify-between mb-4">
+        <!-- AI Deep Dive (AI Tab) -->
+        <div x-show="activeTab === 'ai'" x-transition.opacity.duration.300ms class="glass rounded-2xl p-4 md:p-6">
+            <!-- Hidden Empty State: Prominent Generate Button -->
+            <div x-show="!aiLoading && !aiAnalysis" class="flex justify-center border border-oracle-border bg-oracle-card/50 hover:bg-oracle-card cursor-pointer rounded-xl p-8 transition-colors group" @click="generateAIDeepDive()">
+                <div class="flex items-center gap-2 text-oracle-primary group-hover:text-blue-400 font-semibold text-lg">
+                    <svg class="w-6 h-6 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    ✨ Generate AI Analysis
+                </div>
+            </div>
+
+            <div x-show="aiLoading || aiAnalysis">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-oracle-border pb-4">
                     <h3 class="text-base md:text-lg font-semibold"> AI Analysis</h3>
                     <button @click="generateAIDeepDive()" :disabled="aiLoading" 
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium"
+                            class="px-4 py-2 rounded-lg text-xs font-semibold"
                             :class="aiAnalysis ? 'bg-oracle-card hover:bg-oracle-border' : 'bg-oracle-primary hover:bg-blue-600'"
-                            x-text="aiLoading ? 'Analyzing...' : (aiAnalysis ? 'Refresh' : 'Generate')">
+                            x-text="aiLoading ? 'Analyzing Data...' : '↻ Refresh Intelligence'">
                     </button>
                 </div>
 
-                <div x-show="aiLoading" class="py-6 text-center text-gray-400">
-                    <svg class="w-6 h-6 animate-spin mx-auto mb-2 text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
-                    <p class="text-sm">Searching real-time data...</p>
+                <div x-show="aiLoading" class="py-6 space-y-4">
+                    <div class="h-16 w-full loading-skeleton"></div>
+                    <div class="space-y-2">
+                        <div class="h-4 w-full loading-skeleton"></div>
+                        <div class="h-4 w-5/6 loading-skeleton"></div>
+                        <div class="h-4 w-4/6 loading-skeleton"></div>
+                        <div class="h-4 w-full loading-skeleton"></div>
+                    </div>
                 </div>
 
-                <div x-show="!aiLoading && !aiAnalysis" class="py-6 text-center text-gray-500">
-                    <p class="text-sm">Tap "Generate" for AI-powered insights</p>
-                </div>
-
-                <div x-show="aiAnalysis" x-transition class="space-y-4">
+                <div x-show="aiAnalysis" x-transition class="space-y-4 pt-2">
                     <!-- AI Score -->
                     <div class="flex items-center gap-3 bg-oracle-card rounded-lg p-3">
                         <div class="text-center min-w-[60px]">
@@ -405,7 +341,7 @@
                         </div>
                         <div class="flex-1">
                             <div class="w-full bg-oracle-border rounded-full h-2">
-                                <div class="h-2 rounded-full transition-all"
+                                <div class="h-2 rounded-full transition-all duration-1000 ease-out"
                                      :class="aiLabel === 'Bullish' ? 'bg-green-500' : (aiLabel === 'Bearish' ? 'bg-red-500' : 'bg-yellow-500')"
                                      :style="`width: ${aiScore}%`"></div>
                             </div>
@@ -413,22 +349,64 @@
                     </div>
                     
                     <!-- AI Content -->
-                    <div class="prose prose-invert prose-sm max-w-none text-sm max-h-[400px] overflow-y-auto" x-html="aiAnalysis"></div>
-                    <p class="text-xs text-gray-500 text-right">ℹ Powered by Gemini + Google Search</p>
+                    <div class="prose prose-invert prose-sm max-w-none text-sm max-h-[500px] overflow-y-auto pr-2" x-html="aiAnalysis"></div>
+                    <p class="text-xs text-gray-500 text-right mt-2">ℹ Powered by Gemini + Google Search</p>
                 </div>
             </div>
         </div>
+
+        <!-- More Tab Content -->
+        <template x-if="activeTab === 'more'">
+            <div class="space-y-4 md:space-y-6" x-transition.opacity.duration.300ms>
+                <!-- Backtesting Engine -->
+                {% include 'components/backtesting_engine.html' %}
+                <!-- Insider Trading Tracker -->
+                {% include 'components/insider_tracker.html' %}
+
+                <!-- News - Collapsible -->
+                {% if stock_data.news %}
+                <div class="glass rounded-2xl overflow-hidden" x-data="{ expanded: false }">
+                    <button @click="expanded = !expanded" class="w-full p-4 md:p-6 flex items-center justify-between md:cursor-default">
+                        <h3 class="text-base md:text-lg font-semibold"> Latest News</h3>
+                        <span class="text-xs text-gray-400 bg-oracle-card px-2 py-1 rounded">{{ stock_data.news|length }} articles</span>
+                    </button>
+                    <div x-show="expanded || window.innerWidth >= 768" x-collapse class="px-4 pb-4 md:px-6 md:pb-6 space-y-2 max-h-80 overflow-y-auto">
+                        {% for item in stock_data.news %}
+                        <a href="{{ item.url }}" target="_blank" class="block p-3 bg-oracle-card rounded-lg hover:bg-oracle-border transition-colors">
+                            <h4 class="text-sm font-medium line-clamp-2">{{ item.headline }}</h4>
+                            <p class="text-xs text-gray-500 mt-1">{{ item.source }}</p>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Peers -->
+                {% if stock_data.peers %}
+                <div class="glass rounded-2xl p-4 md:p-6">
+                    <h3 class="text-base font-semibold mb-3">Similar Stocks</h3>
+                    <div class="flex flex-wrap gap-2">
+                        {% for peer in stock_data.peers[:8] %}
+                        <a href="{{ url_for('main.analysis', ticker=peer) }}" class="px-3 py-1.5 bg-oracle-card rounded-lg hover:bg-oracle-border text-sm font-medium">{{ peer }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </template>
     </div>
 </div>
 
 <script>
     function analysisPage() {
+        let activeChart = null;
+        
         return {
             loading: false,
             chartLoading: true,
             chartError: null,
             chartPeriod: '1D',
-            chart: null,
+            basePrice: null,
 
             // Monte Carlo
             monteCarloLoading: false,
@@ -453,9 +431,9 @@
 
                 // Function to check if Chart.js is ready and canvas is available
                  const initChart = () => {
-                    const canvas = document.getElementById('priceChart');
-                    // Ensure Chart.js is loaded and the canvas element is rendered and visible
-                    if (typeof Chart !== 'undefined' && canvas && canvas.offsetParent !== null) {
+                    const canvas = document.getElementById('priceChartContainer');
+                    // Ensure LightweightCharts is loaded and the container element is rendered and visible
+                    if (typeof LightweightCharts !== 'undefined' && canvas && canvas.offsetParent !== null) {
                         self.loadChart('1D');
                         self.calculateMetrics();
                     } else {
@@ -500,10 +478,8 @@
                             // Flash color based on direction
                             if (isUp) {
                                 priceEl.style.color = '#22c55e'; // green
-                                priceEl.style.transform = 'scale(1.05)';
                             } else {
                                 priceEl.style.color = '#ef4444'; // red
-                                priceEl.style.transform = 'scale(1.05)';
                             }
                             
                             // Update value after short delay for "roll" effect
@@ -514,28 +490,30 @@
                             // Reset style after animation
                             setTimeout(() => {
                                 priceEl.style.color = '';
-                                priceEl.style.transform = 'scale(1)';
                                 priceEl.classList.remove('price-updating');
                             }, 600);
                         }
                     }
                     
                     if (changeEl) {
-                        const changeStr = (data.change >= 0 ? '+' : '') + data.change.toFixed(2);
-                        const pctStr = (data.change >= 0 ? '+' : '') + data.percent_change.toFixed(2) + '%';
+                        let change = data.change;
+                        let pct = data.percent_change;
                         
-                        // Flash effect on change too
-                        changeEl.style.transform = 'scale(1.05)';
+                        // If viewing a non-1D chart, calculate relative to the chart's starting point
+                        if (self.chartPeriod !== '1D' && self.basePrice) {
+                            change = newPrice - self.basePrice;
+                            pct = (change / self.basePrice) * 100;
+                        }
+
+                        const arrow = change >= 0 ? '↑' : '↓';
+                        const changeStr = Math.abs(change).toFixed(2);
+                        const pctStr = Math.abs(pct).toFixed(2) + '%';
                         
                         setTimeout(() => {
-                            changeEl.textContent = `${changeStr} (${pctStr})`;
+                            changeEl.textContent = `${arrow} ${changeStr} (${pctStr})`;
                             // Update color class
-                            changeEl.className = `text-sm md:text-base font-semibold transition-all duration-300 ${data.change >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                            changeEl.className = `text-sm md:text-base font-semibold transition-all duration-300 tabular-nums ${change >= 0 ? 'text-green-400' : 'text-red-400'}`;
                         }, 100);
-                        
-                        setTimeout(() => {
-                            changeEl.style.transform = 'scale(1)';
-                        }, 600);
                     }
 
                     // Show a brief "Updated" indicator
@@ -592,137 +570,127 @@
                         return;
                     }
 
-                    // Format labels (extract date part only)
-                    const labels = data.map(d => {
-                        const dateStr = d.Date || d.Datetime || '';
-                        // For intraday (1D, 5D), show time
-                        if (period === '1D' || period === '5D') {
-                            const date = new Date(dateStr);
-                            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        }
-                        return dateStr.split(' ')[0] || dateStr;
-                    });
-                    const prices = data.map(d => d.Close);
-
-                    // Chart Configuration
-                    const canvas = document.getElementById('priceChart');
-                    if (!canvas) {
-                        console.error('Canvas element not found');
-                        this.chartError = 'Chart canvas not available';
+                    // Lightweight Charts Configuration
+                    const container = document.getElementById('priceChartContainer');
+                    if (!container) {
+                        console.error('Container element not found');
+                        this.chartError = 'Chart container not available';
                         this.chartLoading = false;
                         return;
                     }
                     
-                    // Ensure canvas has dimensions
-                    if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
-                        console.warn('Canvas has no dimensions, retrying...');
-                        setTimeout(() => this.loadChart(period), 200);
-                        return;
-                    }
-                    
-                    const chartCtx = canvas.getContext('2d');
-                    if (!chartCtx) {
-                        console.error('Could not get canvas 2D context');
-                        this.chartError = 'Chart context not available';
-                        this.chartLoading = false;
-                        return;
-                    }
-                    
-                    const isPositive = prices.length > 0 && prices[prices.length - 1] >= prices[0];
+                    const isPositive = data.length > 0 && data[data.length - 1].Close >= data[0].Close;
 
-                    // Destroy existing chart BEFORE creating gradient
-                    // First check if there's an existing chart on this canvas
-                    try {
-                        const existingChart = Chart.getChart(canvas);
-                        if (existingChart) {
-                            existingChart.stop();
-                            existingChart.destroy();
-                        }
-                    } catch (e) {
-                        console.warn('Existing chart destruction failed:', e);
-                    }
-                    
                     // Also destroy our tracked chart reference
-                    if (this.chart) {
+                    if (activeChart) {
                         try {
-                            if (typeof this.chart.stop === 'function') this.chart.stop();
-                            if (typeof this.chart.destroy === 'function') this.chart.destroy();
+                            activeChart.remove();
                         } catch (e) {
                             console.warn('Chart destruction failed:', e);
                         }
                     }
-                    this.chart = null;
-                    
-                    // Clear the canvas
-                    chartCtx.clearRect(0, 0, canvas.width, canvas.height);
-                    
-                    // Now create gradient after destroying old chart
-                    const gradient = chartCtx.createLinearGradient(0, 0, 0, canvas.height || 400);
-                    if (isPositive) {
-                        gradient.addColorStop(0, 'rgba(34, 197, 94, 0.5)');
-                        gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
-                    } else {
-                        gradient.addColorStop(0, 'rgba(239, 68, 68, 0.5)');
-                        gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
-                    }
+                    activeChart = null;
 
-                    this.chart = new Chart(chartCtx, {
-                        type: 'line',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                data: prices,
-                                borderColor: isPositive ? '#22c55e' : '#ef4444',
-                                backgroundColor: gradient,
-                                fill: true,
-                                tension: 0.1,
-                                pointRadius: 0,
-                                borderWidth: 2,
-                                borderJoinStyle: 'round'
-                            }]
+                    const lineColor = isPositive ? '#22c55e' : '#ef4444';
+                    const topColor = isPositive ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+                    const bottomColor = isPositive ? 'rgba(34, 197, 94, 0)' : 'rgba(239, 68, 68, 0)';
+
+                    const chartInstance = LightweightCharts.createChart(container, {
+                        layout: {
+                            background: { type: 'solid', color: 'transparent' },
+                            textColor: '#94a3b8',
                         },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            animation: {
-                                duration: 0 // Disable animation to prevent race conditions slightly
-                            },
-                            plugins: {
-                                legend: { display: false },
-                                tooltip: {
-                                    mode: 'index',
-                                    intersect: false,
-                                    callbacks: {
-                                        label: function(context) {
-                                            return '$' + context.raw.toFixed(2);
-                                        }
-                                    }
-                                }
-                            },
-                            scales: {
-                                x: {
-                                    display: true,
-                                    grid: { display: false },
-                                    ticks: {
-                                        color: '#64748b',
-                                        maxTicksLimit: 6,
-                                        font: { size: 10 }
-                                    }
-                                },
-                                y: {
-                                    position: 'right',
-                                    grid: { color: 'rgba(51, 65, 85, 0.3)' },
-                                    ticks: {
-                                        color: '#94a3b8',
-                                        callback: function(value) {
-                                            return '$' + value.toFixed(0);
-                                        }
-                                    }
-                                }
-                            },
-                            interaction: {
-                                intersect: false,
-                                mode: 'index'
+                        grid: {
+                            vertLines: { color: 'rgba(51, 65, 85, 0.1)' },
+                            horzLines: { color: 'rgba(51, 65, 85, 0.1)' },
+                        },
+                        rightPriceScale: {
+                            borderVisible: false,
+                        },
+                        timeScale: {
+                            borderVisible: false,
+                            timeVisible: (period === '1D' || period === '5D'),
+                            fixLeftEdge: true,
+                            fixRightEdge: true,
+                        },
+                        crosshair: {
+                            mode: 0,
+                        }
+                    });
+
+                    const areaSeries = chartInstance.addAreaSeries({
+                        lineColor: lineColor,
+                        topColor: topColor,
+                        bottomColor: bottomColor,
+                        lineWidth: 2,
+                    });
+
+                    // Add Volume Profile Histogram overlay
+                    const volumeSeries = chartInstance.addHistogramSeries({
+                        color: '#26a69a',
+                        priceFormat: {
+                            type: 'volume',
+                        },
+                        priceScaleId: '', // set as an overlay by setting a blank priceScaleId
+                        scaleMargins: {
+                            top: 0.8, // highest point of the series will be at 80% from the top
+                            bottom: 0,
+                        },
+                    });
+
+                    // Format data for Lightweight Charts (requires unix timestamps in seconds)
+                    const lwData = [];
+                    const volData = [];
+                    data.forEach((d, i) => {
+                        const t = Math.floor(new Date(d.Date || d.Datetime).getTime() / 1000);
+                        const prevClose = i > 0 ? data[i-1].Close : d.Open;
+                        lwData.push({ time: t, value: d.Close });
+                        // Volume color: green if up, red if down
+                        const vColor = d.Close >= prevClose ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)';
+                        volData.push({ time: t, value: d.Volume || 0, color: vColor });
+                    });
+
+                    // Sort chronologically (Lightweight Charts requirement)
+                    lwData.sort((a,b) => a.time - b.time);
+                    volData.sort((a,b) => a.time - b.time);
+
+                    areaSeries.setData(lwData);
+                    volumeSeries.setData(volData);
+                    chartInstance.timeScale().fitContent();
+                    
+                    activeChart = chartInstance;
+                    
+                    // Update price UI for new period
+                    this.basePrice = lwData[0].value;
+                    const endPrice = lwData[lwData.length - 1].value;
+                    const priceEl = document.getElementById('live-price');
+                    const changeEl = document.getElementById('live-change');
+                    
+                    const updateUI = (currentRawPrice) => {
+                        if (priceEl && changeEl && this.basePrice) {
+                            priceEl.textContent = '$' + currentRawPrice.toFixed(2);
+                            const change = currentRawPrice - this.basePrice;
+                            const pct = (change / this.basePrice) * 100;
+                            const arrow = change >= 0 ? '↑' : '↓';
+                            changeEl.textContent = `${arrow} ${Math.abs(change).toFixed(2)} (${Math.abs(pct).toFixed(2)}%)`;
+                            changeEl.className = `text-sm md:text-base font-semibold transition-all duration-300 tabular-nums ${change >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                        }
+                    };
+
+                    if (period !== '1D') updateUI(endPrice);
+                    else this.updatePrice();
+
+                    // Crosshair Data Sync
+                    chartInstance.subscribeCrosshairMove((param) => {
+                        if (param.point === undefined || !param.time || param.point.x < 0 || param.point.x > container.clientWidth || param.point.y < 0 || param.point.y > container.clientHeight) {
+                            // Reset to latest info
+                            if (period !== '1D') updateUI(endPrice);
+                            // If 1D, we let the regular auto-polling keep updating the current live price.
+                        } else {
+                            // Sync UI with hovered data point
+                            const price = param.seriesData.get(areaSeries);
+                            if (price && price.value) {
+                                updateUI(price.value);
                             }
                         }
                     });

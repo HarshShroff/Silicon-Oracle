@@ -31,20 +31,28 @@ def get_config():
     """
     Get API config from current user (BYOK - Bring Your Own Keys).
     Users MUST provide their own API keys. No fallback to app config.
+    Respects alpaca_enabled flag — if disabled, Alpaca keys are omitted so
+    TradingService.is_connected() returns False everywhere automatically.
     """
     from utils import database as db
 
-    # If user is authenticated, get their API keys from database (decrypted)
     if g.user and g.user.is_authenticated:
         user_keys = db.get_user_api_keys(g.user.id, decrypt=True)
+        # Session is source of truth; fall back to DB, default True
+        from flask import session as _sess
+        if 'alpaca_enabled' in _sess:
+            alpaca_enabled = bool(_sess['alpaca_enabled'])
+        else:
+            sim = db.get_simulation_settings(g.user.id) or {}
+            val = sim.get("alpaca_enabled", None)
+            alpaca_enabled = bool(val) if val is not None else True
         return {
             "FINNHUB_API_KEY": user_keys.get("FINNHUB_API_KEY", ""),
-            "ALPACA_API_KEY": user_keys.get("ALPACA_API_KEY", ""),
-            "ALPACA_SECRET_KEY": user_keys.get("ALPACA_SECRET_KEY", ""),
+            "ALPACA_API_KEY": user_keys.get("ALPACA_API_KEY", "") if alpaca_enabled else "",
+            "ALPACA_SECRET_KEY": user_keys.get("ALPACA_SECRET_KEY", "") if alpaca_enabled else "",
             "GEMINI_API_KEY": user_keys.get("GEMINI_API_KEY", ""),
         }
 
-    # No user logged in - return empty config
     return {
         "FINNHUB_API_KEY": "",
         "ALPACA_API_KEY": "",
@@ -297,6 +305,16 @@ def settings():
             flash("Email settings saved successfully!", "success")
             return jsonify({"success": True})
 
+        elif "save_alpaca_toggle" in request.form:
+            from flask import session as flask_session
+            enabled = request.form.get("alpaca_enabled") == "1"
+            # Write to session immediately — works without any DB column
+            flask_session['alpaca_enabled'] = enabled
+            flask_session.modified = True
+            # Best-effort DB save (works once migration adds the column)
+            db.update_simulation_settings(user_id, {"alpaca_enabled": enabled})
+            return jsonify({"success": True, "alpaca_enabled": enabled})
+
         elif "save_trading_style" in request.form:
             # Save trading style preference
             valid_styles = ("day_trading", "swing_trading", "long_term")
@@ -377,6 +395,17 @@ def settings():
     raw_gmail_pwd = user_keys.get("GMAIL_APP_PASSWORD", "")
     gmail_password_masked = ("***" + raw_gmail_pwd[-4:]) if raw_gmail_pwd and len(raw_gmail_pwd) > 4 else ""
 
+    # Sync session with DB value on settings page load so both stay consistent
+    from flask import session as flask_session
+    db_alpaca_enabled = sim_settings.get("alpaca_enabled", None)
+    if db_alpaca_enabled is not None:
+        alpaca_enabled = bool(db_alpaca_enabled)
+        flask_session['alpaca_enabled'] = alpaca_enabled
+    elif 'alpaca_enabled' in flask_session:
+        alpaca_enabled = bool(flask_session['alpaca_enabled'])
+    else:
+        alpaca_enabled = True
+
     return render_template(
         "pages/settings.html",
         alpaca_key=user_keys.get("ALPACA_API_KEY", ""),
@@ -386,10 +415,26 @@ def settings():
         gmail_address=user_keys.get("GMAIL_ADDRESS", ""),
         gmail_password_masked=gmail_password_masked,
         trading_style=sim_settings.get("trading_style", "swing_trading"),
+        alpaca_enabled=alpaca_enabled,
         alert_price=notif_prefs.get("price_alerts", False),
         alert_positions=notif_prefs.get("news_alerts", False),
         alert_daily_digest=notif_prefs.get("daily_digest", False),
     )
+
+
+@main_bp.route("/macro")
+@login_required
+def macro():
+    """Macro Intelligence Dashboard — geopolitical events, portfolio impact, trade suggestions."""
+    from flask import session as flask_session
+    if 'alpaca_enabled' in flask_session:
+        alpaca_enabled = bool(flask_session['alpaca_enabled'])
+    else:
+        from utils import database as db
+        sim = db.get_simulation_settings(g.user.id) or {}
+        val = sim.get("alpaca_enabled", None)
+        alpaca_enabled = bool(val) if val is not None else True
+    return render_template("pages/macro.html", alpaca_enabled=alpaca_enabled)
 
 
 @main_bp.route("/settings/load")
