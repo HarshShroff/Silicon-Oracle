@@ -1,111 +1,141 @@
-<!-- Global Macro Dashboard - Sticky Ticker Tape -->
-<div class="bg-gradient-to-r from-gray-900 to-gray-800 text-white py-3 px-4 shadow-lg sticky top-0 z-40" x-data="macroData()">
-    <div class="max-w-7xl mx-auto">
-        <div class="flex items-center justify-between">
-            <!-- Title -->
-            <div class="flex items-center space-x-2">
-                <!-- <span class="text-xl font-bold">🌍</span> -->
-                <span class="text-sm font-semibold hidden sm:block">GLOBAL MACRO</span>
-            </div>
+<!-- Global Macro Dashboard -->
+<div class="bg-gray-900/95 border-b border-white/5 text-white py-2.5 px-4 shadow-lg sticky top-0 z-40 backdrop-blur-sm" x-data="macroData()">
+    <div class="max-w-screen-2xl mx-auto flex items-center gap-3">
 
-            <!-- Ticker Tape -->
-            <div class="flex items-center space-x-6 overflow-x-auto scrollbar-hide">
+        <!-- Label -->
+        <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase shrink-0 hidden md:block">MACRO</span>
+
+        <!-- Tickers: horizontal scroll on mobile, justify-between on desktop -->
+        <div class="flex-1 overflow-x-auto overflow-y-hidden" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
+            <div class="flex items-center justify-between min-w-max md:min-w-0 md:w-full gap-x-6 md:gap-x-0 px-1">
+
                 <!-- SPY -->
-                <div class="flex items-center space-x-2">
-                    <span class="text-xs text-gray-400">SPY</span>
-                    <span class="text-sm font-bold" :class="spy.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="'$' + spy.price"></span>
-                    <span class="text-xs" :class="spy.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(spy.change >= 0 ? '+' : '') + spy.change + '%'"></span>
+                <div class="flex flex-col items-center gap-0.5 min-w-[52px]">
+                    <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">SPY</span>
+                    <span class="text-sm font-bold text-white" x-text="'$' + spy.price"></span>
+                    <span class="text-[11px] font-semibold" :class="spy.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(spy.change >= 0 ? '+' : '') + spy.change + '%'"></span>
                 </div>
+
+                <!-- Divider -->
+                <div class="w-px h-8 bg-white/10 shrink-0 hidden md:block"></div>
 
                 <!-- VIX -->
-                <div class="flex items-center space-x-2">
-                    <span class="text-xs text-gray-400">VIX</span>
-                    <span class="text-sm font-bold" :class="vix.value > 20 ? 'text-red-400' : 'text-green-400'" x-text="vix.value"></span>
-                    <span class="text-xs" x-text="vix.label"></span>
+                <div class="flex flex-col items-center gap-0.5 min-w-[52px]">
+                    <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">VIX</span>
+                    <span class="text-sm font-bold" :class="vix.value > 20 ? 'text-red-400' : 'text-white'" x-text="vix.value"></span>
+                    <span class="text-[11px] font-semibold" :class="vix.value > 20 ? 'text-red-400' : 'text-green-400'" x-text="vix.label"></span>
                 </div>
+
+                <!-- Divider -->
+                <div class="w-px h-8 bg-white/10 shrink-0 hidden md:block"></div>
 
                 <!-- 10Y Yield -->
-                <div class="flex items-center space-x-2">
-                    <span class="text-xs text-gray-400">10Y</span>
+                <div class="flex flex-col items-center gap-0.5 min-w-[52px]">
+                    <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">10Y</span>
                     <span class="text-sm font-bold text-yellow-400" x-text="yield10y.value + '%'"></span>
-                    <span class="text-xs" :class="yield10y.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(yield10y.change >= 0 ? '+' : '') + yield10y.change + 'bps'"></span>
+                    <span class="text-[11px] font-semibold" :class="yield10y.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(yield10y.change >= 0 ? '+' : '') + yield10y.change + 'bps'"></span>
                 </div>
 
-                <!-- DXY (Dollar) -->
-                <div class="flex items-center space-x-2">
-                    <span class="text-xs text-gray-400">DXY</span>
+                <!-- Divider -->
+                <div class="w-px h-8 bg-white/10 shrink-0 hidden md:block"></div>
+
+                <!-- DXY -->
+                <div class="flex flex-col items-center gap-0.5 min-w-[52px]">
+                    <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">DXY</span>
                     <span class="text-sm font-bold text-blue-400" x-text="dxy.value"></span>
-                    <span class="text-xs" :class="dxy.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(dxy.change >= 0 ? '+' : '') + dxy.change + '%'"></span>
+                    <span class="text-[11px] font-semibold" :class="dxy.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(dxy.change >= 0 ? '+' : '') + dxy.change + '%'"></span>
                 </div>
+
+                <!-- Divider -->
+                <div class="w-px h-8 bg-white/10 shrink-0 hidden md:block"></div>
 
                 <!-- BTC -->
-                <div class="flex items-center space-x-2">
-                    <span class="text-xs text-gray-400">BTC</span>
+                <div class="flex flex-col items-center gap-0.5 min-w-[56px]">
+                    <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">BTC</span>
                     <span class="text-sm font-bold text-orange-400" x-text="'$' + btc.price"></span>
-                    <span class="text-xs" :class="btc.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(btc.change >= 0 ? '+' : '') + btc.change + '%'"></span>
+                    <span class="text-[11px] font-semibold" :class="btc.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(btc.change >= 0 ? '+' : '') + btc.change + '%'"></span>
                 </div>
 
-                <!-- Gold -->
-                <div class="flex items-center space-x-2">
-                    <span class="text-xs text-gray-400">GOLD</span>
+                <!-- Divider -->
+                <div class="w-px h-8 bg-white/10 shrink-0 hidden md:block"></div>
+
+                <!-- GOLD -->
+                <div class="flex flex-col items-center gap-0.5 min-w-[56px]">
+                    <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">GOLD</span>
                     <span class="text-sm font-bold text-yellow-300" x-text="'$' + gold.price"></span>
-                    <span class="text-xs" :class="gold.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(gold.change >= 0 ? '+' : '') + gold.change + '%'"></span>
+                    <span class="text-[11px] font-semibold" :class="gold.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(gold.change >= 0 ? '+' : '') + gold.change + '%'"></span>
                 </div>
 
-                <!-- Oil -->
-                <div class="flex items-center space-x-2">
-                    <span class="text-xs text-gray-400">OIL</span>
+                <!-- Divider -->
+                <div class="w-px h-8 bg-white/10 shrink-0 hidden md:block"></div>
+
+                <!-- OIL -->
+                <div class="flex flex-col items-center gap-0.5 min-w-[52px]">
+                    <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">OIL</span>
                     <span class="text-sm font-bold text-purple-400" x-text="'$' + oil.price"></span>
-                    <span class="text-xs" :class="oil.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(oil.change >= 0 ? '+' : '') + oil.change + '%'"></span>
+                    <span class="text-[11px] font-semibold" :class="oil.change >= 0 ? 'text-green-400' : 'text-red-400'" x-text="(oil.change >= 0 ? '+' : '') + oil.change + '%'"></span>
                 </div>
+
+                <!-- Divider -->
+                <div class="w-px h-8 bg-white/10 shrink-0 hidden md:block"></div>
+
+                <!-- Context Message (inline on desktop, hidden on mobile) -->
+                <div x-show="contextMessage" class="hidden md:flex flex-col items-center gap-0.5 min-w-[130px] max-w-[200px]">
+                    <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Sentiment</span>
+                    <span class="text-[11px] font-semibold text-center leading-tight" :class="vix.value > 25 ? 'text-red-400' : 'text-gray-300'" x-text="contextMessage"></span>
+                </div>
+
             </div>
-
-            <!-- Refresh Button -->
-            <button @click="fetchMacroData()" class="text-gray-400 hover:text-white transition">
-                <svg class="w-5 h-5" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                </svg>
-            </button>
         </div>
 
-        <!-- Context Message -->
-        <div class="mt-2 text-xs text-gray-400 text-center" x-show="contextMessage">
-            <span x-text="contextMessage"></span>
-        </div>
+        <!-- Refresh Button -->
+        <button @click="fetchMacroData()" class="text-gray-500 hover:text-white transition shrink-0" title="Refresh">
+            <svg class="w-4 h-4" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+        </button>
+
+    </div>
+
+    <!-- Context Message on mobile (below bar) -->
+    <div x-show="contextMessage" class="md:hidden text-center pt-1.5">
+        <span class="text-[10px] font-medium tracking-wide" :class="vix.value > 25 ? 'text-red-400' : 'text-gray-500'" x-text="contextMessage"></span>
     </div>
 </div>
+
+
 
 <script>
     function macroData() {
         return {
             loading: false,
             spy: {
-                price: '500.00',
-                change: 0
+                price: '661.00',
+                change: -1.4
             },
             vix: {
-                value: '15.0',
-                label: 'Low Fear'
+                value: '25.10',
+                label: 'High Fear'
             },
             yield10y: {
-                value: '4.25',
-                change: 0
+                value: '4.26',
+                change: 136
             },
             dxy: {
-                value: '102.5',
+                value: '104.00',
                 change: 0
             },
             btc: {
-                price: '65,000',
-                change: 0
+                price: '71,268',
+                change: -3.59
             },
             gold: {
-                price: '2,050',
-                change: 0
+                price: '4,824',
+                change: -3.54
             },
             oil: {
-                price: '75.50',
-                change: 0
+                price: '99.05',
+                change: 2.95
             },
             contextMessage: '',
 
@@ -139,11 +169,12 @@
 
             updateContextMessage() {
                 // Generate context based on macro conditions
-                if (this.vix.value > 25) {
+                const vixValue = parseFloat(this.vix.value);
+                if (vixValue > 25) {
                     this.contextMessage = 'High volatility - Risk-off environment';
-                } else if (this.yield10y.value > 4.5) {
+                } else if (parseFloat(this.yield10y.value) > 4.5) {
                     this.contextMessage = 'Rising yields - Tech stocks under pressure';
-                } else if (this.dxy.change > 1) {
+                } else if (parseFloat(this.dxy.change) > 1) {
                     this.contextMessage = 'Strong dollar - Commodities weakening';
                 } else {
                     this.contextMessage = 'Stable macro conditions';

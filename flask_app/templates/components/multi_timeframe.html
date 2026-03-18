@@ -1,5 +1,5 @@
 <!-- Multi-Timeframe Analysis for Swing Trading -->
-<div class="glass rounded-2xl p-6" x-data="multiTimeframe()">
+<div class="glass rounded-2xl p-6" x-data="multiTimeframe('{{ ticker }}')">
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-bold text-white">
@@ -194,8 +194,9 @@
 </div>
 
 <script>
-function multiTimeframe() {
+function multiTimeframe(initialTicker) {
     return {
+        ticker: initialTicker || '',
         loading: false,
         error: '',
         data: null,
@@ -266,7 +267,8 @@ function multiTimeframe() {
             this.error = '';
 
             try {
-                const response = await fetch('/api/multi-timeframe');
+                const url = this.ticker ? `/api/multi-timeframe?ticker=${this.ticker}` : '/api/multi-timeframe';
+                const response = await fetch(url);
                 if (response.ok) {
                     this.data = await response.json();
                 } else {

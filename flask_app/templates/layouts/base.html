@@ -12,6 +12,7 @@ function appLayout() {
     return {
         sidebarOpen: window.innerWidth > 768, // Desktop default
         isMobile: window.innerWidth <= 768,
+        isMarketOpen: true, // Optimistically true until fetched
         
         // Global Toast State
         toast: {
@@ -42,6 +43,14 @@ function appLayout() {
             window.addEventListener('show-toast', (e) => {
                 this.showToast(e.detail.message, e.detail.type);
             });
+
+            // Fetch Market Status Globally
+            fetch('/api/market/status')
+                .then(r => r.json())
+                .then(data => {
+                    this.isMarketOpen = data.is_open === true;
+                })
+                .catch(e => console.error('Failed to fetch market status:', e));
         },
         
         toggleSidebar() {
@@ -81,8 +90,9 @@ function appLayout() {
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
-    <!-- Chart.js -->
+    <!-- Chart.js & Lightweight Charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
 
     <!-- Inter Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -108,6 +118,12 @@ function appLayout() {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            font-variant-numeric: tabular-nums;
+            background-color: #020617;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 40%),
+                radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08), transparent 40%);
+            background-attachment: fixed;
         }
 
         /* Mobile-first responsive design */
@@ -279,6 +295,7 @@ function appLayout() {
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.08);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
             box-shadow: 
                 0 4px 30px rgba(0, 0, 0, 0.3),
                 inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -367,16 +384,16 @@ function appLayout() {
 
         @keyframes priceRollover {
             0% { 
-                transform: translateY(0) scale(1); 
                 opacity: 1;
+                background-color: transparent;
             }
             50% { 
-                transform: translateY(-5px) scale(1.05); 
-                opacity: 0.7;
+                opacity: 0.8;
+                background-color: rgba(255, 255, 255, 0.1);
             }
             100% { 
-                transform: translateY(0) scale(1.05); 
                 opacity: 1;
+                background-color: transparent;
             }
         }
 
@@ -595,7 +612,7 @@ function appLayout() {
 
         input:focus, textarea:focus, select:focus {
             border-color: #6366f1 !important;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5) !important;
             outline: none;
             transform: translateY(-1px);
         }
@@ -713,6 +730,7 @@ function appLayout() {
                 <span x-show="sidebarOpen" x-transition class="font-medium">Market Scanner</span>
             </a>
 
+            {% if alpaca_enabled %}
             <a href="{{ url_for('main.portfolio') }}"
                class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-oracle-card transition-all duration-300 group {% if request.endpoint == 'main.portfolio' or request.endpoint == 'main.trade' %}bg-oracle-card text-oracle-primary active{% endif %}">
                 <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -720,6 +738,7 @@ function appLayout() {
                 </svg>
                 <span x-show="sidebarOpen" x-transition class="font-medium">Portfolio & Trade</span>
             </a>
+            {% endif %}
 
             <a href="{{ url_for('main.ai_guidance') }}"
                class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-oracle-card transition-all duration-300 group {% if request.endpoint == 'main.ai_guidance' %}bg-oracle-card text-oracle-primary active{% endif %}">
@@ -735,6 +754,14 @@ function appLayout() {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                 </svg>
                 <span x-show="sidebarOpen" x-transition class="font-medium">Sentinel</span>
+            </a>
+
+            <a href="{{ url_for('main.macro') }}"
+               class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-oracle-card transition-all duration-300 group {% if request.endpoint == 'main.macro' %}bg-oracle-card text-oracle-primary active{% endif %}">
+                <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span x-show="sidebarOpen" x-transition class="font-medium">Macro Intel</span>
             </a>
 
             <div class="pt-4 border-t border-oracle-border mt-4">
@@ -813,10 +840,12 @@ function appLayout() {
                     </div>
 
                     <!-- Market Status -->
-                    <div x-data="{ status: null }" x-init="fetch('/api/market/status').then(r => r.json()).then(d => status = d)" class="hidden sm:block">
-                        <span x-show="status" :class="status?.is_open ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'"
-                              class="px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium">
-                            <span x-text="status?.is_open ? 'Market Open' : 'Market Closed'"></span>
+                    <div class="hidden sm:block">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                              :class="isMarketOpen ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'">
+                            <span class="w-1.5 h-1.5 rounded-full"
+                                  :class="isMarketOpen ? 'bg-green-400 animate-pulse' : 'bg-gray-400'"></span>
+                            <span x-text="isMarketOpen ? 'Market Open' : 'Market Closed'"></span>
                         </span>
                     </div>
 
@@ -910,6 +939,7 @@ function appLayout() {
             </svg>
             <span>Scanner</span>
         </a>
+        {% if alpaca_enabled %}
         <a href="{{ url_for('main.portfolio') }}"
            class="mobile-nav-item {% if request.endpoint == 'main.portfolio' or request.endpoint == 'main.trade' %}active{% endif %}">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -917,6 +947,7 @@ function appLayout() {
             </svg>
             <span>Portfolio</span>
         </a>
+        {% endif %}
         <a href="{{ url_for('main.ai_guidance') }}"
            class="mobile-nav-item {% if request.endpoint == 'main.ai_guidance' %}active{% endif %}">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -955,6 +986,14 @@ function appLayout() {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                     </svg>
                     <span class="font-medium">Sentinel</span>
+                </a>
+
+                <a href="{{ url_for('main.macro') }}"
+                   class="flex items-center gap-3 px-4 py-3 hover:bg-oracle-card transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span class="font-medium">Macro Intel</span>
                 </a>
 
                 <a href="{{ url_for('main.settings') }}"

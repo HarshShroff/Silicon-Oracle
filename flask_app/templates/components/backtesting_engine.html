@@ -57,9 +57,9 @@
     </div>
 
     <!-- Loading State -->
-    <div x-show="loading" class="text-center py-12">
-        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-oracle-primary"></div>
-        <p class="mt-4 text-gray-400">Running backtest simulation...</p>
+    <div x-show="loading" class="text-center py-12 space-y-4 max-w-md mx-auto">
+        <div class="h-16 w-full loading-skeleton rounded-[16px]"></div>
+        <div class="h-4 w-3/4 loading-skeleton mx-auto rounded"></div>
     </div>
 
     <!-- Error State -->
@@ -101,20 +101,20 @@
         <div class="grid grid-cols-3 gap-4">
             <div class="text-center p-3 bg-oracle-card rounded-lg">
                 <p class="text-xs text-gray-500">Profit Factor</p>
-                <p class="text-lg font-bold text-white"
+                <p class="text-lg font-bold text-white tabular-nums"
                    x-text="results?.profitFactor ? results.profitFactor.toFixed(2) : '--'"></p>
             </div>
 
             <div class="text-center p-3 bg-oracle-card rounded-lg">
                 <p class="text-xs text-gray-500">Sharpe Ratio</p>
-                <p class="text-lg font-bold"
+                <p class="text-lg font-bold tabular-nums"
                    :class="(results?.sharpeRatio || 0) >= 1 ? 'text-green-600' : 'text-white'"
-                   x-text="results?.sharpeRatio ? results.sharpeRatio.toFixed(2) : '--'"></p>
+                   x-text="results?.sharpeRatio ? '↑ ' + results.sharpeRatio.toFixed(2) : '--'"></p>
             </div>
 
             <div class="text-center p-3 bg-oracle-card rounded-lg">
                 <p class="text-xs text-gray-500">Avg Hold</p>
-                <p class="text-lg font-bold text-white"
+                <p class="text-lg font-bold text-white tabular-nums"
                    x-text="results?.avgHoldDays ? results.avgHoldDays.toFixed(1) + ' days' : '--'"></p>
             </div>
         </div>
@@ -123,7 +123,7 @@
         <div>
             <h3 class="text-lg font-semibold text-white mb-3">Equity Curve</h3>
             <div class="h-64 relative">
-                <canvas id="equityCurveChart"></canvas>
+                <div id="equityCurveChartContainer" class="w-full h-full absolute inset-0"></div>
             </div>
         </div>
 
@@ -145,13 +145,13 @@
                     <tbody class="divide-y divide-oracle-border">
                         <template x-for="trade in (results?.trades || []).slice(0, 10)" :key="trade.id">
                             <tr>
-                                <td class="px-3 py-2 text-white" x-text="trade.entryDate"></td>
-                                <td class="px-3 py-2 text-white" x-text="trade.exitDate"></td>
-                                <td class="px-3 py-2 text-right text-white" x-text="'$' + trade.entryPrice.toFixed(2)"></td>
-                                <td class="px-3 py-2 text-right text-white" x-text="'$' + trade.exitPrice.toFixed(2)"></td>
-                                <td class="px-3 py-2 text-right font-semibold"
+                                <td class="px-3 py-2 text-white tabular-nums" x-text="trade.entryDate"></td>
+                                <td class="px-3 py-2 text-white tabular-nums" x-text="trade.exitDate"></td>
+                                <td class="px-3 py-2 text-right text-white tabular-nums" x-text="'$' + trade.entryPrice.toFixed(2)"></td>
+                                <td class="px-3 py-2 text-right text-white tabular-nums" x-text="'$' + trade.exitPrice.toFixed(2)"></td>
+                                <td class="px-3 py-2 text-right font-semibold tabular-nums"
                                     :class="trade.pnlPercent >= 0 ? 'text-green-600' : 'text-red-600'"
-                                    x-text="(trade.pnlPercent >= 0 ? '+' : '') + trade.pnlPercent.toFixed(1) + '%'"></td>
+                                    x-text="(trade.pnlPercent >= 0 ? '↑ ' : '↓ ') + Math.abs(trade.pnlPercent).toFixed(1) + '%'"></td>
                                 <td class="px-3 py-2 text-center text-gray-400" x-text="trade.holdDays + 'd'"></td>
                             </tr>
                         </template>
@@ -189,15 +189,16 @@
 
 <script>
 function backtestEngine() {
+    let activeChart = null;
+    
     return {
-        ticker: 'AAPL',
+        ticker: '{{ ticker }}' || 'AAPL',
         strategy: 'rsi',
         period: '1y',
         holdDays: 5,
         loading: false,
         error: '',
         results: null,
-        chart: null,
 
         async runBacktest() {
             if (!this.ticker) {
@@ -237,63 +238,67 @@ function backtestEngine() {
         },
 
         renderChart() {
-            const canvas = document.getElementById('equityCurveChart');
-            if (!canvas || !this.results?.equityCurve) return;
+            const container = document.getElementById('equityCurveChartContainer');
+            if (!container || !this.results?.equityCurve) return;
 
-            if (this.chart) this.chart.destroy();
+            if (activeChart) {
+                try { activeChart.remove(); } catch (e) {}
+                activeChart = null;
+            }
 
-            const ctx = canvas.getContext('2d');
             const data = this.results.equityCurve;
 
-            this.chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.map(d => d.date),
-                    datasets: [{
-                        label: 'Portfolio Value',
-                        data: data.map(d => d.value),
-                        borderColor: '#2563eb',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 0,
-                        borderWidth: 2
-                    }]
+            const isPositive = data[data.length-1].value >= data[0].value;
+            const lineColor = isPositive ? '#2563eb' : '#ef4444';
+            const topColor = isPositive ? 'rgba(37, 99, 235, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+            const bottomColor = isPositive ? 'rgba(37, 99, 235, 0)' : 'rgba(239, 68, 68, 0)';
+
+            const chartInstance = LightweightCharts.createChart(container, {
+                layout: {
+                    background: { type: 'solid', color: 'transparent' },
+                    textColor: '#94a3b8',
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return '$' + context.parsed.y.toFixed(2);
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            display: true,
-                            grid: { display: false },
-                            ticks: {
-                                color: '#6b7280',
-                                maxTicksLimit: 8
-                            }
-                        },
-                        y: {
-                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                            ticks: {
-                                color: '#6b7280',
-                                callback: function(value) {
-                                    return '$' + value.toFixed(0);
-                                }
-                            }
-                        }
-                    }
+                grid: {
+                    vertLines: { color: 'rgba(51, 65, 85, 0.1)' },
+                    horzLines: { color: 'rgba(51, 65, 85, 0.1)' },
+                },
+                rightPriceScale: {
+                    borderVisible: false,
+                },
+                timeScale: {
+                    borderVisible: false,
+                    fixLeftEdge: true,
+                    fixRightEdge: true,
+                },
+                crosshair: {
+                    mode: 0,
                 }
             });
+
+            const areaSeries = chartInstance.addAreaSeries({
+                lineColor: lineColor,
+                topColor: topColor,
+                bottomColor: bottomColor,
+                lineWidth: 2,
+            });
+
+            // Format data for Lightweight Charts
+            const lwData = data.map(d => {
+                const dateObj = new Date(d.date);
+                // Return YYYY-MM-DD for backtest
+                return { 
+                    time: dateObj.toISOString().split('T')[0], 
+                    value: d.value 
+                };
+            }).filter(d => !isNaN(new Date(d.time).getTime())); // filter out invalid dates if any
+
+            // Sort chronologically
+            lwData.sort((a,b) => a.time.localeCompare(b.time));
+
+            areaSeries.setData(lwData);
+            chartInstance.timeScale().fitContent();
+            
+            activeChart = chartInstance;
         },
 
         getStrategyDescription() {

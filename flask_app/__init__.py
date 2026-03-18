@@ -234,10 +234,30 @@ def create_app(config_name=None):
     # Context processors
     @app.context_processor
     def inject_globals():
+        user = g.user if hasattr(g, 'user') and g.user else None
+
+        # Resolve alpaca_enabled: session is source of truth (instant after toggle),
+        # DB is fallback (works once column exists), default True.
+        alpaca_enabled = True
+        if user and user.is_authenticated:
+            if 'alpaca_enabled' in session:
+                alpaca_enabled = bool(session['alpaca_enabled'])
+            else:
+                try:
+                    from utils import database as db
+                    sim = db.get_simulation_settings(user.id) or {}
+                    val = sim.get("alpaca_enabled", None)
+                    if val is not None:
+                        alpaca_enabled = bool(val)
+                        session['alpaca_enabled'] = alpaca_enabled
+                except Exception:
+                    pass
+
         return {
             'app_name': 'Silicon Oracle',
             'app_version': '2.0',
-            'current_user': g.user if hasattr(g, 'user') and g.user else None
+            'current_user': user,
+            'alpaca_enabled': alpaca_enabled,
         }
 
     # Error handlers

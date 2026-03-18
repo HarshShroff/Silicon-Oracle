@@ -1,5 +1,5 @@
-<!-- Volatility Surface Analysis for Swing Trading -->
-<div class="glass rounded-2xl p-6" x-data="volatilitySurface()">
+<!-- Volatility Surface & Smile Analytics -->
+<div class="glass rounded-2xl p-6" x-data="volatilitySurface('{{ ticker }}')">
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-bold text-white">
@@ -160,8 +160,9 @@
 </div>
 
 <script>
-function volatilitySurface() {
+function volatilitySurface(initialTicker) {
     return {
+        ticker: initialTicker || '',
         loading: false,
         error: '',
         data: null,
@@ -177,7 +178,8 @@ function volatilitySurface() {
             this.error = '';
 
             try {
-                const response = await fetch('/api/volatility-surface');
+                const url = this.ticker ? `/api/volatility-surface?ticker=${this.ticker}` : '/api/volatility-surface';
+                const response = await fetch(url);
                 if (response.ok) {
                     this.data = await response.json();
                     this.$nextTick(() => {
