@@ -29,6 +29,69 @@ logger = logging.getLogger(__name__)
 api_bp = Blueprint("api", __name__)
 
 
+@api_bp.route("/search")
+@cache.memoize(timeout=60)
+def ticker_search():
+    """Smart ticker search — accepts symbol OR company name.
+    Returns up to 8 matches with ticker, name, and latest price.
+    """
+    q = request.args.get("q", "").strip()
+    if not q or len(q) < 1:
+        return jsonify({"results": []})
+
+    try:
+        import yfinance as yf
+        results = []
+
+        # 1. Try as direct ticker first
+        upper = q.upper().replace(" ", "-")
+        if len(upper) <= 5 and upper.isalpha():
+            try:
+                info = yf.Ticker(upper).fast_info
+                price = getattr(info, 'last_price', None) or getattr(info, 'regularMarketPrice', None)
+                long_name = getattr(yf.Ticker(upper).info, 'longName', None) or upper
+                if price:
+                    results.append({
+                        "ticker": upper,
+                        "name": long_name,
+                        "price": round(float(price), 2),
+                    })
+            except Exception:
+                pass
+
+        # 2. Full-text search via yfinance Search
+        if len(results) == 0 or len(q) > 5:
+            try:
+                search = yf.Search(q, max_results=7, news_count=0)
+                quotes = search.quotes or []
+                for item in quotes:
+                    ticker = item.get("symbol", "")
+                    name   = item.get("longname") or item.get("shortname") or ticker
+                    # Skip duplicates
+                    if any(r["ticker"] == ticker for r in results):
+                        continue
+                    # Quick price fetch
+                    price = None
+                    try:
+                        fi = yf.Ticker(ticker).fast_info
+                        price = getattr(fi, 'last_price', None)
+                        if price:
+                            price = round(float(price), 2)
+                    except Exception:
+                        pass
+                    results.append({"ticker": ticker, "name": name, "price": price})
+                    if len(results) >= 8:
+                        break
+            except Exception:
+                pass
+
+        return jsonify({"results": results[:8]})
+
+    except Exception as e:
+        logger.error(f"Ticker search error: {e}")
+        return jsonify({"results": []})
+
+
 @api_bp.route("/oracle/insight/<ticker>")
 @cache.memoize(timeout=3600)
 def get_oracle_insight(ticker):
@@ -113,12 +176,17 @@ def get_stock(ticker):
 
 
 @api_bp.route("/stock/<ticker>/quote")
+@cache.memoize(timeout=45)
 def get_quote(ticker):
-    """Get real-time quote."""
+    """Get real-time quote — cached 45s to stay within Finnhub 100 req/min limit."""
     from utils.ticker_utils import normalize_ticker
-    stock_service = StockService(get_config())
-    quote = stock_service.get_realtime_quote(normalize_ticker(ticker))
-    return jsonify(quote or {"error": "No data"})
+    try:
+        stock_service = StockService(get_config())
+        quote = stock_service.get_realtime_quote(normalize_ticker(ticker))
+        return jsonify(quote or {"error": "No data", "current": 0, "percent_change": 0})
+    except Exception as e:
+        logger.warning(f"Quote error for {ticker}: {e}")
+        return jsonify({"error": "No data", "current": 0, "percent_change": 0})
 
 
 @api_bp.route("/stock/<ticker>/chart")
@@ -207,13 +275,36 @@ def get_analysis(ticker):
 
 @api_bp.route("/stock/<ticker>/ai-analysis")
 def get_ai_analysis(ticker):
-    """Get AI Deep Dive analysis, tailored to the user's trading style."""
+    """Get AI Deep Dive analysis, tailored to the user's trading style and portfolio context."""
     from flask_app.services.gemini_service import GeminiService
     from utils.ticker_utils import normalize_ticker
+    from utils import database as db
+
+    ticker = normalize_ticker(ticker)
+
+    # Build portfolio context for this ticker
+    portfolio_context = None
+    user_id = session.get("user_id")
+    if user_id:
+        try:
+            holdings = db.get_shadow_positions(user_id, is_active=True)
+            all_tickers = [h.get("ticker") for h in holdings if h.get("ticker")]
+            position = next((h for h in holdings if h.get("ticker") == ticker), None)
+            if position:
+                portfolio_context = {
+                    "holds": True,
+                    "shares": float(position.get("shares") or 0),
+                    "avg_price": float(position.get("avg_price") or 0),
+                    "other_holdings": [t for t in all_tickers if t != ticker],
+                }
+            else:
+                portfolio_context = {"holds": False, "other_holdings": all_tickers}
+        except Exception as e:
+            logger.warning(f"Could not fetch portfolio context for AI analysis: {e}")
 
     gemini_service = GeminiService(get_config())
     html, score, label = gemini_service.analyze_ticker(
-        normalize_ticker(ticker), trading_style=get_trading_style())
+        ticker, trading_style=get_trading_style(), portfolio_context=portfolio_context)
 
     return jsonify({
         "html": html,
@@ -235,12 +326,77 @@ def market_status():
 
 
 @api_bp.route("/oracle/<ticker>")
+@cache.memoize(timeout=300)
 def get_oracle(ticker):
-    """Get enhanced Oracle analysis for a ticker."""
+    """Get enhanced Oracle analysis for a ticker, enriched with portfolio context. Cached 5 min."""
     from utils.ticker_utils import normalize_ticker
+    from utils import database as db
+
+    ticker = normalize_ticker(ticker)
     oracle_service = EnhancedOracleService(get_config())
-    result = oracle_service.calculate_enhanced_oracle_score(
-        normalize_ticker(ticker))
+    result = oracle_service.calculate_enhanced_oracle_score(ticker)
+
+    # Enrich with portfolio context when user is logged in
+    user_id = session.get("user_id")
+    if user_id:
+        try:
+            holdings = db.get_shadow_positions(user_id, is_active=True)
+            all_tickers = [h.get("ticker") for h in holdings if h.get("ticker")]
+            position = next((h for h in holdings if h.get("ticker") == ticker), None)
+
+            if position:
+                current_price = (result.get("quote") or {}).get("current", 0) or 0
+                avg_price = float(position.get("avg_price") or 0)
+                shares = float(position.get("shares") or 0)
+                unrealized_pl = (current_price - avg_price) * shares if avg_price > 0 else 0
+                unrealized_plpc = ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0
+
+                result["portfolio_context"] = {
+                    "holds": True,
+                    "shares": shares,
+                    "avg_price": avg_price,
+                    "current_price": current_price,
+                    "unrealized_pl": unrealized_pl,
+                    "unrealized_plpc": unrealized_plpc,
+                    "position_value": current_price * shares,
+                    "other_holdings": [t for t in all_tickers if t != ticker],
+                    "total_positions": len(holdings),
+                }
+
+                # Portfolio Alignment scoring factor
+                verdict = result.get("verdict", "HOLD")
+                if verdict in ("STRONG_BUY", "BUY"):
+                    pts, signal = 0.5, "Confirmed Hold"
+                    detail = f"{shares:.2f} sh @ ${avg_price:.2f} ({unrealized_plpc:+.1f}%) — Oracle confirms position"
+                elif verdict in ("STRONG_SELL", "AVOID"):
+                    pts, signal = 0.0, "Exit Signal"
+                    detail = f"{shares:.2f} sh @ ${avg_price:.2f} ({unrealized_plpc:+.1f}%) — Oracle suggests exiting"
+                else:
+                    pts, signal = 0.25, "Monitor Position"
+                    detail = f"{shares:.2f} sh @ ${avg_price:.2f} ({unrealized_plpc:+.1f}%) — Oracle says watch closely"
+
+                result.setdefault("factors", []).append({
+                    "name": "Portfolio Position",
+                    "signal": signal,
+                    "detail": detail,
+                    "points": pts,
+                    "max_points": 0.5,
+                    "has_data": True,
+                })
+                result["score"] = round(result.get("score", 0) + pts, 2)
+                result["max_score"] = round(result.get("max_score", 13.0) + 0.5, 1)
+                if result["max_score"] > 0:
+                    result["confidence"] = round(result["score"] / result["max_score"] * 100, 1)
+            else:
+                result["portfolio_context"] = {
+                    "holds": False,
+                    "other_holdings": all_tickers,
+                    "total_positions": len(holdings),
+                }
+        except Exception as e:
+            logger.warning(f"Portfolio context enrichment failed for {ticker}: {e}")
+            result["portfolio_context"] = {"holds": False}
+
     return jsonify(result)
 
 
@@ -288,9 +444,10 @@ def get_relative_strength():
 
 @api_bp.route("/oracle/ai-interpretation/<ticker>")
 def get_oracle_ai_interpretation(ticker):
-    """Get AI interpretation of Oracle factors, framed for the user's trading style."""
+    """Get AI interpretation of Oracle factors, framed for the user's trading style and portfolio context."""
     from flask_app.services.gemini_service import GeminiService
     from utils.ticker_utils import normalize_ticker
+    from utils import database as db
 
     ticker = normalize_ticker(ticker)
 
@@ -298,10 +455,34 @@ def get_oracle_ai_interpretation(ticker):
     oracle_service = EnhancedOracleService(get_config())
     oracle_data = oracle_service.calculate_enhanced_oracle_score(ticker)
 
-    # Get AI interpretation with trading style context
+    # Build portfolio context
+    portfolio_context = None
+    user_id = session.get("user_id")
+    if user_id:
+        try:
+            holdings = db.get_shadow_positions(user_id, is_active=True)
+            all_tickers = [h.get("ticker") for h in holdings if h.get("ticker")]
+            position = next((h for h in holdings if h.get("ticker") == ticker), None)
+            if position:
+                current_price = (oracle_data.get("quote") or {}).get("current", 0) or 0
+                avg_price = float(position.get("avg_price") or 0)
+                shares = float(position.get("shares") or 0)
+                portfolio_context = {
+                    "holds": True,
+                    "shares": shares,
+                    "avg_price": avg_price,
+                    "unrealized_plpc": ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0,
+                    "other_holdings": [t for t in all_tickers if t != ticker],
+                }
+            else:
+                portfolio_context = {"holds": False, "other_holdings": all_tickers}
+        except Exception as e:
+            logger.warning(f"Could not fetch portfolio context for AI interpretation: {e}")
+
+    # Get AI interpretation with trading style + portfolio context
     gemini_service = GeminiService(get_config())
     interpretation = gemini_service.get_factor_interpretation(
-        ticker, oracle_data, trading_style=get_trading_style())
+        ticker, oracle_data, trading_style=get_trading_style(), portfolio_context=portfolio_context)
 
     if interpretation == "Gemini API Key Required":
         return jsonify({"locked": True, "interpretation": None})
@@ -440,6 +621,167 @@ def run_scan():
     scanner_service = ScannerService(get_config())
     results = scanner_service.scan_watchlist(tickers)
     return jsonify(results)
+
+
+# ============================================
+# FEED & SHADOW PORTFOLIO ENDPOINTS
+# ============================================
+
+
+@api_bp.route("/portfolio/shadow-value")
+def get_shadow_portfolio_value():
+    """Compute current shadow portfolio total value, P&L, and position list."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    try:
+        from utils import database as db
+        holdings = db.get_shadow_positions(user_id, is_active=True)
+        if not holdings:
+            return jsonify({"total_value": 0, "total_cost": 0, "total_pl": 0, "total_plpc": 0, "positions": 0, "positions_list": []})
+
+        stock_service = StockService(get_config())
+        total_value = 0.0
+        total_cost = 0.0
+        positions_out = []
+
+        for pos in holdings:
+            ticker = pos.get("ticker", "")
+            shares = float(pos.get("shares") or 0)
+            avg_price = float(pos.get("avg_price") or 0)
+            if not ticker or shares <= 0:
+                continue
+            try:
+                quote = stock_service.get_realtime_quote(ticker)
+                current_price = quote.get("current") or avg_price
+            except Exception:
+                current_price = avg_price
+
+            pos_value = current_price * shares
+            cost_basis = avg_price * shares
+            total_value += pos_value
+            total_cost += cost_basis
+            positions_out.append({
+                "ticker": ticker,
+                "shares": shares,
+                "avg_price": avg_price,
+                "current_price": current_price,
+                "value": pos_value,
+                "unrealized_pl": pos_value - cost_basis,
+                "unrealized_plpc": ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0,
+            })
+
+        total_pl = total_value - total_cost
+        total_plpc = (total_pl / total_cost * 100) if total_cost > 0 else 0
+
+        return jsonify({
+            "total_value": round(total_value, 2),
+            "total_cost": round(total_cost, 2),
+            "total_pl": round(total_pl, 2),
+            "total_plpc": round(total_plpc, 2),
+            "positions": len(positions_out),
+            "positions_list": positions_out,
+        })
+    except Exception as e:
+        logger.error(f"Shadow portfolio value failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/feed")
+def get_feed():
+    """Unified intelligence feed — news only (no Oracle calls) to stay within API limits.
+    Oracle verdicts are loaded on-demand when user visits analysis page.
+    Priority 1: news for holdings  |  Priority 2: market movers news  |  Priority 3: SPY/market news
+    """
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    try:
+        from utils import database as db
+        stock_service = StockService(get_config())
+
+        holdings = db.get_shadow_positions(user_id, is_active=True)
+        holding_tickers = [h.get("ticker") for h in holdings if h.get("ticker")]
+
+        feed_items = []
+
+        # --- Priority 1: news for user's holdings (max 6 holdings × 2 items) ---
+        for ticker in holding_tickers[:6]:
+            try:
+                news_list = stock_service.get_news(ticker) or []
+                for item in news_list[:2]:
+                    headline = item.get("headline") or item.get("title") or ""
+                    if not headline:
+                        continue
+                    feed_items.append({
+                        "type": "holding_news",
+                        "ticker": ticker,
+                        "headline": headline,
+                        "source": item.get("source") or "",
+                        "url": item.get("url") or "",
+                        "time": item.get("datetime") or 0,
+                        "oracle_verdict": None,
+                        "oracle_confidence": 0,
+                        "is_holding": True,
+                        "priority": 1,
+                    })
+            except Exception:
+                pass
+
+        # --- Priority 2: news for well-known tickers not already held ---
+        market_tickers = ["NVDA", "AAPL", "MSFT", "TSLA", "META", "AMZN"]
+        for ticker in [t for t in market_tickers if t not in holding_tickers][:3]:
+            try:
+                news_list = stock_service.get_news(ticker) or []
+                if news_list:
+                    item = news_list[0]
+                    headline = item.get("headline") or item.get("title") or ""
+                    if headline:
+                        feed_items.append({
+                            "type": "market_mover",
+                            "ticker": ticker,
+                            "headline": headline,
+                            "source": item.get("source") or "",
+                            "url": item.get("url") or "",
+                            "time": item.get("datetime") or 0,
+                            "oracle_verdict": None,
+                            "oracle_confidence": 0,
+                            "is_holding": False,
+                            "priority": 2,
+                        })
+            except Exception:
+                pass
+
+        # --- Priority 3: general market news (SPY) ---
+        try:
+            market_news = stock_service.get_news("SPY") or []
+            for item in market_news[:4]:
+                headline = item.get("headline") or item.get("title") or ""
+                if headline:
+                    feed_items.append({
+                        "type": "market_news",
+                        "ticker": "MKT",
+                        "headline": headline,
+                        "source": item.get("source") or "",
+                        "url": item.get("url") or "",
+                        "time": item.get("datetime") or 0,
+                        "oracle_verdict": None,
+                        "oracle_confidence": 0,
+                        "is_holding": False,
+                        "priority": 3,
+                    })
+        except Exception:
+            pass
+
+        # Sort: priority first, then newest
+        feed_items.sort(key=lambda x: (x["priority"], -(x.get("time") or 0)))
+        return jsonify(feed_items[:20])
+
+    except Exception as e:
+        logger.error(f"Feed endpoint failed: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================
@@ -2015,25 +2357,33 @@ def get_multi_timeframe():
 
         # Weekly data
         weekly = stock.history(period='6mo', interval='1wk')
-        weekly_sma20 = weekly['Close'].rolling(20).mean().iloc[-1]
-        weekly_sma50 = weekly['Close'].rolling(50).mean().iloc[-1]
+        if weekly.empty or len(weekly) < 2:
+            return jsonify({"error": f"Insufficient weekly data for {ticker}"}), 400
+        weekly_sma20 = weekly['Close'].rolling(min(20, len(weekly))).mean().iloc[-1]
+        weekly_sma50 = weekly['Close'].rolling(min(50, len(weekly))).mean().iloc[-1]
         weekly_rsi = calculate_rsi(weekly['Close']).iloc[-1]
         weekly_trend = 'bullish' if weekly['Close'].iloc[-1] > weekly_sma20 else 'bearish'
 
         # Daily data
         daily = stock.history(period='3mo', interval='1d')
-        daily_support = daily['Low'].rolling(20).min().iloc[-1]
-        daily_resistance = daily['High'].rolling(20).max().iloc[-1]
+        if daily.empty or len(daily) < 2:
+            return jsonify({"error": f"Insufficient daily data for {ticker}"}), 400
+        daily_support = daily['Low'].rolling(min(20, len(daily))).min().iloc[-1]
+        daily_resistance = daily['High'].rolling(min(20, len(daily))).max().iloc[-1]
         macd = calculate_macd(daily['Close'])
         daily_trend = 'bullish' if daily['Close'].iloc[-1] > daily['Close'].rolling(
-            20).mean().iloc[-1] else 'bearish'
+            min(20, len(daily))).mean().iloc[-1] else 'bearish'
 
         # 4-hour data (approximated from hourly)
         hourly = stock.history(period='1mo', interval='1h')
         four_hour = hourly.resample('4h').agg(
             {'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
-        momentum = ((four_hour['Close'].iloc[-1] -
-                    four_hour['Close'].iloc[-5]) / four_hour['Close'].iloc[-5]) * 100
+        if len(four_hour) >= 2:
+            lookback = min(5, len(four_hour) - 1)
+            momentum = ((four_hour['Close'].iloc[-1] -
+                        four_hour['Close'].iloc[-lookback]) / four_hour['Close'].iloc[-lookback]) * 100
+        else:
+            momentum = 0.0
         four_hour_trend = 'bullish' if momentum > 0 else 'bearish'
         stoch_rsi = (weekly_rsi - 30) / (70 - 30) * 100  # Simplified
 
@@ -2105,6 +2455,9 @@ def get_volatility_surface():
 
         stock = yf.Ticker(ticker)
         hist = stock.history(period='1y')
+
+        if hist.empty or len(hist) < 5:
+            return jsonify({"error": f"Insufficient data for {ticker}"}), 400
 
         # Calculate historical volatility
         returns = hist['Close'].pct_change().dropna()

@@ -1,1053 +1,428 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Silicon Oracle{% endblock %}</title>
-
-    <!-- Local Tailwind CSS (single source of truth) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
-<script>
-function appLayout() {
-    return {
-        sidebarOpen: window.innerWidth > 768, // Desktop default
-        isMobile: window.innerWidth <= 768,
-        isMarketOpen: true, // Optimistically true until fetched
-        
-        // Global Toast State
-        toast: {
-            show: false,
-            message: '',
-            type: 'info', // success, error, info
-            timeout: null
-        },
-
-        init() {
-            // Initialize based on screen size
-            this.sidebarOpen = !this.isMobile;
-            
-            // Handle resize
-            window.addEventListener('resize', () => {
-                const wasMobile = this.isMobile;
-                this.isMobile = window.innerWidth <= 768;
-                
-                // Auto-close sidebar on desktop, open on mobile
-                if (wasMobile && !this.isMobile) {
-                    this.sidebarOpen = true;
-                } else if (!wasMobile && this.isMobile) {
-                    this.sidebarOpen = false;
-                }
-            });
-
-            // Listen for custom toast events
-            window.addEventListener('show-toast', (e) => {
-                this.showToast(e.detail.message, e.detail.type);
-            });
-
-            // Fetch Market Status Globally
-            fetch('/api/market/status')
-                .then(r => r.json())
-                .then(data => {
-                    this.isMarketOpen = data.is_open === true;
-                })
-                .catch(e => console.error('Failed to fetch market status:', e));
-        },
-        
-        toggleSidebar() {
-            this.sidebarOpen = !this.sidebarOpen;
-        },
-        
-        autoCloseOnMobile() {
-            // Auto close sidebar after navigation on mobile
-            if (this.isMobile) {
-                setTimeout(() => {
-                    this.sidebarOpen = false;
-                }, 300);
-            }
-        },
-
-        showToast(message, type = 'info') {
-            this.toast.message = message;
-            this.toast.type = type;
-            this.toast.show = true;
-
-            // Clear existing timeout
-            if (this.toast.timeout) {
-                clearTimeout(this.toast.timeout);
-            }
-
-            // Auto hide
-            this.toast.timeout = setTimeout(() => {
-                this.toast.show = false;
-            }, 3000);
-        }
-    }
-}
-</script>
-        
-    <!-- Alpine.js Collapse Plugin -->
-    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-    <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-
-    <!-- Chart.js & Lightweight Charts -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-
-    <!-- Inter Font -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Favicon -->
-    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    
-    <style>
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-
-        /* Hide scrollbar utility */
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* Base improvements */
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-            font-variant-numeric: tabular-nums;
-            background-color: #020617;
-            background-image: 
-                radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 40%),
-                radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08), transparent 40%);
-            background-attachment: fixed;
-        }
-
-        /* Mobile-first responsive design */
-        @media (max-width: 768px) {
-            /* Removed grid-cols-2 override - Tailwind handles responsive grids */
-            .grid-cols-3 { grid-template-columns: 1fr; }
-            .grid-cols-4 { grid-template-columns: repeat(2, 1fr); }
-            .grid-cols-5 { grid-template-columns: repeat(2, 1fr); }
-            .grid-cols-6 { grid-template-columns: repeat(2, 1fr); }
-
-            /* Better button sizing for mobile */
-            button, .btn, a.btn-primary, a.btn-success {
-                min-height: 48px !important;
-                padding: 12px 20px !important;
-                font-size: 15px !important;
-            }
-
-            body {
-                font-size: 15px;
-                line-height: 1.6;
-                padding-bottom: 80px; /* Space for mobile nav */
-            }
-
-            aside {
-                width: 100%;
-                transform: translateX(-100%);
-            }
-
-            aside.open {
-                transform: translateX(0);
-            }
-
-            main {
-                margin-left: 0 !important;
-            }
-
-            input, select, textarea {
-                font-size: 16px !important;
-                min-height: 48px !important;
-                padding: 12px 16px !important;
-            }
-
-            .hide-mobile { display: none !important; }
-            .show-mobile { display: block !important; }
-        }
-
-        @media (min-width: 769px) {
-            .show-mobile { display: none !important; }
-        }
-
-        /* Touch-friendly with haptic-like feedback */
-        @media (hover: none) and (pointer: coarse) {
-            button:active, a:active, .mobile-nav-item:active {
-                transform: scale(0.95);
-                opacity: 0.8;
-                transition: transform 0.1s ease, opacity 0.1s ease;
-            }
-        }
-
-        /* Improved button ripple effect */
-        button, .btn, a.btn-primary, a.btn-success {
-            position: relative;
-            overflow: hidden;
-        }
-
-        button::before, .btn::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.3);
-            transform: translate(-50%, -50%);
-            transition: width 0.6s, height 0.6s;
-        }
-
-        button:active::before, .btn:active::before {
-            width: 300px;
-            height: 300px;
-        }
-
-        /* Mobile Bottom Navigation - Enhanced */
-        .mobile-bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(15, 23, 42, 0.98);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
-            border-top: 1px solid rgba(99, 102, 241, 0.2);
-            padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        @media (max-width: 768px) {
-            .mobile-bottom-nav {
-                display: flex;
-                justify-content: space-around;
-                align-items: center;
-            }
-        }
-
-        .mobile-nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 8px 14px;
-            color: #94a3b8;
-            text-decoration: none;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border-radius: 14px;
-            min-width: 60px;
-            position: relative;
-        }
-
-        .mobile-nav-item::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%) scaleX(0);
-            width: 80%;
-            height: 3px;
-            background: linear-gradient(90deg, #6366f1, #8b5cf6);
-            border-radius: 0 0 3px 3px;
-            transition: transform 0.3s ease;
-        }
-
-        .mobile-nav-item.active {
-            color: #6366f1;
-            background: rgba(99, 102, 241, 0.15);
-            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
-        }
-
-        .mobile-nav-item.active::before {
-            transform: translateX(-50%) scaleX(1);
-        }
-
-        .mobile-nav-item:active {
-            transform: scale(0.92);
-        }
-
-        .mobile-nav-item svg {
-            width: 26px;
-            height: 26px;
-            margin-bottom: 3px;
-            transition: transform 0.3s ease;
-        }
-
-        .mobile-nav-item.active svg {
-            transform: scale(1.1);
-        }
-
-        .mobile-nav-item span {
-            font-size: 10px;
-            font-weight: 600;
-            letter-spacing: 0.02em;
-        }
-
-        /* Enhanced Glassmorphism */
-        .glass {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(30, 41, 59, 0.6) 100%);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-top: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 
-                0 4px 30px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            transition: all 0.3s ease;
-        }
-
-        .glass:hover {
-            border-color: rgba(99, 102, 241, 0.2);
-            box-shadow: 
-                0 8px 40px rgba(0, 0, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.08);
-        }
-
-        /* Premium Gradient Text */
-        .gradient-text {
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        /* Accent glow effects */
-        .glow-primary {
-            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
-        }
-
-        .glow-success {
-            box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
-        }
-
-        .glow-danger {
-            box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
-        }
-
-        /* Smooth animations */
-        @keyframes fadeIn {
-            from { 
-                opacity: 0; 
-                transform: translateY(20px); 
-            }
-            to { 
-                opacity: 1; 
-                transform: translateY(0); 
-            }
-        }
-
-        @keyframes slideIn {
-            from { 
-                opacity: 0; 
-                transform: translateX(-20px); 
-            }
-            to { 
-                opacity: 1; 
-                transform: translateX(0); 
-            }
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .animate-fade-in {
-            animation: fadeIn 0.4s ease-out forwards;
-        }
-
-        .animate-slide-in {
-            animation: slideIn 0.4s ease-out forwards;
-        }
-
-        .animate-pulse-slow {
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        /* Staggered animation for lists */
-        .stagger-item:nth-child(1) { animation-delay: 0.05s; }
-        .stagger-item:nth-child(2) { animation-delay: 0.1s; }
-        .stagger-item:nth-child(3) { animation-delay: 0.15s; }
-        .stagger-item:nth-child(4) { animation-delay: 0.2s; }
-        .stagger-item:nth-child(5) { animation-delay: 0.25s; }
-
-        /* Price update rollover animation */
-        .price-updating {
-            animation: priceRollover 0.3s ease-out;
-        }
-
-        @keyframes priceRollover {
-            0% { 
-                opacity: 1;
-                background-color: transparent;
-            }
-            50% { 
-                opacity: 0.8;
-                background-color: rgba(255, 255, 255, 0.1);
-            }
-            100% { 
-                opacity: 1;
-                background-color: transparent;
-            }
-        }
-
-        /* Price flash effects */
-        .price-flash-up {
-            animation: flashGreen 0.6s ease-out;
-        }
-
-        .price-flash-down {
-            animation: flashRed 0.6s ease-out;
-        }
-
-        @keyframes flashGreen {
-            0%, 100% { background-color: transparent; }
-            50% { background-color: rgba(34, 197, 94, 0.2); }
-        }
-
-        @keyframes flashRed {
-            0%, 100% { background-color: transparent; }
-            50% { background-color: rgba(239, 68, 68, 0.2); }
-        }
-
-        /* Loading skeleton */
-        .loading-skeleton {
-            background: linear-gradient(90deg, #1e293b 25%, #374151 50%, #1e293b 75%);
-            background-size: 200% 100%;
-            border-radius: 8px;
-            animation: shimmer 1.5s infinite;
-        }
-
-        @keyframes shimmer {
-            0% { background-position: 200% 50%; }
-            100% { background-position: -200% 50%; }
-        }
-
-        /* Interactive card states */
-        .card-interactive {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            cursor: pointer;
-        }
-
-        .card-interactive:hover {
-            transform: translateY(-2px);
-            border-color: rgba(99, 102, 241, 0.3);
-        }
-
-        .card-interactive:active {
-            transform: translateY(0);
-        }
-
-        /* Enhanced Navigation Items */
-        .nav-item {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .nav-item::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 50%;
-            transform: translateY(-50%) scaleY(0);
-            width: 3px;
-            height: 60%;
-            background: linear-gradient(180deg, #6366f1, #8b5cf6);
-            border-radius: 0 3px 3px 0;
-            transition: transform 0.3s ease;
-        }
-
-        .nav-item.active::before,
-        .nav-item:hover::before {
-            transform: translateY(-50%) scaleY(1);
-        }
-
-        .nav-item.active {
-            box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
-        }
-
-        /* Enhanced buttons */
-        .btn-primary, a.btn-primary {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            color: white;
-            font-weight: 600;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
-            border: none;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
-        }
-
-        .btn-primary:hover, a.btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
-        }
-
-        .btn-primary:active, a.btn-primary:active {
-            transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
-        }
-
-        .btn-success, a.btn-success {
-            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-            color: white;
-            font-weight: 600;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
-            border: none;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
-        }
-
-        .btn-success:hover, a.btn-success:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(34, 197, 94, 0.5);
-        }
-
-        .btn-success:active, a.btn-success:active {
-            transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
-        }
-
-        /* Button disabled state */
-        button:disabled, .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none !important;
-        }
-
-        /* Status badges */
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 12px;
-            border-radius: 9999px;
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 0.025em;
-        }
-
-        .badge-success {
-            background: rgba(34, 197, 94, 0.15);
-            color: #4ade80;
-            border: 1px solid rgba(34, 197, 94, 0.2);
-        }
-
-        .badge-danger {
-            background: rgba(239, 68, 68, 0.15);
-            color: #f87171;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-
-        .badge-warning {
-            background: rgba(234, 179, 8, 0.15);
-            color: #fbbf24;
-            border: 1px solid rgba(234, 179, 8, 0.2);
-        }
-
-        .badge-info {
-            background: rgba(99, 102, 241, 0.15);
-            color: #818cf8;
-            border: 1px solid rgba(99, 102, 241, 0.2);
-        }
-
-        /* Progress bars */
-        .progress {
-            height: 8px;
-            background: rgba(51, 65, 85, 0.5);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .progress-bar {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.5s ease;
-        }
-
-        /* Data visualization colors */
-        .chart-positive { color: #22c55e; }
-        .chart-negative { color: #ef4444; }
-        .chart-neutral { color: #94a3b8; }
-
-        /* Reduced motion */
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
-        }
-
-        /* Focus states for accessibility */
-        :focus-visible {
-            outline: 2px solid #6366f1;
-            outline-offset: 2px;
-        }
-
-        /* Enhanced Input Styling */
-        input[type="text"],
-        input[type="email"],
-        input[type="password"],
-        input[type="number"],
-        textarea,
-        select {
-            appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        input:focus, textarea:focus, select:focus {
-            border-color: #6366f1 !important;
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5) !important;
-            outline: none;
-            transform: translateY(-1px);
-        }
-
-        /* Better select styling */
-        select {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-            background-size: 16px;
-            padding-right: 40px;
-            cursor: pointer;
-        }
-
-        /* Search Input Enhancement */
-        input[type="text"][placeholder*="Search"],
-        input[type="text"][placeholder*="search"],
-        input[type="text"][placeholder*="Ticker"],
-        input[type="text"][placeholder*="ticker"] {
-            transition: all 0.3s ease;
-        }
-
-        input[type="text"][placeholder*="Search"]:focus,
-        input[type="text"][placeholder*="search"]:focus,
-        input[type="text"][placeholder*="Ticker"]:focus,
-        input[type="text"][placeholder*="ticker"]:focus {
-            width: 250px !important;
-        }
-
-        @media (max-width: 768px) {
-            input[type="text"][placeholder*="Search"]:focus,
-            input[type="text"][placeholder*="search"]:focus,
-            input[type="text"][placeholder*="Ticker"]:focus,
-            input[type="text"][placeholder*="ticker"]:focus {
-                width: 100% !important;
-            }
-        }
-
-        /* Enhanced card hover effects */
-        .card-hover {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .card-hover:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
-        }
-    </style>
-
-    {% block extra_head %}{% endblock %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Silicon Oracle{% endblock %}</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
+
+  <!-- Alpine.js plugins (must load before Alpine core) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- Favicon -->
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+
+  {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-oracle-darker text-gray-100 min-h-screen" x-data="appLayout()" x-init="init()">
+<body>
 
-    <!-- Skip to content link for accessibility -->
-    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 bg-oracle-primary px-4 py-2 rounded-lg text-white font-medium focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-oracle-darker">
-        Skip to main content
+<div class="app-shell" x-data="appShell()" x-init="init()">
+
+  <!-- ─── SIDEBAR (desktop) ─────────────────── -->
+  <aside class="sidebar">
+
+    <a href="{{ url_for('main.index') }}" class="sidebar-logo" title="Silicon Oracle">⬡</a>
+
+    <!-- Command Center -->
+    <a href="{{ url_for('main.index') }}"
+       class="nav-item {% if request.endpoint == 'main.index' or request.endpoint == 'main.command_center' %}active{% endif %}"
+       data-tip="Command Center">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
     </a>
 
-    <!-- Mobile Overlay -->
-    <div x-show="sidebarOpen && isMobile"
-         @click="toggleSidebar()"
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
-         style="display: none;"></div>
+    <!-- Analysis -->
+    <a href="{{ url_for('main.analysis') }}"
+       class="nav-item {% if request.endpoint == 'main.analysis' %}active{% endif %}"
+       data-tip="Analysis">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+    </a>
 
-    <!-- Sidebar -->
-    <aside class="fixed left-0 top-0 h-full bg-oracle-dark border-r border-oracle-border transition-all duration-300 z-50"
-           :class="[
-               sidebarOpen ? 'w-64 open' : 'w-20'
-           ]">
+    <!-- Scan + Watchlist (merged) -->
+    <a href="{{ url_for('main.scanner') }}"
+       class="nav-item {% if request.endpoint in ['main.scanner','main.watchlist','main.ai_guidance'] %}active{% endif %}"
+       data-tip="Scan & Watch">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+      </svg>
+    </a>
 
-        <!-- Logo -->
-        <div class="p-4 border-b border-oracle-border">
-            <div class="flex items-center justify-between">
-                <a href="/" class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-oracle-primary to-oracle-secondary flex items-center justify-center">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                        </svg>
-                    </div>
-                    <span x-show="sidebarOpen" class="font-bold text-lg gradient-text">Silicon Oracle</span>
-                </a>
-                <!-- Close button (mobile only) -->
-                <button @click="toggleSidebar()"
-                        class="md:hidden p-2 rounded-lg bg-oracle-card hover:bg-oracle-border transition-colors"
-                        aria-label="Close menu"
-                        x-show="sidebarOpen">
-                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
+    <!-- Macro Intel -->
+    <a href="{{ url_for('main.macro') }}"
+       class="nav-item {% if request.endpoint == 'main.macro' %}active{% endif %}"
+       data-tip="Macro Intel">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+      </svg>
+    </a>
+
+    <!-- Sentinel -->
+    <a href="{{ url_for('sentinel_ui.simulation') }}"
+       class="nav-item {% if 'sentinel' in (request.endpoint or '') %}active{% endif %}"
+       data-tip="Sentinel">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 01-3.46 0"/>
+      </svg>
+    </a>
+
+    {% if alpaca_enabled %}
+    <!-- Portfolio (Alpaca-gated) -->
+    <a href="{{ url_for('main.portfolio') }}"
+       class="nav-item {% if request.endpoint == 'main.portfolio' %}active{% endif %}"
+       data-tip="Portfolio">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2"/>
+        <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+        <line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
+      </svg>
+    </a>
+
+    <!-- Trade (Alpaca-gated) -->
+    <a href="{{ url_for('main.trade') }}"
+       class="nav-item {% if request.endpoint == 'main.trade' %}active{% endif %}"
+       data-tip="Trade">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23"/>
+        <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+      </svg>
+    </a>
+    {% endif %}
+
+    <div class="nav-spacer"></div>
+    <div class="nav-divider"></div>
+
+    <!-- Settings -->
+    <a href="{{ url_for('main.settings') }}"
+       class="nav-item {% if request.endpoint == 'main.settings' %}active{% endif %}"
+       data-tip="Settings">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+    </a>
+
+    <!-- Avatar -->
+    <a href="{{ url_for('main.settings') }}" class="nav-item" style="margin-top:4px;" data-tip="{{ current_user.username if current_user else 'Account' }}">
+      <div style="width:28px;height:28px;background:linear-gradient(135deg,#4c1d95,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;">
+        {{ (current_user.username[0] | upper) if current_user else 'U' }}
+      </div>
+    </a>
+
+  </aside>
+
+  <!-- ─── MAIN WRAP ──────────────────────────── -->
+  <div class="main-wrap">
+
+    <!-- ─── TOPBAR ─────────────────────────── -->
+    <header class="topbar">
+      <span class="topbar-title">{% block page_title %}Silicon Oracle{% endblock %}</span>
+      <div class="topbar-sep"></div>
+
+      <!-- Ticker tape -->
+      <div class="ticker-tape" id="ticker-tape">
+        <div class="tape-item skeleton" style="width:80px;height:16px;border-radius:3px;"></div>
+        <div class="tape-item skeleton" style="width:80px;height:16px;border-radius:3px;"></div>
+        <div class="tape-item skeleton" style="width:80px;height:16px;border-radius:3px;"></div>
+        <div class="tape-item skeleton" style="width:80px;height:16px;border-radius:3px;"></div>
+        <div class="tape-item skeleton" style="width:80px;height:16px;border-radius:3px;"></div>
+      </div>
+
+      <!-- Smart Search -->
+      <div class="search-wrap" x-data="tickerSearch()">
+        <div class="search-icon">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
         </div>
-
-        <!-- Navigation -->
-        <nav class="p-4 space-y-2 overflow-y-auto hide-scrollbar" style="max-height: calc(100vh - 200px);">
-            <a href="{{ url_for('main.analysis') }}"
-               class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-oracle-card transition-all duration-300 group {% if request.endpoint == 'main.analysis' %}bg-oracle-card text-oracle-primary active{% endif %}">
-                <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                </svg>
-                <span x-show="sidebarOpen" x-transition class="font-medium">Analysis</span>
-            </a>
-
-            <a href="{{ url_for('main.scanner') }}"
-               class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-oracle-card transition-all duration-300 group {% if request.endpoint == 'main.scanner' or request.endpoint == 'main.watchlist' %}bg-oracle-card text-oracle-primary active{% endif %}">
-                <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-                <span x-show="sidebarOpen" x-transition class="font-medium">Market Scanner</span>
-            </a>
-
-            {% if alpaca_enabled %}
-            <a href="{{ url_for('main.portfolio') }}"
-               class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-oracle-card transition-all duration-300 group {% if request.endpoint == 'main.portfolio' or request.endpoint == 'main.trade' %}bg-oracle-card text-oracle-primary active{% endif %}">
-                <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                </svg>
-                <span x-show="sidebarOpen" x-transition class="font-medium">Portfolio & Trade</span>
-            </a>
-            {% endif %}
-
-            <a href="{{ url_for('main.ai_guidance') }}"
-               class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-oracle-card transition-all duration-300 group {% if request.endpoint == 'main.ai_guidance' %}bg-oracle-card text-oracle-primary active{% endif %}">
-                <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                </svg>
-                <span x-show="sidebarOpen" x-transition class="font-medium">AI Guidance</span>
-            </a>
-
-            <a href="{{ url_for('sentinel_ui.simulation', user_id=current_user.id) if current_user and current_user.is_authenticated else url_for('sentinel_ui.simulation') }}"
-               class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-oracle-card transition-all duration-300 group {% if request.endpoint == 'sentinel_ui.simulation' %}bg-oracle-card text-oracle-primary active{% endif %}">
-                <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                </svg>
-                <span x-show="sidebarOpen" x-transition class="font-medium">Sentinel</span>
-            </a>
-
-            <a href="{{ url_for('main.macro') }}"
-               class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-oracle-card transition-all duration-300 group {% if request.endpoint == 'main.macro' %}bg-oracle-card text-oracle-primary active{% endif %}">
-                <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <span x-show="sidebarOpen" x-transition class="font-medium">Macro Intel</span>
-            </a>
-
-            <div class="pt-4 border-t border-oracle-border mt-4">
-                <a href="{{ url_for('main.settings') }}"
-                   class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-oracle-card transition-all duration-300 group {% if request.endpoint == 'main.settings' %}bg-oracle-card text-oracle-primary active{% endif %}">
-                    <svg class="w-5 h-5 transition-transform group-hover:scale-110 group-hover:rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                    <span x-show="sidebarOpen" x-transition class="font-medium">Settings</span>
-                </a>
-
-                <!-- User Info & Logout -->
-                {% if current_user and current_user.is_authenticated %}
-                <div class="mt-3" x-show="sidebarOpen">
-                    <div class="text-xs text-gray-500 px-4 py-2 truncate">
-                        Signed in as <span class="text-gray-400 font-medium">{{ current_user.username }}</span>
-                    </div>
-                </div>
-                <a href="{{ url_for('auth.logout') }}"
-                   class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-500/10 transition-colors text-gray-400 hover:text-red-400">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                    </svg>
-                    <span x-show="sidebarOpen">Sign Out</span>
-                </a>
-                {% endif %}
+        <input
+          class="search-input"
+          type="text"
+          placeholder='Ticker or "nvidia"...'
+          x-model="query"
+          @input.debounce.300ms="search()"
+          @keydown.enter="navigate()"
+          @keydown.escape="close()"
+          @keydown.arrow-down.prevent="moveDown()"
+          @keydown.arrow-up.prevent="moveUp()"
+          @focus="if(query.length > 0) search()"
+          @blur.debounce.150ms="close()"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div class="search-dropdown" x-show="open && results.length > 0" x-cloak>
+          <template x-for="(r, i) in results" :key="r.ticker">
+            <div
+              class="search-result"
+              :class="{ 'highlighted': i === selected }"
+              @mousedown.prevent="goTo(r.ticker)"
+            >
+              <span class="sr-ticker" x-text="r.ticker"></span>
+              <span class="sr-name"   x-text="r.name"></span>
+              <span class="sr-price"  x-text="r.price ? '$' + r.price : ''"></span>
             </div>
-        </nav>
-
-        <!-- Collapse Button -->
-            <button @click="toggleSidebar()"
-                    class="absolute bottom-4 right-4 p-2 rounded-lg bg-oracle-card hover:bg-oracle-border transition-colors md:hidden lg:block"
-                    aria-label="Toggle sidebar collapse"
-                    :aria-expanded="sidebarOpen">
-                <svg :class="sidebarOpen ? '' : 'rotate-180'" class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                </svg>
-            </button>
-    </aside>
-
-    <!-- Main Content -->
-    <main :class="sidebarOpen ? 'ml-64' : 'ml-20'" class="min-h-screen transition-all duration-300">
-
-        <!-- Top Bar -->
-        <!-- Loading Bar -->
-        <div class="fixed top-0 left-0 w-full h-1 z-50 pointer-events-none">
-            <div id="loading-bar" class="h-full bg-oracle-primary shadow-[0_0_10px_#6366f1] transition-all duration-300 ease-out" style="width: 0%; opacity: 0;"></div>
+          </template>
         </div>
+      </div>
 
-        <header class="sticky top-0 z-40 glass border-b border-oracle-border">
-            <div class="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
-                <div class="flex items-center gap-3 md:gap-4">
-                    <!-- Mobile Menu Button -->
-                    <button @click="toggleSidebar()"
-                            class="md:hidden p-2 rounded-lg bg-oracle-card hover:bg-oracle-border transition-colors"
-                            aria-label="Toggle navigation menu"
-                            :aria-expanded="sidebarOpen">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                        </svg>
-                    </button>
+      <!-- Market status -->
+      <div class="mkt-badge" :class="isMarketOpen ? 'open' : 'closed'">
+        <div class="mkt-dot" :class="isMarketOpen ? 'open' : 'closed'"></div>
+        <span class="mkt-label" x-text="isMarketOpen ? 'MKT OPEN' : 'MKT CLOSED'"></span>
+      </div>
 
-                    {% block header_left %}
-                    <h1 class="text-lg md:text-xl font-semibold">{% block page_title %}Dashboard{% endblock %}</h1>
-                    {% endblock %}
-                </div>
+      <!-- Clock -->
+      <span class="mono text-oracle-text-5 text-xs flex-shrink-0" x-text="clock" style="min-width:68px;text-align:right;"></span>
+    </header>
 
-                <div class="flex items-center gap-2 md:gap-4">
-                    <!-- Quick Search -->
-                    <div class="relative hidden sm:block">
-                        <input type="text"
-                               placeholder="Search ticker..."
-                               class="w-32 md:w-48 px-3 md:px-4 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none transition-all text-sm"
-                               @keydown.enter="if($el.value) window.location.href='/analysis/' + $el.value.toUpperCase()">
-                    </div>
-
-                    <!-- Market Status -->
-                    <div class="hidden sm:block">
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-                              :class="isMarketOpen ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'">
-                            <span class="w-1.5 h-1.5 rounded-full"
-                                  :class="isMarketOpen ? 'bg-green-400 animate-pulse' : 'bg-gray-400'"></span>
-                            <span x-text="isMarketOpen ? 'Market Open' : 'Market Closed'"></span>
-                        </span>
-                    </div>
-
-                    <!-- Mobile Search Icon -->
-                    <button @click="$refs.mobileSearch.classList.toggle('hidden')"
-                            class="sm:hidden p-2 rounded-lg bg-oracle-card hover:bg-oracle-border transition-colors"
-                            aria-label="Toggle search">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Mobile Search Bar (Hidden by default) -->
-            <div x-ref="mobileSearch" class="hidden sm:hidden px-4 pb-3">
-                <input type="text"
-                       placeholder="Search ticker..."
-                       class="w-full px-4 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none"
-                       @keydown.enter="if($el.value) { window.location.href='/analysis/' + $el.value.toUpperCase() }">
-            </div>
-        </header>
-
-        <!-- Flash Messages converted to Toasts -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <script>
-            document.addEventListener('alpine:init', () => {
-                setTimeout(() => {
-                    {% for category, message in messages %}
-                    window.dispatchEvent(new CustomEvent('show-toast', {
-                        detail: {
-                            message: "{{ message }}",
-                            type: "{{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }}"
-                        }
-                    }));
-                    {% endfor %}
-                }, 100);
-            });
-        </script>
-        {% endif %}
-        {% endwith %}
-
-        <!-- Global Macro Dashboard (Sticky Ticker Tape) -->
-        {% if current_user and current_user.is_authenticated %}
-        <div class="sticky top-[73px] md:top-[81px] z-30">
-            {% include 'components/macro_dashboard.html' %}
-        </div>
-        {% endif %}
-
-        <!-- Page Content -->
-        <div id="main-content" class="p-4 md:p-6 animate-fade-in">
-            {% block content %}{% endblock %}
-        </div>
-        <!-- Global Toast Notification -->
-        <div x-show="toast.show"
-             x-transition:enter="transition ease-out duration-300"
-             x-transition:enter-start="opacity-0 transform translate-y-2"
-             x-transition:enter-end="opacity-100 transform translate-y-0"
-             x-transition:leave="transition ease-in duration-200"
-             x-transition:leave-start="opacity-100 transform translate-y-0"
-             x-transition:leave-end="opacity-0 transform translate-y-2"
-             class="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-sm"
-             style="display: none;">
-            <div class="glass px-4 py-3 rounded-xl flex items-center gap-3 shadow-xl backdrop-blur-xl border"
-                 :class="toast.type === 'success' ? 'border-green-500/50 bg-green-500/10' : toast.type === 'error' ? 'border-red-500/50 bg-red-500/10' : 'border-oracle-primary/50 bg-oracle-card/80'">
-                <span class="text-lg" x-text="toast.type === 'success' ? '' : toast.type === 'error' ? '' : 'ℹ'"></span>
-                <span class="text-sm font-medium flex-1 text-white" x-text="toast.message"></span>
-                <button @click="toast.show = false"
-                        class="text-gray-400 hover:text-white transition-colors"
-                        aria-label="Close notification">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-        </div>
+    <!-- ─── PAGE CONTENT ───────────────────── -->
+    <main class="page-content" id="page-content">
+      {% block content %}{% endblock %}
     </main>
 
-    <!-- Mobile Bottom Navigation -->
-    <nav class="mobile-bottom-nav">
-        <a href="{{ url_for('main.analysis') }}"
-           class="mobile-nav-item {% if request.endpoint == 'main.analysis' %}active{% endif %}">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-            <span>Analysis</span>
-        </a>
-        <a href="{{ url_for('main.scanner') }}"
-           class="mobile-nav-item {% if request.endpoint == 'main.scanner' or request.endpoint == 'main.watchlist' %}active{% endif %}">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-            <span>Scanner</span>
-        </a>
-        {% if alpaca_enabled %}
-        <a href="{{ url_for('main.portfolio') }}"
-           class="mobile-nav-item {% if request.endpoint == 'main.portfolio' or request.endpoint == 'main.trade' %}active{% endif %}">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-            </svg>
-            <span>Portfolio</span>
-        </a>
-        {% endif %}
-        <a href="{{ url_for('main.ai_guidance') }}"
-           class="mobile-nav-item {% if request.endpoint == 'main.ai_guidance' %}active{% endif %}">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-            </svg>
-            <span>AI</span>
-        </a>
-        <div x-data="{ menuOpen: false }" class="relative">
-            <button @click="menuOpen = !menuOpen"
-                    @keydown.escape="menuOpen = false"
-                    class="mobile-nav-item {% if request.endpoint == 'main.settings' or request.endpoint == 'sentinel_ui.simulation' %}active{% endif %}"
-                    aria-label="More options"
-                    aria-haspopup="true"
-                    :aria-expanded="menuOpen">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
-                <span>More</span>
-            </button>
+  </div><!-- /.main-wrap -->
 
-            <!-- Dropdown Menu -->
-            <div x-show="menuOpen"
-                 @click.away="menuOpen = false"
-                 x-transition:enter="transition ease-out duration-200"
-                 x-transition:enter-start="opacity-0 transform translate-y-2"
-                 x-transition:enter-end="opacity-100 transform translate-y-0"
-                 x-transition:leave="transition ease-in duration-150"
-                 x-transition:leave-start="opacity-100"
-                 x-transition:leave-end="opacity-0"
-                 style="display: none;"
-                 class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 glass rounded-xl shadow-2xl border border-oracle-border overflow-hidden">
+  <!-- ─── MOBILE BOTTOM NAV (5-tab, Robinhood-style) ───── -->
+  <nav class="mobile-nav">
+    <a href="{{ url_for('main.index') }}" class="mobile-nav-item {% if request.endpoint in ['main.index','main.command_center'] %}active{% endif %}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      <span>Home</span>
+    </a>
+    <a href="{{ url_for('main.analysis') }}" class="mobile-nav-item {% if request.endpoint == 'main.analysis' %}active{% endif %}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      <span>Chart</span>
+    </a>
+    <a href="{{ url_for('main.scanner') }}" class="mobile-nav-item {% if request.endpoint in ['main.scanner','main.watchlist','main.ai_guidance'] %}active{% endif %}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+      </svg>
+      <span>Scan</span>
+    </a>
+    <a href="{{ url_for('main.macro') }}" class="mobile-nav-item {% if request.endpoint == 'main.macro' %}active{% endif %}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+      </svg>
+      <span>Macro</span>
+    </a>
+    <a href="{{ url_for('main.settings') }}" class="mobile-nav-item {% if request.endpoint == 'main.settings' %}active{% endif %}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+      <span>More</span>
+    </a>
+  </nav>
 
-                <a href="{{ url_for('sentinel_ui.simulation', user_id=current_user.id) if current_user and current_user.is_authenticated else url_for('sentinel_ui.simulation') }}"
-                   class="flex items-center gap-3 px-4 py-3 hover:bg-oracle-card transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                    </svg>
-                    <span class="font-medium">Sentinel</span>
-                </a>
+  <!-- ─── TOAST ────────────────────────────── -->
+  <div class="toast" aria-live="polite">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <template x-for="(t, i) in flashToasts" :key="i">
+      <div class="toast-item" :class="t.type"
+           x-show="t.show"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 translate-y-2"
+           x-transition:enter-end="opacity-100 translate-y-0"
+           x-transition:leave="transition ease-in duration-150"
+           x-transition:leave-start="opacity-100"
+           x-transition:leave-end="opacity-0">
+        <span x-text="t.icon" style="font-size:14px;"></span>
+        <span x-text="t.message" style="flex:1;font-size:12px;"></span>
+        <button @click="t.show = false" style="color:#475569;background:none;border:none;cursor:pointer;padding:0;line-height:1;">✕</button>
+      </div>
+    </template>
+    {% endif %}
+    {% endwith %}
 
-                <a href="{{ url_for('main.macro') }}"
-                   class="flex items-center gap-3 px-4 py-3 hover:bg-oracle-card transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    <span class="font-medium">Macro Intel</span>
-                </a>
+    <!-- Dynamic toasts -->
+    <template x-for="(t, i) in toasts" :key="i">
+      <div class="toast-item" :class="t.type"
+           x-show="t.show"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 translate-y-2"
+           x-transition:enter-end="opacity-100 translate-y-0"
+           x-transition:leave="transition ease-in duration-150"
+           x-transition:leave-start="opacity-100"
+           x-transition:leave-end="opacity-0">
+        <span x-text="t.icon" style="font-size:14px;"></span>
+        <span x-text="t.message" style="flex:1;font-size:12px;"></span>
+        <button @click="t.show = false" style="color:#475569;background:none;border:none;cursor:pointer;padding:0;line-height:1;">✕</button>
+      </div>
+    </template>
+  </div>
 
-                <a href="{{ url_for('main.settings') }}"
-                   class="flex items-center gap-3 px-4 py-3 hover:bg-oracle-card transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                    <span class="font-medium">Settings</span>
-                </a>
+</div><!-- /.app-shell -->
 
-                {% if current_user and current_user.is_authenticated %}
-                <div class="border-t border-oracle-border"></div>
-                <a href="{{ url_for('auth.logout') }}"
-                   class="flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 transition-colors text-red-400">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                    </svg>
-                    <span class="font-medium">Sign Out</span>
-                </a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
+<script>
+/* ── App Shell ────────────────────────────── */
+function appShell() {
+  return {
+    isMarketOpen: false,
+    clock: '',
+    toasts: [],
+    flashToasts: [],
 
-    <script>
-        // Page transition loading bar logic
-        document.addEventListener('DOMContentLoaded', () => {
-            const bar = document.getElementById('loading-bar');
-            
-            // Show bar on link clicks
-            document.addEventListener('click', (e) => {
-                const link = e.target.closest('a');
-                if (link && link.href && !link.target && !link.hasAttribute('download') && 
-                    link.href.startsWith(window.location.origin) && !link.href.includes('#')) {
-                    startLoading();
-                }
-            });
+    init() {
+      this.startClock();
+      this.fetchMarketStatus();
+      this.loadTape();
+      this.initFlashToasts();
+      setInterval(() => this.fetchMarketStatus(), 60000);
+      setInterval(() => this.loadTape(), 30000);
+      window.addEventListener('show-toast', e => this.showToast(e.detail.message, e.detail.type));
+    },
 
-            // Show bar on form submissions
-            document.addEventListener('submit', () => {
-                startLoading();
-            });
+    startClock() {
+      const tick = () => {
+        const now = new Date();
+        this.clock = now.toLocaleTimeString('en-US', {
+          hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit',
+          timeZone: 'America/New_York'
+        }) + ' ET';
+      };
+      tick();
+      setInterval(tick, 1000);
+    },
 
-            function startLoading() {
-                bar.style.opacity = '1';
-                bar.style.width = '20%';
-                
-                // Simulated progress
-                setTimeout(() => { bar.style.width = '50%'; }, 200);
-                setTimeout(() => { bar.style.width = '80%'; }, 500);
-            }
+    async fetchMarketStatus() {
+      try {
+        const r = await fetch('/api/market/status');
+        const d = await r.json();
+        this.isMarketOpen = d.is_open || false;
+      } catch(e) { this.isMarketOpen = false; }
+    },
+
+    async loadTape() {
+      const symbols = ['SPY','QQQ','VIX','DXY','GLD','BTC-USD'];
+      const tape = document.getElementById('ticker-tape');
+      if (!tape) return;
+
+      try {
+        const results = await Promise.allSettled(
+          symbols.map(s => fetch(`/api/stock/${s}/quote`).then(r => r.json()))
+        );
+
+        let html = '';
+        symbols.forEach((sym, i) => {
+          if (results[i].status !== 'fulfilled') return;
+          const d = results[i].value;
+          const price = d.current || d.price || 0;
+          const chg   = d.percent_change || 0;
+          const pos   = chg >= 0;
+          const label = sym === 'BTC-USD' ? 'BTC' : sym;
+          const fmt   = price > 999 ? price.toLocaleString('en-US', {maximumFractionDigits: 0})
+                                    : price.toFixed(2);
+          html += `
+            <a href="/analysis/${sym}" class="tape-item" style="text-decoration:none;">
+              <span class="tape-sym">${label}</span>
+              <span class="tape-price">${fmt}</span>
+              <span class="tape-chg ${pos ? 'pos' : 'neg'}">${pos ? '+' : ''}${chg.toFixed(2)}%</span>
+            </a>`;
         });
-    </script>
-    {% block extra_scripts %}{% endblock %}
+        tape.innerHTML = html;
+      } catch(e) {}
+    },
+
+    initFlashToasts() {
+      const raw = {{ get_flashed_messages(with_categories=true) | tojson | safe }};
+      this.flashToasts = raw.map(([cat, msg]) => ({
+        show: true,
+        type: cat === 'success' ? 'success' : cat === 'error' ? 'error' : 'info',
+        icon: cat === 'success' ? '✓' : cat === 'error' ? '✕' : 'ℹ',
+        message: msg,
+      }));
+      this.flashToasts.forEach((t, i) => {
+        setTimeout(() => { t.show = false; }, 5000 + i * 500);
+      });
+    },
+
+    showToast(message, type = 'info') {
+      const t = {
+        show: true,
+        type,
+        icon: type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ',
+        message,
+      };
+      this.toasts.push(t);
+      setTimeout(() => { t.show = false; }, 5000);
+    },
+  };
+}
+
+/* ── Ticker Search ───────────────────────── */
+function tickerSearch() {
+  return {
+    query: '',
+    results: [],
+    open: false,
+    selected: -1,
+    loading: false,
+
+    async search() {
+      const q = this.query.trim();
+      if (q.length < 1) { this.results = []; this.open = false; return; }
+      this.loading = true;
+      try {
+        const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        const d = await r.json();
+        this.results = d.results || [];
+        this.open = this.results.length > 0;
+        this.selected = -1;
+      } catch(e) { this.results = []; this.open = false; }
+      this.loading = false;
+    },
+
+    navigate() {
+      if (this.selected >= 0 && this.results[this.selected]) {
+        this.goTo(this.results[this.selected].ticker);
+      } else {
+        const q = this.query.trim().toUpperCase();
+        if (q) this.goTo(q);
+      }
+    },
+
+    goTo(ticker) {
+      this.close();
+      window.location.href = `/analysis/${ticker}`;
+    },
+
+    close() { this.open = false; this.selected = -1; },
+
+    moveDown() {
+      if (this.selected < this.results.length - 1) this.selected++;
+    },
+
+    moveUp() {
+      if (this.selected > 0) this.selected--;
+    },
+  };
+}
+</script>
+
+{% block extra_scripts %}{% endblock %}
 </body>
 </html>
