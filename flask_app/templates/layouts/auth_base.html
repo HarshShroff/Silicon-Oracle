@@ -4,174 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Silicon Oracle{% endblock %}</title>
-
-    <!-- Local Tailwind CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
-
-    <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-
-    <!-- Inter Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Favicon -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-
-    <style>
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
-        /* Premium Gradient Text */
-        .gradient-text {
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        /* Enhanced Glassmorphism */
-        .glass {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(30, 41, 59, 0.6) 100%);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow:
-                0 4px 30px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            transition: all 0.3s ease;
-        }
-
-        .glass:hover {
-            border-color: rgba(99, 102, 241, 0.2);
-            box-shadow:
-                0 8px 40px rgba(0, 0, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.08);
-        }
-
-        /* Smooth animations */
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .animate-fade-in {
-            animation: fadeIn 0.4s ease-out forwards;
-        }
-
-        /* Enhanced buttons */
-        .btn-primary {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            color: white;
-            font-weight: 600;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
-            border: none;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-primary::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.3);
-            transform: translate(-50%, -50%);
-            transition: width 0.6s, height 0.6s;
-        }
-
-        .btn-primary:active::before {
-            width: 300px;
-            height: 300px;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
-        }
-
-        .btn-primary:active {
-            transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
-        }
-
-        /* Enhanced Input Styling */
-        input[type="text"],
-        input[type="email"],
-        input[type="password"],
-        input[type="number"] {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        input:focus {
-            border-color: #6366f1 !important;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
-            outline: none;
-            transform: translateY(-1px);
-        }
-
-        /* Mobile responsive */
-        @media (max-width: 768px) {
-            body {
-                font-size: 15px;
-                line-height: 1.6;
-            }
-
-            input, button {
-                min-height: 48px !important;
-                font-size: 16px !important;
-            }
-        }
-
-        /* Focus states for accessibility */
-        :focus-visible {
-            outline: 2px solid #6366f1;
-            outline-offset: 2px;
-        }
-    </style>
-
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-oracle-darker text-gray-100 min-h-screen">
+<body class="bg-oracle-base text-gray-100 min-h-screen font-sans antialiased">
 
-    <!-- Flash Messages as Toasts -->
+    <!-- Grid backdrop -->
+    <div class="fixed inset-0 pointer-events-none" style="background-image: linear-gradient(rgba(30,45,61,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(30,45,61,0.07) 1px, transparent 1px); background-size: 40px 40px;"></div>
+
+    <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
     <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 transform translate-y-2"
-         x-transition:enter-end="opacity-100 transform translate-y-0"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         class="fixed top-4 right-4 z-50 w-full max-w-sm">
+         x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="fixed top-4 right-4 z-50 w-full max-w-sm space-y-2">
         {% for category, message in messages %}
-        <div class="glass px-4 py-3 rounded-xl flex items-center gap-3 shadow-xl backdrop-blur-xl border mb-2
-                    {% if category == 'success' %}border-green-500/50 bg-green-500/10{% elif category == 'error' %}border-red-500/50 bg-red-500/10{% else %}border-oracle-primary/50 bg-oracle-card/80{% endif %}">
-            <span class="text-lg">
-                {% if category == 'success' %}{% elif category == 'error' %}{% else %}ℹ{% endif %}
-            </span>
-            <span class="text-sm font-medium flex-1 text-white">{{ message }}</span>
-            <button @click="show = false"
-                    class="text-gray-400 hover:text-white transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
+        <div class="t-card flex items-center gap-3 {% if category == 'success' %}border-oracle-gain/40{% elif category == 'error' %}border-oracle-loss/40{% endif %}">
+            <span class="text-sm flex-1 text-white">{{ message }}</span>
+            <button @click="show = false" class="text-oracle-border-strong hover:text-white transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
         </div>
         {% endfor %}
@@ -179,8 +36,8 @@
     {% endif %}
     {% endwith %}
 
-    <!-- Page Content -->
-    <div class="container mx-auto px-4 py-8">
+    <!-- Content -->
+    <div class="relative min-h-screen flex flex-col">
         {% block content %}{% endblock %}
     </div>
 

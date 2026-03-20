@@ -54,7 +54,11 @@ class StockService:
                     'source': 'finnhub'
                 }
         except Exception as e:
-            logger.warning(f"Finnhub quote failed for {ticker}: {e}")
+            err = str(e)
+            if '429' in err:
+                logger.debug(f"Finnhub rate limit for {ticker}, falling back to yfinance")
+            else:
+                logger.warning(f"Finnhub quote failed for {ticker}: {e}")
 
         return self._get_yfinance_quote(ticker)
 
