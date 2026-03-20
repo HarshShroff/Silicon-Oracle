@@ -196,6 +196,13 @@ def get_chart_data(ticker):
     period = request.args.get("period", "1y")
     interval = request.args.get("interval", "1d")
 
+    # Map frontend shorthand to yfinance period strings
+    period_map = {
+        "1D": "1d", "1W": "5d", "1M": "1mo", "3M": "3mo",
+        "1Y": "1y", "ALL": "5y", "YTD": "ytd",
+    }
+    period = period_map.get(period.upper(), period)
+
     stock_service = StockService(get_config())
     df = stock_service.get_historical_data(
         normalize_ticker(ticker), period, interval)

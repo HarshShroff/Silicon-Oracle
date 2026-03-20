@@ -5,6 +5,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Top-level aliases for command_center shorthand classes
+        gain:  '#4ade80',
+        loss:  '#f87171',
+        'text-1': '#e2e8f0',
+        'text-2': '#94a3b8',
+        'text-3': '#64748b',
+        'text-4': '#475569',
         oracle: {
           void:     '#040410',
           base:     '#070711',
