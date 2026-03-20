@@ -218,21 +218,17 @@
 <script>
 function dashboard() {
     return {
-        portfolioValue: 124840.12,
-        portfolioChange: 3842.20,
-        portfolioTrend: 3.12,
-        buyingPower: 42150.68,
+        portfolioValue: 0,
+        portfolioChange: 0,
+        portfolioTrend: 0,
+        buyingPower: 0,
+        alpacaConnected: false,
         chartLoading: true,
         chartPeriod: '1M',
         wl: { loading: true, rows: [] },
         spotlight: { ticker: null, name: '', score: null, verdict: null, factors: [] },
         news: { items: [] },
-        collections: [
-            { name: 'AI Momentum', active: true },
-            { name: 'Energy Infrastructure', active: false },
-            { name: 'Dividend Kings', active: false },
-            { name: 'High Beta Tech', active: true }
-        ],
+        collections: [],
 
         async init() {
             if (typeof LightweightCharts === 'undefined') {
@@ -240,8 +236,10 @@ function dashboard() {
                 return;
             }
             this.initChart();
+            await this.loadAccount();
             await this.loadTrendData('1M');
-            await this.loadWatchlist();
+            this.loadWatchlist();
+            this.loadCollections();
             this.loadNews();
         },
 
@@ -255,29 +253,81 @@ function dashboard() {
                 crosshair: { horzLine: { visible: false }, vertLine: { labelVisible: false, color: '#18181A' } },
                 handleScroll: false, handleScale: false
             });
-            
             this.mainSeries = this.chart.addAreaSeries({
                 lineWidth: 4,
                 priceLineVisible: false,
                 lastValueVisible: false,
                 crosshairMarkerVisible: true
             });
-            
             window.addEventListener('resize', () => this.chart.applyOptions({ width: container.clientWidth }));
         },
 
+        // ── ACCOUNT: try Alpaca → fallback shadow portfolio ──────────────────
+        async loadAccount() {
+            try {
+                const [acct, shadow] = await Promise.all([
+                    fetch('/api/trading/account').then(r => r.json()).catch(() => null),
+                    fetch('/api/portfolio/shadow-value').then(r => r.json()).catch(() => null)
+                ]);
+
+                if (acct && !acct.error && acct.portfolio_value) {
+                    this.alpacaConnected = true;
+                    this.portfolioValue = acct.portfolio_value;
+                    this.buyingPower    = acct.buying_power;
+                } else if (shadow && !shadow.error && shadow.total_value > 0) {
+                    this.portfolioValue = shadow.total_value;
+                    this.buyingPower    = 0;
+                }
+
+                // Unrealized P&L from shadow as performance indicator
+                if (shadow && !shadow.error) {
+                    this.portfolioChange = Math.abs(shadow.total_pl || 0);
+                    this.portfolioTrend  = shadow.total_plpc || 0;
+                }
+            } catch(e) { console.error('Account load error', e); }
+        },
+
+        // ── CHART: try Alpaca portfolio history → fallback SPY ───────────────
         async loadTrendData(period) {
             this.chartPeriod = period;
             this.chartLoading = true;
-            try {
-                const r = await fetch(`/api/stock/SPY/chart?period=${period}&interval=1d`).then(res => res.json());
-                const plot = (Array.isArray(r) ? r : [])
-                    .map(d => ({
-                        time: (d.Date?.split('T')[0] || d.time || '').substring(0, 10),
-                        value: d.Close || d.value
-                    }))
-                    .filter(d => d.time && d.value);
+            let plot = [];
 
+            // Alpaca portfolio history when connected
+            if (this.alpacaConnected) {
+                try {
+                    const alpacaPeriod = { '1Y': '1A', 'ALL': 'all' }[period] || period;
+                    const tf = period === '1D' ? '5Min' : '1D';
+                    const hist = await fetch(`/api/trading/history?period=${alpacaPeriod}&timeframe=${tf}`).then(r => r.json());
+                    if (Array.isArray(hist) && hist.length > 1) {
+                        if (period === '1D') {
+                            // Intraday: use unix timestamps
+                            plot = hist
+                                .map(d => ({ time: Math.floor(new Date(d.timestamp).getTime() / 1000), value: d.equity }))
+                                .filter(d => d.value > 0 && !isNaN(d.time));
+                        } else {
+                            plot = hist
+                                .map(d => ({ time: new Date(d.timestamp).toISOString().substring(0, 10), value: d.equity }))
+                                .filter(d => d.time && d.value > 0);
+                        }
+                    }
+                } catch(e) { /* fall through to SPY */ }
+            }
+
+            // SPY benchmark fallback
+            if (plot.length <= 1) {
+                try {
+                    const r = await fetch(`/api/stock/SPY/chart?period=${period}&interval=1d`).then(res => res.json());
+                    plot = (Array.isArray(r) ? r : [])
+                        .map(d => ({
+                            time: (d.Date?.split('T')[0] || d.time || '').substring(0, 10),
+                            value: d.Close || d.value
+                        }))
+                        .filter(d => d.time && d.value);
+                } catch(e) { console.error('SPY chart error', e); }
+            }
+
+            try {
                 if (plot.length > 1) {
                     this.mainSeries.setData(plot);
                     this.chart.timeScale().fitContent();
@@ -289,43 +339,112 @@ function dashboard() {
                         bottomColor: 'rgba(0,0,0,0)'
                     });
                 }
-            } catch(e) { console.error('Trend Nexus Error', e); }
+            } catch(e) { console.error('Chart render error', e); }
             finally { this.chartLoading = false; }
         },
 
         setPeriod(p) { this.loadTrendData(p); },
 
+        // ── NEXUS MONITOR: Alpaca positions → scanner watchlist → defaults ────
         async loadWatchlist() {
             this.wl.loading = true;
             try {
-                const tickers = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'META', 'AMD'];
+                let tickers = [];
+
+                // 1) Try live Alpaca positions
+                try {
+                    const positions = await fetch('/api/trading/positions').then(r => r.json());
+                    if (Array.isArray(positions) && positions.length > 0) {
+                        const sorted = [...positions].sort((a, b) => (b.market_value || 0) - (a.market_value || 0));
+                        // Build rows directly from position data
+                        this.wl.rows = sorted.slice(0, 6).map(p => ({
+                            ticker: p.ticker,
+                            name:   p.ticker,
+                            price:  p.current_price,
+                            change: p.unrealized_plpc,
+                            score:  0
+                        }));
+                        // Enrich with oracle names/scores in background
+                        sorted.slice(0, 6).forEach(async (p, i) => {
+                            try {
+                                const or = await fetch(`/api/oracle/${p.ticker}`).then(r => r.json());
+                                if (or && !or.error) {
+                                    if (this.wl.rows[i]) {
+                                        this.wl.rows[i].name  = or.company_name || p.ticker;
+                                        this.wl.rows[i].score = or.score || 0;
+                                    }
+                                }
+                            } catch(e) {}
+                        });
+                        if (this.wl.rows.length > 0) this.syncSpotlight(this.wl.rows[0].ticker);
+                        return;
+                    }
+                } catch(e) {}
+
+                // 2) Try first scanner watchlist
+                try {
+                    const lists = await fetch('/api/scanner/watchlists').then(r => r.json());
+                    const first = Array.isArray(lists) && lists.find(l => l.tickers?.length > 0);
+                    if (first) tickers = first.tickers.slice(0, 6);
+                } catch(e) {}
+
+                // 3) Market defaults
+                if (tickers.length === 0) tickers = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'META', 'AMD'];
+
                 const rows = await Promise.all(tickers.map(async t => {
                     try {
-                        const qr = await fetch(`/api/stock/${t}/quote`).then(res => res.json());
-                        const or = await fetch(`/api/oracle/${t}`).then(res => res.json());
-                        return { ticker: t, name: or.company_name || 'Asset Intelligence', price: qr.current, change: qr.percent_change, score: or.score };
+                        const qr = await fetch(`/api/stock/${t}/quote`).then(r => r.json());
+                        const or = await fetch(`/api/oracle/${t}`).then(r => r.json());
+                        return { ticker: t, name: or.company_name || t, price: qr.current, change: qr.percent_change, score: or.score || 0 };
                     } catch(e) { return null; }
                 }));
-                this.wl.rows = rows.filter(r => r).sort((a,b) => b.score - a.score);
+                this.wl.rows = rows.filter(r => r).sort((a, b) => b.score - a.score);
                 if (this.wl.rows.length > 0) this.syncSpotlight(this.wl.rows[0].ticker);
-            } catch(e) {}
+            } catch(e) { console.error('Watchlist error', e); }
             finally { this.wl.loading = false; }
         },
 
         async syncSpotlight(ticker) {
             try {
                 const d = await fetch(`/api/oracle/${ticker}`).then(res => res.json());
-                this.spotlight = { ticker, name: d.company_name, score: d.score, verdict: d.verdict, confidence: d.confidence, factors: d.factors };
+                if (d && !d.error) {
+                    this.spotlight = { ticker, name: d.company_name, score: d.score, verdict: d.verdict, confidence: d.confidence, factors: d.factors };
+                }
             } catch(e) {}
         },
 
+        // ── COLLECTIONS: from user's scanner watchlists ──────────────────────
+        async loadCollections() {
+            try {
+                const lists = await fetch('/api/scanner/watchlists').then(r => r.json());
+                if (Array.isArray(lists) && lists.length > 0) {
+                    this.collections = lists.slice(0, 6).map((l, i) => ({ name: l.name, active: i === 0 }));
+                }
+            } catch(e) {}
+        },
+
+        // ── INTELLIGENCE FEED: personalized /api/feed ────────────────────────
         async loadNews() {
             try {
-                const d = await fetch('/api/stock/SPY/news').then(res => res.json());
-                this.news.items = (d.news || d || []).slice(0, 4).map((n, i) => ({
-                    id: i, ticker: n.related || 'MARKET', headline: n.headline, url: n.url, time: 'T-Minus 2h'
+                const d = await fetch('/api/feed').then(r => r.json());
+                const items = Array.isArray(d) ? d : [];
+                this.news.items = items.slice(0, 4).map((n, i) => ({
+                    id:       i,
+                    ticker:   n.ticker || 'MARKET',
+                    headline: n.headline || '',
+                    url:      n.url || '#',
+                    time:     this.relativeTime(n.time)
                 }));
             } catch(e) {}
+        },
+
+        relativeTime(unix) {
+            if (!unix) return '';
+            const diff = Math.floor(Date.now() / 1000) - unix;
+            if (diff < 60)    return 'Just now';
+            if (diff < 3600)  return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            return Math.floor(diff / 86400) + 'd ago';
         },
 
         formatCurrency(n) { return (n || 0).toLocaleString(undefined, { style: 'currency', currency: 'USD' }); }
