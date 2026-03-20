@@ -1,214 +1,121 @@
 {% extends "layouts/base.html" %}
-
-{% block title %}AI Guidance - Silicon Oracle{% endblock %}
+{% block title %}AI Guidance — Silicon Oracle{% endblock %}
+{% block page_title %}AI Guidance{% endblock %}
 
 {% block content %}
-<div x-data="aiGuidancePage()" x-init="init()" class="space-y-4 md:space-y-6">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-4">
-        <div>
-            <h1 class="text-xl md:text-2xl font-bold gradient-text"> AI Guidance</h1>
-            <p class="text-gray-400 text-sm">Oracle's AI-powered analysis</p>
-        </div>
-        <button @click="toggleAutoScan()" 
-                :class="autoScan ? 'bg-green-500 text-white' : 'bg-oracle-card text-gray-400'"
-                class="px-3 py-1.5 rounded-lg transition-colors text-xs md:text-sm">
-            <span x-show="autoScan"> Auto ON</span>
-            <span x-show="!autoScan">Auto</span>
-        </button>
-    </div>
+<div x-data="aiGuidancePage()" x-init="init()" class="space-y-4">
 
-    <!-- Scan Controls - Compact -->
-    <div class="glass rounded-xl p-4">
-        <div class="space-y-3">
-            <textarea x-model="scanTickers" 
-                      placeholder="Enter tickers: NVDA, AAPL, MSFT..."
-                      class="w-full px-3 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none text-sm"
-                      rows="2"></textarea>
-            
-            <div class="flex gap-2">
-                <button @click="runScan()" :disabled="scanning || !scanTickers.trim()"
-                        class="flex-1 py-2.5 rounded-lg bg-oracle-primary hover:bg-blue-600 disabled:opacity-50 font-medium text-sm">
-                    <span x-show="!scanning"> Scan Now</span>
-                    <span x-show="scanning" class="flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                        </svg>
-                        <span x-text="scanProgress"></span>
-                    </span>
-                </button>
-                <button @click="clearResults()" :disabled="!scanResults.length"
-                        class="px-4 py-2.5 rounded-lg bg-oracle-card hover:bg-oracle-border disabled:opacity-50 text-sm">
-                    Clear
-                </button>
-            </div>
-            
-            <!-- Quick Watchlists -->
-            <div class="flex flex-wrap gap-1.5">
-                <span class="text-xs text-gray-400">Quick:</span>
-                <button @click="addWatchlist('AI/Tech')" class="px-2 py-0.5 rounded bg-oracle-card hover:bg-oracle-border text-xs">AI/Tech</button>
-                <button @click="addWatchlist('Energy')" class="px-2 py-0.5 rounded bg-oracle-card hover:bg-oracle-border text-xs">Energy</button>
-                <button @click="addWatchlist('Dividend')" class="px-2 py-0.5 rounded bg-oracle-card hover:bg-oracle-border text-xs">Dividend</button>
-                <button @click="addWatchlist('ETFs')" class="px-2 py-0.5 rounded bg-oracle-card hover:bg-oracle-border text-xs">ETFs</button>
-            </div>
+    <!-- Scan Controls -->
+    <div class="t-card">
+        <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-semibold text-white">Scan Tickers</p>
+            <button @click="toggleAutoScan()"
+                    class="text-[10px] font-mono px-2.5 py-1 rounded border transition-colors"
+                    :class="autoScan ? 'border-oracle-gain text-oracle-gain bg-oracle-gain/10' : 'border-oracle-border text-oracle-border-strong hover:border-oracle-border-strong'">
+                <span x-show="autoScan">● Auto ON</span>
+                <span x-show="!autoScan">Auto</span>
+            </button>
         </div>
-    </div>
 
-    <!-- Loading State -->
-    <div x-show="scanning" class="glass rounded-xl p-6">
-        <div class="flex items-center justify-center gap-3">
-            <svg class="w-6 h-6 animate-spin text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            <div>
-                <p class="font-medium" x-text="currentTicker"></p>
-                <p class="text-xs text-gray-400" x-text="scanProgress"></p>
-            </div>
+        <textarea x-model="scanTickers" placeholder="NVDA, AAPL, MSFT, GOOGL…"
+                  class="t-input w-full h-16 resize-none font-mono mb-3" rows="2"></textarea>
+
+        <!-- Quick Watchlists -->
+        <div class="flex flex-wrap gap-1.5 mb-3">
+            <span class="text-[10px] text-oracle-border-strong self-center">Quick:</span>
+            <template x-for="name in ['AI/Tech','Energy','Dividend','ETFs']" :key="name">
+                <button @click="addWatchlist(name)"
+                        class="text-[10px] px-2 py-0.5 rounded border border-oracle-border text-oracle-border-strong hover:border-oracle-primary hover:text-oracle-primary font-mono transition-colors"
+                        x-text="name"></button>
+            </template>
         </div>
-        <div class="mt-3 w-full bg-oracle-border rounded-full h-1.5">
-            <div class="bg-oracle-primary h-1.5 rounded-full transition-all" :style="`width: ${progressPercent}%`"></div>
+
+        <div class="flex gap-2">
+            <button @click="runScan()" :disabled="scanning || !scanTickers.trim()"
+                    class="btn btn-primary flex-1 disabled:opacity-50">
+                <span x-show="!scanning" class="flex items-center justify-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    Scan Now
+                </span>
+                <span x-show="scanning" class="flex items-center justify-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span x-text="scanProgress"></span>
+                </span>
+            </button>
+            <button @click="clearResults()" :disabled="!scanResults.length"
+                    class="btn btn-ghost disabled:opacity-40">Clear</button>
+        </div>
+
+        <!-- Progress Bar -->
+        <div x-show="scanning" class="mt-3 score-bar-bg rounded-full">
+            <div class="score-bar-fill bg-oracle-primary rounded-full transition-all duration-300" :style="`width: ${progressPercent}%`"></div>
         </div>
     </div>
 
     <!-- Top Picks -->
-    <div x-show="scanResults.length > 0" class="space-y-4">
-        <h2 class="text-xl font-semibold"> Oracle's Top Picks</h2>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <template x-for="result in topPicks" :key="result.ticker">
-                <div class="glass rounded-2xl p-6 hover:bg-oracle-card transition-colors"
-                     x-init="if (!result.aiInterpretation && !result.interpretationLocked && !result.interpretationLoading) { setTimeout(() => getAiInterpretation(result), 200); }">
+    <div x-show="topPicks.length > 0">
+        <p class="section-label font-semibold text-sm text-white mb-2 px-0.5">Oracle's Top Picks</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <template x-for="result in topPicks" :key="result.ticker"
+                      x-init="if (!result.aiInterpretation && !result.interpretationLocked && !result.interpretationLoading) { setTimeout(() => getAiInterpretation(result), 200); }">
+                <div class="t-card hover:border-oracle-primary/30 transition-colors">
                     <!-- Header -->
-                    <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-start justify-between mb-3">
                         <div>
-                            <h3 class="text-lg font-bold" x-text="result.ticker"></h3>
-                            <p class="text-sm text-gray-400" x-text="result.company?.name || ''"></p>
+                            <a :href="`/analysis/${result.ticker}`" class="text-lg font-bold font-mono text-oracle-primary hover:text-oracle-accent" x-text="result.ticker"></a>
+                            <p class="text-[10px] text-oracle-border-strong truncate max-w-[140px]" x-text="result.company?.name || result.company || ''"></p>
                         </div>
                         <div class="text-right">
-                            <p class="text-2xl font-bold" x-text="'$' + result.price.toFixed(2)"></p>
-                            <p class="text-sm" :class="result.change >= 0 ? 'text-green-400' : 'text-red-400'">
-                                <span x-text="result.change >= 0 ? '+' : ''"></span>
-                                <span x-text="result.change.toFixed(2)"></span>
-                                (<span x-text="result.percent_change.toFixed(2)"></span>%)
-                            </p>
+                            <p class="text-base font-bold font-mono text-white" x-text="'$' + result.price.toFixed(2)"></p>
+                            <p class="text-[10px] font-mono" :class="result.change >= 0 ? 'text-oracle-gain' : 'text-oracle-loss'"
+                               x-text="(result.change >= 0 ? '+' : '') + result.change.toFixed(2) + '%'"></p>
                         </div>
                     </div>
 
-                    <!-- Oracle Score -->
-                    <div class="mb-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-sm text-gray-400">Oracle Score</span>
-                            <span class="text-lg font-bold" x-text="result.oracle_score.toFixed(1) + '/12'"></span>
+                    <!-- Score Bar -->
+                    <div class="mb-3">
+                        <div class="flex justify-between text-[10px] font-mono mb-1">
+                            <span class="text-oracle-border-strong">Oracle Score</span>
+                            <span class="text-white font-semibold" x-text="result.oracle_score.toFixed(1) + '/12'"></span>
                         </div>
-                        <div class="w-full bg-oracle-border rounded-full h-2">
-                            <div class="h-2 rounded-full transition-all duration-500"
-                                 :class="getScoreColor(result.oracle_score)"
+                        <div class="score-bar-bg rounded-full">
+                            <div class="score-bar-fill rounded-full" :class="getScoreColor(result.oracle_score)"
                                  :style="`width: ${(result.oracle_score / 12) * 100}%`"></div>
                         </div>
                     </div>
 
                     <!-- Verdict -->
-                    <div class="mb-4">
-                        <span class="inline-block px-3 py-1 rounded-full text-sm font-medium"
-                              :class="getVerdictColor(result.verdict)"
-                              x-text="result.verdict"></span>
+                    <div class="mb-3">
+                        <span class="badge" :class="getVerdictBadgeClass(result.verdict)" x-text="result.verdict"></span>
                     </div>
 
-                    <!-- Key Reasons -->
-                    <div class="mb-4">
-                        <p class="text-sm text-gray-400 mb-2">Key Reasons:</p>
-                        <ul class="text-sm space-y-1">
-                            <template x-for="reason in result.top_reasons.slice(0, 3)" :key="reason">
-                                <li class="flex items-start gap-2">
-                                    <span class="text-oracle-primary mt-0.5">•</span>
-                                    <span x-text="reason"></span>
-                                </li>
-                            </template>
-                        </ul>
-                    </div>
-
-                    <!-- AI Factor Interpretation (Auto-loaded) -->
-                    <div class="mb-4 p-4 rounded-xl border border-oracle-primary/30 bg-gradient-to-br from-oracle-primary/10 to-transparent">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs font-bold uppercase tracking-wider text-oracle-primary flex items-center gap-1">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                                </svg>
-                                AI Analysis
-                            </span>
-                            <div x-show="result.interpretationLoading" class="flex gap-1">
-                                <span class="w-1.5 h-1.5 bg-oracle-primary rounded-full animate-bounce"></span>
-                                <span class="w-1.5 h-1.5 bg-oracle-primary rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
-                                <span class="w-1.5 h-1.5 bg-oracle-primary rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                    <!-- AI Interpretation -->
+                    <div class="p-2.5 rounded-lg bg-oracle-surface border border-oracle-primary/20 mb-3">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-[9px] font-semibold uppercase tracking-widest text-oracle-primary font-mono">AI Analysis</span>
+                            <div x-show="result.interpretationLoading" class="flex gap-0.5">
+                                <span class="w-1 h-1 bg-oracle-primary rounded-full animate-bounce"></span>
+                                <span class="w-1 h-1 bg-oracle-primary rounded-full animate-bounce" style="animation-delay:0.1s"></span>
+                                <span class="w-1 h-1 bg-oracle-primary rounded-full animate-bounce" style="animation-delay:0.2s"></span>
                             </div>
                         </div>
-
-                        <!-- Interpretation Content -->
-                        <div class="min-h-[60px] flex flex-col justify-center">
-                            <template x-if="result.aiInterpretation">
-                                <p class="text-sm leading-relaxed text-gray-200" x-text="result.aiInterpretation"></p>
-                            </template>
-
-                            <template x-if="result.interpretationLocked">
-                                <div class="flex items-start gap-2 text-xs text-gray-400">
-                                    <svg class="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                                    </svg>
-                                    <p>Add a <a href="/settings" class="text-oracle-primary hover:underline font-medium">Gemini Key</a> to unlock AI analysis of Oracle factors</p>
-                                </div>
-                            </template>
-
-                            <template x-if="!result.aiInterpretation && !result.interpretationLoading && !result.interpretationLocked">
-                                <p class="text-xs text-gray-500 italic">Loading AI analysis...</p>
-                            </template>
-                        </div>
-                    </div>
-
-                    <!-- AI Insight Section (Optional - Click to reveal) -->
-                    <div class="mb-6 p-4 rounded-xl border border-oracle-border/50 bg-gradient-to-br from-oracle-card to-oracle-card/50">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs font-bold uppercase tracking-wider text-oracle-primary"> Deep Dive Thesis</span>
-                            <div x-show="result.insightLoading" class="flex gap-1">
-                                <span class="w-1.5 h-1.5 bg-oracle-primary rounded-full animate-bounce"></span>
-                                <span class="w-1.5 h-1.5 bg-oracle-primary rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
-                                <span class="w-1.5 h-1.5 bg-oracle-primary rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
-                            </div>
-                        </div>
-
-                        <!-- Insight Content -->
-                        <div class="min-h-[60px] flex flex-col justify-center">
-                            <template x-if="!result.aiInsight && !result.insightLoading">
-                                <button @click="getAiInsight(result)"
-                                        class="w-full py-2 text-xs font-semibold bg-oracle-border/50 hover:bg-oracle-border rounded-lg transition-all flex items-center justify-center gap-2">
-                                    <span> Uncover Deep Thesis</span>
-                                </button>
-                            </template>
-
-                            <template x-if="result.locked">
-                                <div class="flex flex-col items-center text-center gap-2">
-                                    <svg class="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                                    </svg>
-                                    <p class="text-xs text-gray-400">Add a <a href="/settings" class="text-oracle-primary hover:underline">Gemini Key</a> to unlock</p>
-                                </div>
-                            </template>
-
-                            <template x-if="result.aiInsight">
-                                <p class="text-sm italic leading-relaxed text-gray-200" x-text="result.aiInsight"></p>
-                            </template>
-                        </div>
+                        <template x-if="result.aiInterpretation">
+                            <p class="text-[11px] text-gray-300 leading-relaxed" x-text="result.aiInterpretation"></p>
+                        </template>
+                        <template x-if="result.interpretationLocked">
+                            <p class="text-[10px] text-oracle-border-strong">
+                                <a href="/settings" class="text-oracle-primary hover:text-oracle-accent">Add Gemini key</a> to unlock AI analysis
+                            </p>
+                        </template>
+                        <template x-if="!result.aiInterpretation && !result.interpretationLoading && !result.interpretationLocked">
+                            <p class="text-[10px] text-oracle-border italic">Loading…</p>
+                        </template>
                     </div>
 
                     <!-- Actions -->
                     <div class="flex gap-2">
-                        <a :href="`/analysis/${result.ticker}`" 
-                           class="flex-1 px-4 py-2 rounded-lg bg-oracle-card hover:bg-oracle-border transition-colors text-center text-sm">
-                            Analyze
-                        </a>
-                        <a :href="`/trade/${result.ticker}`" 
-                           class="flex-1 px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 transition-colors text-center text-sm">
-                            Buy
-                        </a>
+                        <a :href="`/analysis/${result.ticker}`" class="btn btn-ghost flex-1 text-center text-xs py-1.5">Analyze</a>
+                        <a :href="`/trade/${result.ticker}`" class="flex-1 text-center py-1.5 rounded bg-oracle-gain/20 text-oracle-gain hover:bg-oracle-gain/30 transition-colors text-xs font-semibold">Buy</a>
                     </div>
                 </div>
             </template>
@@ -216,160 +123,68 @@
     </div>
 
     <!-- Full Results Table -->
-    <div x-show="scanResults.length > 0" class="glass rounded-2xl p-4">
+    <div x-show="scanResults.length > 0">
+        <div class="flex items-center justify-between mb-2 px-0.5">
+            <p class="section-label font-semibold text-sm text-white">All Results</p>
+            <select x-model="filterVerdict" @change="filterResults()" class="t-select text-xs py-1">
+                <option value="all">All</option>
+                <option value="Strong Buy">Strong Buy</option>
+                <option value="Buy">Buy</option>
+                <option value="Hold">Hold</option>
+                <option value="Sell">Sell</option>
+                <option value="Strong Sell">Strong Sell</option>
+            </select>
+        </div>
 
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold">Full Scan Results</h2>
-            <div class="flex items-center gap-2">
-                <label class="text-sm text-gray-400">Filter:</label>
-                <select
-                    x-model="filterVerdict"
-                    @change="filterResults()"
-                    class="px-3 py-1 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none text-sm"
-                >
-                    <option value="all">All</option>
-                    <option value="Strong Buy">Strong Buy</option>
-                    <option value="Buy">Buy</option>
-                    <option value="Hold">Hold</option>
-                    <option value="Sell">Sell</option>
-                    <option value="Strong Sell">Strong Sell</option>
-                </select>
+        <div class="t-card p-0 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="data-table">
+                    <thead><tr>
+                        <th>Ticker</th>
+                        <th>Price</th>
+                        <th>Change</th>
+                        <th>Oracle</th>
+                        <th>Verdict</th>
+                        <th>RSI</th>
+                        <th>Vol</th>
+                        <th></th>
+                    </tr></thead>
+                    <tbody>
+                        <template x-for="result in filteredResults" :key="result.ticker">
+                            <tr>
+                                <td>
+                                    <a :href="`/analysis/${result.ticker}`" class="font-bold font-mono text-oracle-primary hover:text-oracle-accent" x-text="result.ticker"></a>
+                                </td>
+                                <td class="font-mono" x-text="'$' + result.price.toFixed(2)"></td>
+                                <td class="font-mono" :class="result.change >= 0 ? 'text-oracle-gain' : 'text-oracle-loss'"
+                                    x-text="(result.change >= 0 ? '+' : '') + result.change.toFixed(2) + '%'"></td>
+                                <td class="font-mono font-semibold" x-text="result.oracle_score.toFixed(1)"></td>
+                                <td>
+                                    <span class="badge" :class="getVerdictBadgeClass(result.verdict)" x-text="result.verdict"></span>
+                                </td>
+                                <td class="font-mono" :class="result.rsi < 30 ? 'text-oracle-gain' : result.rsi > 70 ? 'text-oracle-loss' : 'text-white'"
+                                    x-text="result.rsi ? result.rsi.toFixed(0) : '—'"></td>
+                                <td class="font-mono text-oracle-border-strong" x-text="formatVolume(result.volume)"></td>
+                                <td>
+                                    <a :href="`/analysis/${result.ticker}`" class="text-[10px] font-mono text-oracle-primary hover:text-oracle-accent">→</a>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
             </div>
         </div>
-
-        <!-- Cards Grid -->
-        <div class="p-3 md:p-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
-
-            <template x-for="result in filteredResults" :key="result.ticker">
-                <div class="position-card glass rounded-xl p-4 hover:bg-oracle-card/50 transition-all">
-
-                    <!-- Header -->
-                    <div class="flex items-start justify-between gap-3 mb-3">
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <a
-                                    :href="`/analysis/${result.ticker}`"
-                                    class="text-lg font-bold text-white hover:text-oracle-primary"
-                                    x-text="result.ticker"
-                                ></a>
-
-                                <!-- LIVE badge -->
-                                <template x-if="isMarketOpen">
-                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/20 text-green-400 border border-green-500/30">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-green-400 live-indicator"></span>
-                                        LIVE
-                                    </span>
-                                </template>
-                                <template x-if="!isMarketOpen">
-                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                                        CLOSED
-                                    </span>
-                                </template>
-                            </div>
-
-                            <p class="text-xs text-gray-400 truncate"
-                            x-text="result.company?.name || result.company || ''">
-                            </p>
-                        </div>
-
-                        <!-- Verdict -->
-                        <span
-                            class="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
-                            :class="getVerdictColor(result.verdict)"
-                            x-text="result.verdict"
-                        ></span>
-                    </div>
-
-                    <!-- Stats Grid -->
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-3">
-                        <div class="flex justify-between">
-                            <span class="text-gray-500">Price</span>
-                            <span class="text-gray-300 font-medium"
-                                x-text="'$' + result.price.toFixed(2)">
-                            </span>
-                        </div>
-
-                        <div class="flex justify-between">
-                            <span class="text-gray-500">Change</span>
-                            <span
-                                class="font-medium"
-                                :class="result.change >= 0 ? 'text-green-400' : 'text-red-400'"
-                                x-text="(result.change >= 0 ? '+' : '') + result.change.toFixed(2)"
-                            ></span>
-                        </div>
-
-                        <div class="flex justify-between">
-                            <span class="text-gray-500">RSI</span>
-                            <span class="text-gray-300"
-                                x-text="result.rsi ? result.rsi.toFixed(1) : '--'">
-                            </span>
-                        </div>
-
-                        <div class="flex justify-between">
-                            <span class="text-gray-500">Volume</span>
-                            <span class="text-gray-300"
-                                x-text="formatVolume(result.volume)">
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Oracle Score -->
-                    <div class="mb-3">
-                        <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
-                            <span>Oracle Score</span>
-                            <span x-text="result.oracle_score.toFixed(1)"></span>
-                        </div>
-                        <div class="w-full bg-oracle-border rounded-full h-1.5">
-                            <div
-                                class="h-1.5 rounded-full"
-                                :class="getScoreColor(result.oracle_score)"
-                                :style="`width: ${(result.oracle_score / 12) * 100}%`"
-                            ></div>
-                        </div>
-                    </div>
-
-                    <!-- Footer -->
-                    <div class="flex items-center justify-between pt-3 border-t border-oracle-border/50">
-                        <a
-                            :href="`/analysis/${result.ticker}`"
-                            class="btn-primary px-4 py-2 rounded-lg text-xs font-medium"
-                        >
-                            View Analysis
-                        </a>
-
-                        <a
-                            :href="`/trade/${result.ticker}`"
-                            class="px-4 py-2 rounded-lg text-xs font-medium bg-green-500 hover:bg-green-600 transition-colors"
-                        >
-                            Buy
-                        </a>
-                    </div>
-
-                </div>
-            </template>
-
-        </div>
+        <p x-show="lastScanTime" class="text-[10px] text-oracle-border font-mono text-right mt-1">Last scan: <span x-text="lastScanTime"></span></p>
     </div>
 
     <!-- Empty State -->
-    <div x-show="!scanning && scanResults.length === 0" class="glass rounded-2xl p-12 text-center">
-        <div class="max-w-md mx-auto">
-            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-oracle-card flex items-center justify-center">
-                <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                </svg>
-            </div>
-            <h3 class="text-lg font-semibold mb-2">Ready for AI Analysis</h3>
-            <p class="text-gray-400 mb-4">Enter tickers above and click "Scan Now" to get AI-powered stock recommendations</p>
-            <button @click="addWatchlist('AI/Tech')" 
-                    class="px-4 py-2 rounded-xl bg-oracle-primary hover:bg-blue-600 transition-colors">
-                Try AI/Tech Watchlist
-            </button>
-        </div>
+    <div x-show="!scanning && scanResults.length === 0" class="t-card py-14 text-center">
+        <svg class="w-9 h-9 text-oracle-border mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        <p class="text-oracle-border-strong text-sm mb-3">Enter tickers and run a scan</p>
+        <button @click="addWatchlist('AI/Tech'); runScan()"
+                class="btn btn-primary text-xs">Try AI/Tech Watchlist</button>
     </div>
 </div>
-{% endblock %}
 
 {% block extra_scripts %}
 <script>
@@ -384,7 +199,7 @@ function aiGuidancePage() {
         autoScan: false,
         autoScanInterval: null,
         currentTicker: '',
-        scanProgress: 'Initializing...',
+        scanProgress: 'Initializing…',
         progressPercent: 0,
 
         get topPicks() {
@@ -394,142 +209,81 @@ function aiGuidancePage() {
                 .slice(0, 6);
         },
 
-        init() {
-            // Load any cached results
-            this.loadCachedResults();
-        },
+        init() { this.loadCachedResults(); },
 
         async runScan() {
             if (this.scanning || !this.scanTickers.trim()) return;
-
-            this.scanning = true;
-            this.scanResults = [];
-            this.filteredResults = [];
-            this.progressPercent = 0;
-
+            this.scanning = true; this.scanResults = []; this.filteredResults = []; this.progressPercent = 0;
             const tickers = this.scanTickers.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
             const total = tickers.length;
-
             try {
                 for (let i = 0; i < tickers.length; i++) {
                     const ticker = tickers[i];
                     this.currentTicker = ticker;
-                    this.scanProgress = `Analyzing ${ticker} (${i + 1}/${total})`;
+                    this.scanProgress = `${ticker} (${i + 1}/${total})`;
                     this.progressPercent = Math.round(((i + 1) / total) * 100);
-
                     try {
                         const response = await fetch(`/api/oracle/${ticker}`);
                         const result = await response.json();
-
                         if (result && result.score !== undefined) {
-                            // Get additional quote data
                             const quoteResponse = await fetch(`/api/stock/${ticker}/quote`);
                             const quoteData = await quoteResponse.json();
-
-                            const scanResult = {
-                                ticker: ticker,
-                                company: result.company || '',
-                                price: quoteData.current || 0,
-                                change: quoteData.change || 0,
-                                percent_change: quoteData.percent_change || 0,
-                                oracle_score: result.score,
-                                verdict: result.verdict_text || result.verdict,
-                                confidence: result.confidence,
-                                top_reasons: result.top_reasons || [],
-                                rsi: result.rsi,
-                                volume: result.volume || 0,
-                                factors: result.factors || [],
-                                aiInsight: null,
-                                insightLoading: false,
-                                locked: false,
-                                aiInterpretation: null,
-                                interpretationLoading: false,
-                                interpretationLocked: false
-                            };
-
-                            this.scanResults.push(scanResult);
-
-                            // AI interpretation will be loaded by x-init on the card
+                            this.scanResults.push({
+                                ticker, company: result.company || '',
+                                price: quoteData.current || 0, change: quoteData.percent_change || 0,
+                                oracle_score: result.score, verdict: result.verdict_text || result.verdict,
+                                confidence: result.confidence, top_reasons: result.top_reasons || [],
+                                rsi: result.rsi, volume: result.volume || 0, factors: result.factors || [],
+                                aiInsight: null, insightLoading: false, locked: false,
+                                aiInterpretation: null, interpretationLoading: false, interpretationLocked: false
+                            });
                         }
-                    } catch (error) {
-                        console.error(`Error scanning ${ticker}:`, error);
-                    }
-
-                    // Small delay to prevent overwhelming the API
+                    } catch (error) { console.error(`Error scanning ${ticker}:`, error); }
                     await new Promise(resolve => setTimeout(resolve, 500));
                 }
-
                 this.filterResults();
                 this.lastScanTime = new Date().toLocaleTimeString();
                 this.saveCachedResults();
-
             } catch (error) {
                 console.error('Scan error:', error);
-                alert('Error during scan. Please try again.');
-            } finally {
-                this.scanning = false;
-                this.currentTicker = '';
-                this.scanProgress = 'Complete';
-            }
-        },
-
-        async getAiInsight(result) {
-            if (result.insightLoading || result.aiInsight) return;
-
-            result.insightLoading = true;
-            try {
-                const response = await fetch(`/api/oracle/insight/${result.ticker}`);
-                const data = await response.json();
-
-                if (data.locked) {
-                    result.locked = true;
-                } else {
-                    result.aiInsight = data.insight;
-                }
-            } catch (error) {
-                result.aiInsight = "Failed to load AI insight.";
-            } finally {
-                result.insightLoading = false;
-            }
+                this.$dispatch('show-toast', { message: 'Scan error. Please try again.', type: 'error' });
+            } finally { this.scanning = false; this.currentTicker = ''; this.scanProgress = 'Complete'; }
         },
 
         async getAiInterpretation(result) {
             if (result.interpretationLoading || result.aiInterpretation || result.interpretationLocked) return;
-
             result.interpretationLoading = true;
             try {
                 const response = await fetch(`/api/oracle/ai-interpretation/${result.ticker}`);
                 const data = await response.json();
-
-                if (data.locked) {
-                    result.interpretationLocked = true;
-                    result.aiInterpretation = null;
-                } else if (data.interpretation) {
-                    result.aiInterpretation = data.interpretation;
-                    result.interpretationLocked = false;
-                } else {
-                    result.aiInterpretation = "AI analysis unavailable.";
-                }
+                if (data.locked) { result.interpretationLocked = true; result.aiInterpretation = null; }
+                else if (data.interpretation) { result.aiInterpretation = data.interpretation; result.interpretationLocked = false; }
+                else { result.aiInterpretation = 'AI analysis unavailable.'; }
             } catch (error) {
                 console.error(`AI interpretation error for ${result.ticker}:`, error);
-                result.aiInterpretation = "Failed to load AI analysis.";
-            } finally {
-                result.interpretationLoading = false;
-            }
+                result.aiInterpretation = 'Failed to load AI analysis.';
+            } finally { result.interpretationLoading = false; }
+        },
+
+        async getAiInsight(result) {
+            if (result.insightLoading || result.aiInsight) return;
+            result.insightLoading = true;
+            try {
+                const response = await fetch(`/api/oracle/insight/${result.ticker}`);
+                const data = await response.json();
+                if (data.locked) result.locked = true;
+                else result.aiInsight = data.insight;
+            } catch (error) { result.aiInsight = 'Failed to load.'; }
+            finally { result.insightLoading = false; }
         },
 
         filterResults() {
-            if (this.filterVerdict === 'all') {
-                this.filteredResults = [...this.scanResults];
-            } else {
-                this.filteredResults = this.scanResults.filter(r => r.verdict === this.filterVerdict);
-            }
+            if (this.filterVerdict === 'all') this.filteredResults = [...this.scanResults];
+            else this.filteredResults = this.scanResults.filter(r => r.verdict === this.filterVerdict);
         },
 
         clearResults() {
-            this.scanResults = [];
-            this.filteredResults = [];
-            this.lastScanTime = null;
+            this.scanResults = []; this.filteredResults = []; this.lastScanTime = null;
             localStorage.removeItem('ai_guidance_results');
         },
 
@@ -538,61 +292,41 @@ function aiGuidancePage() {
                 'AI/Tech': 'NVDA, AMD, MSFT, GOOGL, META, AVGO, TSM',
                 'Energy': 'VST, URA, XLE, NEE, CEG, CCJ',
                 'Dividend': 'SCHD, VYM, O, JEPI, HDV',
-                'Speculative': 'PLTR, SOFI, COIN, MSTR, HOOD',
                 'ETFs': 'SPY, QQQ, IWM, DIA, VTI'
             };
-
-            if (watchlists[name]) {
-                this.scanTickers = watchlists[name];
-            }
+            if (watchlists[name]) this.scanTickers = watchlists[name];
         },
 
         toggleAutoScan() {
             this.autoScan = !this.autoScan;
-
             if (this.autoScan) {
-                // Auto-scan every 30 minutes during market hours
                 this.autoScanInterval = setInterval(() => {
-                    const now = new Date();
-                    const hour = now.getHours();
-                    const day = now.getDay();
-
-                    // Only scan on weekdays during market hours (9:30 AM - 4:00 PM ET)
-                    if (day >= 1 && day <= 5 && hour >= 9 && hour < 16) {
-                        if (this.scanTickers.trim()) {
-                            this.runScan();
-                        }
-                    }
-                }, 30 * 60 * 1000); // 30 minutes
+                    const now = new Date(); const hour = now.getHours(); const day = now.getDay();
+                    if (day >= 1 && day <= 5 && hour >= 9 && hour < 16 && this.scanTickers.trim()) this.runScan();
+                }, 30 * 60 * 1000);
             } else {
-                if (this.autoScanInterval) {
-                    clearInterval(this.autoScanInterval);
-                    this.autoScanInterval = null;
-                }
+                if (this.autoScanInterval) { clearInterval(this.autoScanInterval); this.autoScanInterval = null; }
             }
         },
 
         getScoreColor(score) {
-            if (score >= 10) return 'bg-green-500';
+            if (score >= 10) return 'bg-oracle-gain';
             if (score >= 8) return 'bg-green-400';
-            if (score >= 6) return 'bg-yellow-500';
+            if (score >= 6) return 'bg-oracle-warn';
             if (score >= 4) return 'bg-orange-500';
-            return 'bg-red-500';
+            return 'bg-oracle-loss';
         },
 
-        getVerdictColor(verdict) {
-            const colors = {
-                'Strong Buy': 'bg-green-500 text-white',
-                'Buy': 'bg-green-400 text-white',
-                'Hold': 'bg-yellow-500 text-white',
-                'Sell': 'bg-orange-500 text-white',
-                'Strong Sell': 'bg-red-500 text-white'
-            };
-            return colors[verdict] || 'bg-gray-500 text-white';
+        getVerdictBadgeClass(verdict) {
+            if (!verdict) return 'badge-hold';
+            const v = verdict.toLowerCase();
+            if (v.includes('strong buy') || v.includes('buy')) return 'badge-buy';
+            if (v.includes('sell')) return 'badge-sell';
+            return 'badge-hold';
         },
 
         formatVolume(volume) {
-            if (!volume) return '--';
+            if (!volume) return '—';
             if (volume >= 1e9) return (volume / 1e9).toFixed(1) + 'B';
             if (volume >= 1e6) return (volume / 1e6).toFixed(1) + 'M';
             if (volume >= 1e3) return (volume / 1e3).toFixed(1) + 'K';
@@ -600,35 +334,24 @@ function aiGuidancePage() {
         },
 
         saveCachedResults() {
-            const cache = {
-                results: this.scanResults,
-                timestamp: new Date().toISOString(),
-                tickers: this.scanTickers
-            };
-            localStorage.setItem('ai_guidance_results', JSON.stringify(cache));
+            localStorage.setItem('ai_guidance_results', JSON.stringify({ results: this.scanResults, timestamp: new Date().toISOString(), tickers: this.scanTickers }));
         },
 
         loadCachedResults() {
             const cached = localStorage.getItem('ai_guidance_results');
-            if (cached) {
-                try {
-                    const cache = JSON.parse(cached);
-                    const cacheTime = new Date(cache.timestamp);
-                    const now = new Date();
-
-                    // Use cached results if less than 1 hour old
-                    if (now - cacheTime < 60 * 60 * 1000) {
-                        this.scanResults = cache.results || [];
-                        this.filteredResults = [...this.scanResults];
-                        this.scanTickers = cache.tickers || '';
-                        this.lastScanTime = cacheTime.toLocaleTimeString();
-                    }
-                } catch (error) {
-                    console.error('Error loading cached results:', error);
+            if (!cached) return;
+            try {
+                const cache = JSON.parse(cached);
+                if (new Date() - new Date(cache.timestamp) < 60 * 60 * 1000) {
+                    this.scanResults = cache.results || [];
+                    this.filteredResults = [...this.scanResults];
+                    this.scanTickers = cache.tickers || '';
+                    this.lastScanTime = new Date(cache.timestamp).toLocaleTimeString();
                 }
-            }
+            } catch (error) { console.error('Error loading cached results:', error); }
         }
     }
 }
 </script>
+{% endblock %}
 {% endblock %}

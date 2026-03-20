@@ -71,8 +71,15 @@ def health():
 @main_bp.route("/")
 @login_required
 def index():
-    """Dashboard home page."""
-    return redirect(url_for("main.analysis", ticker="NVDA"))
+    """Command Center home page."""
+    return render_template("pages/command_center.html")
+
+
+@main_bp.route("/command-center")
+@login_required
+def command_center():
+    """Alias for index."""
+    return render_template("pages/command_center.html")
 
 
 @main_bp.route("/analysis")
@@ -216,32 +223,8 @@ def ai_guidance():
 @main_bp.route("/watchlist")
 @login_required
 def watchlist():
-    """Watchlist management page."""
-    config = get_config()
-    scanner_service = ScannerService(config)
-    trading_service = TradingService(config)
-
-    selected = request.args.get("list", "AI/Tech")
-    tickers = scanner_service.get_watchlist_tickers(selected)
-
-    # Quick scan
-    results = []
-    if tickers:
-        results = scanner_service.scan_watchlist(tickers)
-
-    # Alpaca watchlists
-    alpaca_lists = []
-    if trading_service.is_connected():
-        alpaca_lists = trading_service.get_watchlists()
-
-    return render_template(
-        "pages/watchlist.html",
-        watchlists=WATCHLISTS,
-        selected=selected,
-        results=results,
-        alpaca_lists=alpaca_lists,
-        is_connected=trading_service.is_connected(),
-    )
+    """Redirect to merged Scan & Watch page, watchlists tab."""
+    return redirect(url_for('main.scanner') + '?tab=watchlists')
 
 
 @main_bp.route("/settings", methods=["GET", "POST"])
@@ -270,6 +253,9 @@ def settings():
             # save_user_api_keys will handle encryption
             success = db.save_user_api_keys(user_id, api_keys_data)
             if success:
+                # Bust user profile cache so next request re-fetches fresh keys
+                from flask import current_app
+                current_app._user_profile_cache.pop(f"user_{user_id}", None)
                 flash("API keys saved successfully!", "success")
                 return jsonify({"success": True})
             else:
