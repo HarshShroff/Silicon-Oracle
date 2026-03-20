@@ -74,7 +74,7 @@ def create_app(config_name=None):
 
     # User profile cache to reduce database queries and tolerate failures
     from datetime import datetime
-    _user_profile_cache = {}
+    app._user_profile_cache = {}
     _cache_timeout = 300  # 5 minutes
 
     @app.before_request
@@ -95,7 +95,8 @@ def create_app(config_name=None):
         if user_id:
             # Try cache first
             cache_key = f"user_{user_id}"
-            cached_data = _user_profile_cache.get(cache_key)
+            _upc = app._user_profile_cache
+            cached_data = _upc.get(cache_key)
 
             # Use cache if fresh
             if cached_data and (datetime.now() - cached_data['timestamp']).seconds < _cache_timeout:
@@ -110,7 +111,7 @@ def create_app(config_name=None):
                     user_api_keys = db.get_user_api_keys(user_id, decrypt=True) or {}
 
                     # Cache successful fetch
-                    _user_profile_cache[cache_key] = {
+                    _upc[cache_key] = {
                         'profile': profile,
                         'api_keys': user_api_keys,
                         'timestamp': datetime.now()
@@ -138,6 +139,7 @@ def create_app(config_name=None):
                         g.user.alpaca_api_key = ''
                         g.user.alpaca_secret_key = ''
                         g.user.gemini_api_key = ''
+                        g.user._is_fallback = True  # Don't enforce key check on fallback
                         return  # Skip rest, using fallback
                     else:
                         # First request, no fallback data available
@@ -206,6 +208,10 @@ def create_app(config_name=None):
             return
 
         if hasattr(g, 'user') and g.user and g.user.is_authenticated:
+            # Skip key enforcement when using session fallback (DB temporarily unavailable)
+            if getattr(g.user, '_is_fallback', False):
+                return
+
             user_keys = g.user.get_api_keys()
             has_finnhub = bool(user_keys.get('FINNHUB_API_KEY'))
 
@@ -237,8 +243,8 @@ def create_app(config_name=None):
         user = g.user if hasattr(g, 'user') and g.user else None
 
         # Resolve alpaca_enabled: session is source of truth (instant after toggle),
-        # DB is fallback (works once column exists), default True.
-        alpaca_enabled = True
+        # DB is fallback (works once column exists), default False (hidden until keys added).
+        alpaca_enabled = False
         if user and user.is_authenticated:
             if 'alpaca_enabled' in session:
                 alpaca_enabled = bool(session['alpaca_enabled'])

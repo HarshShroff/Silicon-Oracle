@@ -1,224 +1,699 @@
 {% extends "layouts/base.html" %}
-
-{% block title %}Market Scanner - Silicon Oracle{% endblock %}
-{% block page_title %}Scanner{% endblock %}
+{% block title %}Scan & Watch — Silicon Oracle{% endblock %}
+{% block page_title %}Scan & Watch{% endblock %}
 
 {% block content %}
-<div x-data="scannerPage()" class="space-y-4 md:space-y-6">
+<div x-data="scanWatchPage()" x-init="init()" class="space-y-4">
 
-    <!-- Sector Rotation Heatmap -->
+  <!-- Tab Bar -->
+  <div class="flex border-b border-oracle-border -mx-4 px-4">
+    <button @click="setTab('scan')"
+            class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px"
+            :class="activeTab === 'scan' ? 'border-oracle-primary text-oracle-primary' : 'border-transparent text-oracle-border-strong hover:text-white'">
+      Oracle Scan
+    </button>
+    <button @click="setTab('watchlists')"
+            class="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px"
+            :class="activeTab === 'watchlists' ? 'border-oracle-primary text-oracle-primary' : 'border-transparent text-oracle-border-strong hover:text-white'">
+      Watchlists
+    </button>
+  </div>
+
+  <!-- ========== SCAN TAB ========== -->
+  <div x-show="activeTab === 'scan'" x-cloak>
+
     {% include 'components/sector_rotation.html' %}
 
-    <!-- Scan Controls - Compact -->
-    <div class="glass rounded-xl p-4">
-        <div class="space-y-3">
-            <!-- Watchlist Selection -->
-            <div>
-                <label class="block text-xs text-gray-400 mb-1">Watchlist</label>
-                <select x-model="selectedWatchlist" @change="updateTickers()"
-                        class="w-full px-3 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none text-sm">
-                    {% for name in watchlists.keys() %}
-                    <option value="{{ name }}" {% if name == selected_watchlist %}selected{% endif %}>{{ name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Custom Tickers -->
-            <div>
-                <label class="block text-xs text-gray-400 mb-1">Add Custom Tickers</label>
-                <input type="text" x-model="customTickers" placeholder="AAPL, TSLA, ..."
-                       class="w-full px-3 py-2 rounded-lg bg-oracle-card border border-oracle-border focus:border-oracle-primary focus:outline-none text-sm">
-            </div>
-
-            <!-- Scan Button -->
-            <button @click="runScan()" :disabled="scanning"
-                    class="w-full py-3 rounded-lg bg-oracle-primary hover:bg-oracle-secondary transition-colors font-medium disabled:opacity-50">
-                <span x-show="!scanning"> Run Scan</span>
-                <span x-show="scanning" class="flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
-                    Scanning...
-                </span>
-            </button>
+    <!-- Controls -->
+    <div class="rh-section" style="margin-bottom:0;">
+      <div class="rh-section-header">
+        <span class="rh-section-title">Oracle Scan</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button @click="toggleAutoScan()"
+                  class="text-[10px] font-mono px-2.5 py-1 rounded border transition-colors"
+                  :class="autoScan ? 'border-oracle-gain text-oracle-gain bg-oracle-gain/10' : 'border-oracle-border text-oracle-border-strong hover:border-oracle-border-strong'">
+            <span x-show="autoScan">● Auto ON</span>
+            <span x-show="!autoScan">Auto</span>
+          </button>
         </div>
-        
-        <p class="text-xs text-gray-500 mt-3">
-            <span x-text="allTickers.length"></span> tickers: <span x-text="allTickers.slice(0,5).join(', ')"></span><span x-show="allTickers.length > 5">...</span>
-        </p>
+      </div>
+      <div style="padding:0 16px 16px;">
+        <!-- Watchlist selector -->
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <label class="section-label block mb-1">Watchlist</label>
+            <select x-model="selectedWatchlist" @change="loadFromWatchlist()" class="t-select w-full">
+              {% for name in watchlists.keys() %}
+              <option value="{{ name }}" {% if name == selected_watchlist %}selected{% endif %}>{{ name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="section-label block mb-1">Tickers</label>
+            <input type="text" x-model="scanTickers" placeholder="NVDA, AAPL, TSLA…" class="t-input w-full">
+          </div>
+        </div>
+
+        <!-- Quick picks -->
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+          <span style="font-size:10px;color:#475569;align-self:center;">Quick:</span>
+          <template x-for="name in ['AI/Tech','Energy','Dividend','ETFs']" :key="name">
+            <button @click="addPreset(name)"
+                    class="text-[10px] px-2 py-0.5 rounded border border-oracle-border text-oracle-border-strong hover:border-oracle-primary hover:text-oracle-primary font-mono transition-colors"
+                    x-text="name"></button>
+          </template>
+        </div>
+
+        <!-- Run button + progress -->
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button @click="runScan()" :disabled="scanning || !scanTickers.trim()"
+                  class="btn btn-primary flex-1 disabled:opacity-50">
+            <span x-show="!scanning" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              Scan Now
+            </span>
+            <span x-show="scanning" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+              <svg width="14" height="14" class="animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span x-text="scanProgress"></span>
+            </span>
+          </button>
+          <button @click="clearResults()" x-show="scanResults.length > 0"
+                  class="btn btn-ghost">Clear</button>
+        </div>
+
+        <!-- Progress bar -->
+        <div x-show="scanning" style="margin-top:10px;height:3px;background:#1a1a2e;border-radius:2px;overflow:hidden;">
+          <div style="height:100%;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;transition:width 0.3s;"
+               :style="'width:' + progressPercent + '%'"></div>
+        </div>
+      </div>
     </div>
 
-    <!-- Results -->
-    <div x-show="results.length > 0" class="space-y-4">
+    <!-- Summary Strip -->
+    <div x-show="scanResults.length > 0" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+      <div class="t-card text-center py-3">
+        <p class="text-2xl font-bold font-mono text-oracle-gain" x-text="topPicks.length"></p>
+        <p class="section-label mt-1">Buy</p>
+      </div>
+      <div class="t-card text-center py-3">
+        <p class="text-2xl font-bold font-mono text-oracle-warn" x-text="scanResults.filter(r => r.verdict && r.verdict.toLowerCase().includes('hold')).length"></p>
+        <p class="section-label mt-1">Hold</p>
+      </div>
+      <div class="t-card text-center py-3">
+        <p class="text-2xl font-bold font-mono text-oracle-loss" x-text="scanResults.filter(r => r.verdict && r.verdict.toLowerCase().includes('sell')).length"></p>
+        <p class="section-label mt-1">Sell</p>
+      </div>
+    </div>
 
-        <!-- Summary Cards - Compact -->
-       <!-- <div class="grid grid-cols-3 gap-2"> -->
-        <div class="flex gap-3 w-full">
-
-            <div class="glass rounded-xl p-3 text-center flex-1 min-w-0">
-                <p class="text-2xl md:text-3xl font-bold text-green-400"
-                x-text="results.filter(r => r.signal === 'BUY').length"></p>
-                <p class="text-xs text-gray-400">Buy</p>
-            </div>
-
-            <div class="glass rounded-xl p-3 text-center flex-1 min-w-0">
-                <p class="text-2xl md:text-3xl font-bold text-yellow-400"
-                x-text="results.filter(r => r.signal === 'WATCH').length"></p>
-                <p class="text-xs text-gray-400">Watch</p>
-            </div>
-
-            <div class="glass rounded-xl p-3 text-center flex-1 min-w-0">
-                <p class="text-2xl md:text-3xl font-bold text-red-400"
-                x-text="results.filter(r => r.signal === 'AVOID').length"></p>
-                <p class="text-xs text-gray-400">Avoid</p>
-            </div>
-
+    <!-- Top Picks -->
+    <div x-show="topPicks.length > 0">
+      <div class="rh-section">
+        <div class="rh-section-header">
+          <span class="rh-section-title">⬡ Top Oracle Picks</span>
         </div>
+        <template x-for="result in topPicks" :key="result.ticker"
+                  x-init="if (!result.aiInterpretation && !result.interpretationLocked && !result.interpretationLoading) { setTimeout(() => getAiInterpretation(result), 300); }">
+          <div>
+            <a :href="'/analysis/' + result.ticker" class="rh-row" style="align-items:flex-start;padding:14px 16px;">
+              <div class="rh-row-icon" x-text="result.ticker.slice(0,2)"></div>
+              <div class="rh-row-left">
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;">
+                  <span class="rh-row-symbol" x-text="result.ticker"></span>
+                  <span class="badge" :class="getVerdictBadgeClass(result.verdict)" x-text="result.verdict" style="font-size:9px;padding:1px 5px;"></span>
+                </div>
+                <div class="rh-row-name" x-text="result.company?.name || result.company || ''"></div>
+                <div x-show="result.aiInterpretation" style="font-size:11px;color:#64748b;line-height:1.5;margin-top:5px;max-width:400px;" x-text="result.aiInterpretation"></div>
+                <div x-show="result.interpretationLoading" style="display:flex;gap:3px;margin-top:5px;align-items:center;">
+                  <span class="w-1 h-1 bg-oracle-primary rounded-full animate-bounce" style="display:inline-block;width:4px;height:4px;"></span>
+                  <span class="w-1 h-1 bg-oracle-primary rounded-full animate-bounce" style="display:inline-block;width:4px;height:4px;animation-delay:0.1s;"></span>
+                  <span class="w-1 h-1 bg-oracle-primary rounded-full animate-bounce" style="display:inline-block;width:4px;height:4px;animation-delay:0.2s;"></span>
+                </div>
+              </div>
+              <div class="rh-row-right">
+                <div class="rh-row-price" x-text="'$' + result.price.toFixed(2)"></div>
+                <div class="rh-row-chg" :class="result.change >= 0 ? 'pos' : 'neg'"
+                     x-text="(result.change >= 0 ? '+' : '') + result.change.toFixed(2) + '%'"></div>
+                <div style="font-size:11px;color:#a78bfa;font-family:'JetBrains Mono',monospace;margin-top:3px;"
+                     x-text="result.oracle_score.toFixed(1) + '/12'"></div>
+              </div>
+            </a>
+          </div>
+        </template>
+      </div>
+    </div>
 
-        <!-- Results - Mobile Card / Desktop Table -->
-        <div class="glass rounded-xl overflow-hidden">
-            <!-- Mobile: Card Layout -->
-            <div class="md:hidden divide-y divide-oracle-border">
-                <template x-for="stock in results" :key="stock.ticker">
-                    <div class="p-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center gap-2">
-                                <a :href="'/analysis/' + stock.ticker" class="font-bold text-oracle-primary" x-text="stock.ticker"></a>
-                                <span :class="{
-                                    'bg-green-500/20 text-green-400': stock.signal === 'BUY',
-                                    'bg-yellow-500/20 text-yellow-400': stock.signal === 'WATCH',
-                                    'bg-red-500/20 text-red-400': stock.signal === 'AVOID'
-                                }" class="px-2 py-0.5 rounded-full text-xs font-medium" x-text="stock.signal"></span>
-                            </div>
-                            <span class="font-medium" x-text="'$' + stock.price.toFixed(2)"></span>
-                        </div>
-                        <div class="flex items-center justify-between text-sm">
-                            <div class="flex items-center gap-3">
-                                <span :class="stock.daily_change >= 0 ? 'text-green-400' : 'text-red-400'" 
-                                      x-text="(stock.daily_change >= 0 ? '+' : '') + stock.daily_change.toFixed(1) + '%'"></span>
-                                <span class="text-gray-400">RSI: <span x-text="stock.rsi.toFixed(0)"></span></span>
-                            </div>
-                            <span class="text-xs text-gray-400" x-text="'Score: ' + stock.score + '/3'"></span>
-                        </div>
-                        <div class="mt-3 flex gap-2">
-                            <a :href="'/analysis/' + stock.ticker" class="flex-1 text-center px-3 py-1.5 rounded-lg bg-oracle-card text-sm">Analyze</a>
-                            <a :href="'/trade/' + stock.ticker" class="flex-1 text-center px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 text-sm">Trade</a>
-                        </div>
-                    </div>
-                </template>
-            </div>
-
-            <!-- Desktop: Table Layout -->
-            <div class="hidden md:block overflow-x-auto">
-                <table class="w-full">
-                    <thead class="bg-oracle-card">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Ticker</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Price</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Day %</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">RSI</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">1M %</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Score</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">Signal</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400"></th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-oracle-border">
-                        <template x-for="stock in results" :key="stock.ticker">
-                            <tr class="hover:bg-oracle-card/50 transition-colors">
-                                <td class="px-4 py-3">
-                                    <a :href="'/analysis/' + stock.ticker" class="font-bold text-oracle-primary hover:underline" x-text="stock.ticker"></a>
-                                </td>
-                                <td class="px-4 py-3 text-sm" x-text="'$' + stock.price.toFixed(2)"></td>
-                                <td class="px-4 py-3 text-sm" :class="stock.daily_change >= 0 ? 'text-green-400' : 'text-red-400'">
-                                    <span x-text="(stock.daily_change >= 0 ? '+' : '') + stock.daily_change.toFixed(2) + '%'"></span>
-                                </td>
-                                <td class="px-4 py-3 text-sm" :class="stock.rsi < 30 ? 'text-green-400' : stock.rsi > 70 ? 'text-red-400' : ''">
-                                    <span x-text="stock.rsi.toFixed(0)"></span>
-                                </td>
-                                <td class="px-4 py-3 text-sm" :class="stock.perf_1m >= 0 ? 'text-green-400' : 'text-red-400'">
-                                    <span x-text="(stock.perf_1m >= 0 ? '+' : '') + stock.perf_1m.toFixed(1) + '%'"></span>
-                                </td>
-                                <td class="px-4 py-3 text-sm font-medium" x-text="stock.score + '/3'"></td>
-                                <td class="px-4 py-3">
-                                    <span :class="{
-                                        'bg-green-500/20 text-green-400': stock.signal === 'BUY',
-                                        'bg-yellow-500/20 text-yellow-400': stock.signal === 'WATCH',
-                                        'bg-red-500/20 text-red-400': stock.signal === 'AVOID'
-                                    }" class="px-2 py-1 rounded-full text-xs font-medium" x-text="stock.signal"></span>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <a :href="'/trade/' + stock.ticker" class="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400">Trade</a>
-                                </td>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
-            </div>
+    <!-- All Results Table -->
+    <div x-show="scanResults.length > 0">
+      <div class="rh-section">
+        <div class="rh-section-header">
+          <span class="rh-section-title">All Results</span>
+          <select x-model="filterVerdict" @change="filterResults()" class="t-select text-xs py-1" style="width:auto;">
+            <option value="all">All</option>
+            <option value="Strong Buy">Strong Buy</option>
+            <option value="Buy">Buy</option>
+            <option value="Hold">Hold</option>
+            <option value="Sell">Sell</option>
+            <option value="Strong Sell">Strong Sell</option>
+          </select>
         </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead><tr>
+              <th>Ticker</th>
+              <th>Price</th>
+              <th>Change</th>
+              <th>Oracle</th>
+              <th>Verdict</th>
+              <th>RSI</th>
+              <th>Vol</th>
+              <th></th>
+            </tr></thead>
+            <tbody>
+              <template x-for="result in filteredResults" :key="result.ticker">
+                <tr @click="window.location.href='/analysis/'+result.ticker" style="cursor:pointer;">
+                  <td><span class="font-bold font-mono text-oracle-primary" x-text="result.ticker"></span></td>
+                  <td class="font-mono" x-text="'$' + result.price.toFixed(2)"></td>
+                  <td class="font-mono" :class="result.change >= 0 ? 'text-oracle-gain' : 'text-oracle-loss'"
+                      x-text="(result.change >= 0 ? '+' : '') + result.change.toFixed(2) + '%'"></td>
+                  <td class="font-mono font-semibold text-oracle-primary" x-text="result.oracle_score.toFixed(1)"></td>
+                  <td><span class="badge" :class="getVerdictBadgeClass(result.verdict)" x-text="result.verdict"></span></td>
+                  <td class="font-mono" :class="result.rsi < 30 ? 'text-oracle-gain' : result.rsi > 70 ? 'text-oracle-loss' : 'text-white'"
+                      x-text="result.rsi ? result.rsi.toFixed(0) : '—'"></td>
+                  <td class="font-mono text-oracle-border-strong" x-text="formatVolume(result.volume)"></td>
+                  <td><span class="text-[10px] font-mono text-oracle-primary">→</span></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <p x-show="lastScanTime" style="font-size:10px;color:#334155;font-family:'JetBrains Mono',monospace;text-align:right;padding:8px 16px;">
+          Last scan: <span x-text="lastScanTime"></span>
+        </p>
+      </div>
     </div>
 
     <!-- Empty State -->
-    <div x-show="results.length === 0 && !scanning" class="glass rounded-xl p-8 text-center">
-        <div class="w-16 h-16 rounded-full bg-oracle-card flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-        </div>
-        <p class="text-gray-400 mb-2">No scan results yet</p>
-        <p class="text-sm text-gray-500">Select a watchlist and tap "Run Scan"</p>
+    <div x-show="!scanning && scanResults.length === 0" class="t-card py-14 text-center">
+      <svg class="w-9 h-9 text-oracle-border mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <p class="text-oracle-border-strong text-sm mb-3">Select tickers and run the Oracle scan</p>
+      <button @click="addPreset('AI/Tech'); runScan()" class="btn btn-primary text-xs">Try AI/Tech</button>
     </div>
+
+  </div><!-- end scan tab -->
+
+  <!-- ========== WATCHLISTS TAB ========== -->
+  <div x-show="activeTab === 'watchlists'" x-cloak class="space-y-4">
+
+    <!-- Create Watchlist -->
+    <div class="t-card" x-data="{ expanded: false }">
+      <button @click="expanded = !expanded" class="w-full flex items-center justify-between">
+        <p class="text-sm font-semibold text-white">+ New Watchlist</p>
+        <svg class="w-4 h-4 text-oracle-border-strong transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      <div x-show="expanded" class="mt-3 space-y-2">
+        <input type="text" x-model="newListName" placeholder="Watchlist name…" class="t-input w-full">
+        <input type="text" x-model="newListTickers" placeholder="AAPL, MSFT, NVDA…" class="t-input w-full">
+        <button @click="createWatchlist()" :disabled="!newListName.trim() || !newListTickers.trim() || creating"
+                class="btn btn-primary w-full disabled:opacity-50"
+                x-text="creating ? 'Creating…' : 'Create'"></button>
+      </div>
+    </div>
+
+    <!-- Local + Alpaca grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+      <!-- Local Watchlists -->
+      <div class="t-card">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-white">Local Watchlists</p>
+          <select x-model="selectedList" @change="loadSelectedList()" class="t-select text-xs py-1">
+            <option value="">Select…</option>
+            <template x-for="list in watchlistsArr" :key="list.name">
+              <option :value="list.name" x-text="`${list.name} (${list.tickers.length})`"></option>
+            </template>
+          </select>
+        </div>
+
+        <div x-show="selectedList && selectedListData.length > 0">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-oracle-border-strong font-mono" x-text="selectedListData.length + ' stocks'"></span>
+            <div class="flex gap-1.5">
+              <button @click="quickScanWatchlist()" :disabled="wlScanning"
+                      class="btn btn-ghost text-xs py-1 px-2.5 disabled:opacity-50"
+                      x-text="wlScanning ? 'Scanning…' : 'Quick Scan'"></button>
+              <button @click="deleteWatchlist()" :disabled="deleting"
+                      class="btn btn-ghost text-xs py-1 px-2.5 text-oracle-loss hover:text-oracle-loss/80 disabled:opacity-50"
+                      x-text="deleting ? '…' : 'Delete'"></button>
+            </div>
+          </div>
+
+          <div class="space-y-1 max-h-72 overflow-y-auto">
+            <template x-for="ticker in selectedListData" :key="ticker">
+              <div class="flex items-center justify-between p-2 rounded bg-oracle-surface hover:bg-oracle-elevated transition-colors">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold font-mono text-white text-xs" x-text="ticker"></span>
+                  <a :href="`/analysis/${ticker}`" class="text-[10px] text-oracle-primary hover:text-oracle-accent font-mono">→</a>
+                </div>
+                <div class="flex items-center gap-2 text-[10px] font-mono">
+                  <span class="text-white" x-text="getWlPrice(ticker) ? '$' + getWlPrice(ticker).toFixed(2) : '…'"></span>
+                  <span :class="(getWlChange(ticker) || 0) >= 0 ? 'text-oracle-gain' : 'text-oracle-loss'"
+                        x-text="getWlChange(ticker) ? (getWlChange(ticker) >= 0 ? '+' : '') + getWlChange(ticker).toFixed(2) + '%' : ''"></span>
+                  <button @click="removeFromList(ticker)" class="text-oracle-loss/60 hover:text-oracle-loss ml-1">×</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div x-show="!selectedList" class="py-8 text-center">
+          <p class="text-xs text-oracle-border-strong">Select a watchlist above</p>
+        </div>
+      </div>
+
+      <!-- Alpaca Watchlists -->
+      <div class="t-card">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-white">Alpaca Watchlists</p>
+          <button @click="syncAllWithAlpaca()" :disabled="syncing"
+                  class="btn btn-ghost text-xs py-1 px-2.5 disabled:opacity-50"
+                  x-text="syncing ? 'Syncing…' : 'Sync All'"></button>
+        </div>
+
+        <div x-show="alpacaWatchlists.length > 0" class="space-y-2 max-h-72 overflow-y-auto">
+          <template x-for="list in alpacaWatchlists" :key="list.id">
+            <div class="p-2.5 rounded bg-oracle-surface border border-oracle-border">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-semibold text-white" x-text="list.name"></span>
+                <div class="flex gap-1">
+                  <button @click="syncWithAlpaca(list)" :disabled="syncing" class="text-[9px] font-mono text-oracle-primary hover:text-oracle-accent">Sync</button>
+                  <button @click="deleteFromAlpaca(list)" class="text-[9px] font-mono text-oracle-loss hover:text-oracle-loss/80 ml-1">Del</button>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-1">
+                <template x-for="asset in (list.assets || [])" :key="asset">
+                  <span class="px-1.5 py-0.5 rounded bg-oracle-elevated text-[9px] font-mono text-oracle-border-strong" x-text="asset.symbol || asset"></span>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div x-show="alpacaWatchlists.length === 0 && !wlRefreshing" class="py-8 text-center">
+          <p class="text-xs text-oracle-border-strong">No Alpaca watchlists</p>
+          <a href="{{ url_for('main.settings') }}" class="text-[10px] text-oracle-primary mt-1 inline-block">Connect Alpaca →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Add -->
+    <div class="t-card">
+      <p class="text-xs font-semibold text-white mb-2">Quick Add to Selected List</p>
+      <div class="flex gap-2">
+        <input type="text" x-model="quickAddTicker" @keydown.enter="quickAdd()"
+               placeholder="Ticker to add…" class="t-input flex-1 uppercase font-mono">
+        <button @click="quickAdd()"
+                :disabled="!quickAddTicker.trim() || !selectedList || adding"
+                class="btn btn-primary disabled:opacity-50"
+                x-text="adding ? '…' : 'Add'"></button>
+      </div>
+    </div>
+
+    <!-- Watchlist Scan Results -->
+    <div x-show="wlScanResults.length > 0" class="rh-section p-0 overflow-hidden">
+      <div class="rh-section-header">
+        <span class="rh-section-title">Quick Scan Results</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr>
+            <th>Ticker</th>
+            <th>Price</th>
+            <th>Oracle</th>
+            <th>Verdict</th>
+            <th>RSI</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            <template x-for="result in wlScanResults" :key="result.ticker">
+              <tr @click="window.location.href='/analysis/'+result.ticker" style="cursor:pointer;">
+                <td class="font-mono font-bold text-white" x-text="result.ticker"></td>
+                <td class="font-mono" x-text="result.price ? '$' + result.price.toFixed(2) : '—'"></td>
+                <td class="font-mono" x-text="result.oracle_score ? result.oracle_score.toFixed(1) : '—'"></td>
+                <td><span class="badge" :class="getVerdictBadgeClass(result.verdict)" x-text="result.verdict || '—'"></span></td>
+                <td class="font-mono" x-text="result.rsi ? result.rsi.toFixed(1) : '—'"></td>
+                <td><a :href="`/analysis/${result.ticker}`" class="text-[10px] font-mono text-oracle-primary hover:text-oracle-accent">→</a></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- end watchlists tab -->
+
 </div>
 
+{% block extra_scripts %}
 <script>
-    function scannerPage() {
-        return {
-            selectedWatchlist: '{{ selected_watchlist }}',
-            customTickers: '',
-            scanning: false,
-            results: [],
-            watchlistTickers: {{ watchlists.get(selected_watchlist, []) | tojson }},
+function scanWatchPage() {
+  return {
+    // Tab
+    activeTab: 'scan',
 
-            get allTickers() {
-                const custom = this.customTickers.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
-                return [...new Set([...this.watchlistTickers, ...custom])];
-            },
+    // ── Scan state ──
+    selectedWatchlist: '{{ selected_watchlist }}',
+    scanTickers: '',
+    scanning: false,
+    scanResults: [],
+    filteredResults: [],
+    filterVerdict: 'all',
+    lastScanTime: null,
+    autoScan: false,
+    autoScanInterval: null,
+    scanProgress: 'Initializing…',
+    progressPercent: 0,
+    watchlistData: {{ watchlists | tojson }},
 
-            updateTickers() {
-                const watchlists = {{ watchlists | tojson }};
-                this.watchlistTickers = watchlists[this.selectedWatchlist] || [];
-            },
+    // ── Watchlist state ──
+    watchlistsArr: [],
+    selectedList: '',
+    selectedListData: [],
+    alpacaWatchlists: [],
+    wlScanResults: [],
+    newListName: '',
+    newListTickers: '',
+    quickAddTicker: '',
+    syncing: false,
+    creating: false,
+    deleting: false,
+    wlScanning: false,
+    wlRefreshing: false,
+    adding: false,
+    priceCache: {},
 
-            async runScan() {
-                if (this.scanning || this.allTickers.length === 0) return;
-                this.scanning = true;
-                this.results = [];
+    get topPicks() {
+      return this.scanResults
+        .filter(r => r.verdict && r.verdict.toLowerCase().includes('buy'))
+        .sort((a, b) => b.oracle_score - a.oracle_score)
+        .slice(0, 5);
+    },
 
-                try {
-                    const response = await fetch('/api/scanner/scan', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ tickers: this.allTickers })
-                    });
-                    const data = await response.json();
-                    
-                    // Handle both array and {results: []} formats
-                    if (Array.isArray(data)) {
-                        this.results = data;
-                    } else if (data.results) {
-                        this.results = data.results;
-                    } else {
-                        this.results = [];
-                    }
-                    
-                    this.results.sort((a, b) => b.score - a.score);
-                } catch (error) {
-                    console.error('Scan error:', error);
-                }
+    init() {
+      // Determine active tab from URL
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') === 'watchlists') this.activeTab = 'watchlists';
 
-                this.scanning = false;
+      // Scan init
+      const tickers = this.watchlistData[this.selectedWatchlist] || [];
+      if (tickers.length) this.scanTickers = tickers.join(', ');
+      this.loadCachedResults();
+
+      // Watchlist init
+      this.loadLocalWatchlists();
+      this.loadAlpacaWatchlists();
+    },
+
+    setTab(tab) {
+      this.activeTab = tab;
+      const url = new URL(window.location);
+      if (tab === 'watchlists') url.searchParams.set('tab', 'watchlists');
+      else url.searchParams.delete('tab');
+      window.history.replaceState({}, '', url);
+    },
+
+    // ── Scan methods ──
+    loadFromWatchlist() {
+      const tickers = this.watchlistData[this.selectedWatchlist] || [];
+      this.scanTickers = tickers.join(', ');
+    },
+
+    addPreset(name) {
+      const presets = {
+        'AI/Tech': 'NVDA, AMD, MSFT, GOOGL, META, AVGO, TSM',
+        'Energy': 'VST, URA, XLE, NEE, CEG, CCJ',
+        'Dividend': 'SCHD, VYM, O, JEPI, HDV',
+        'ETFs': 'SPY, QQQ, IWM, DIA, VTI'
+      };
+      if (presets[name]) this.scanTickers = presets[name];
+    },
+
+    async runScan() {
+      if (this.scanning || !this.scanTickers.trim()) return;
+      this.scanning = true; this.scanResults = []; this.filteredResults = []; this.progressPercent = 0;
+      const tickers = this.scanTickers.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
+      const total = tickers.length;
+      try {
+        for (let i = 0; i < tickers.length; i++) {
+          const ticker = tickers[i];
+          this.scanProgress = `${ticker} (${i + 1}/${total})`;
+          this.progressPercent = Math.round(((i + 1) / total) * 100);
+          try {
+            const [oracle, quote] = await Promise.all([
+              fetch(`/api/oracle/${ticker}`).then(r => r.json()),
+              fetch(`/api/stock/${ticker}/quote`).then(r => r.json()),
+            ]);
+            if (oracle && oracle.score !== undefined) {
+              this.scanResults.push({
+                ticker, company: oracle.company || '',
+                price: quote.current || 0, change: quote.percent_change || 0,
+                oracle_score: oracle.score, verdict: oracle.verdict_text || oracle.verdict,
+                rsi: oracle.rsi, volume: oracle.volume || 0,
+                aiInterpretation: null, interpretationLoading: false, interpretationLocked: false,
+              });
             }
+          } catch (e) { console.error(`Error scanning ${ticker}:`, e); }
+          await new Promise(resolve => setTimeout(resolve, 400));
         }
-    }
+        this.filterResults();
+        this.lastScanTime = new Date().toLocaleTimeString();
+        this.saveCachedResults();
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Scan error. Please try again.', type: 'error' } }));
+      } finally { this.scanning = false; this.scanProgress = 'Done'; }
+    },
+
+    async getAiInterpretation(result) {
+      if (result.interpretationLoading || result.aiInterpretation || result.interpretationLocked) return;
+      result.interpretationLoading = true;
+      try {
+        const r = await fetch(`/api/oracle/ai-interpretation/${result.ticker}`);
+        const d = await r.json();
+        if (d.locked) { result.interpretationLocked = true; }
+        else if (d.interpretation) { result.aiInterpretation = d.interpretation; }
+        else { result.aiInterpretation = 'AI analysis unavailable.'; }
+      } catch (e) { result.aiInterpretation = 'Failed to load.'; }
+      finally { result.interpretationLoading = false; }
+    },
+
+    toggleAutoScan() {
+      this.autoScan = !this.autoScan;
+      if (this.autoScan) {
+        this.autoScanInterval = setInterval(() => {
+          const now = new Date(); const h = now.getHours(); const d = now.getDay();
+          if (d >= 1 && d <= 5 && h >= 9 && h < 16 && this.scanTickers.trim()) this.runScan();
+        }, 30 * 60 * 1000);
+      } else {
+        if (this.autoScanInterval) { clearInterval(this.autoScanInterval); this.autoScanInterval = null; }
+      }
+    },
+
+    filterResults() {
+      if (this.filterVerdict === 'all') this.filteredResults = [...this.scanResults];
+      else this.filteredResults = this.scanResults.filter(r => r.verdict === this.filterVerdict);
+    },
+
+    clearResults() {
+      this.scanResults = []; this.filteredResults = []; this.lastScanTime = null;
+      localStorage.removeItem('scan_page_results');
+    },
+
+    saveCachedResults() {
+      localStorage.setItem('scan_page_results', JSON.stringify({ results: this.scanResults, timestamp: new Date().toISOString(), tickers: this.scanTickers }));
+    },
+
+    loadCachedResults() {
+      const cached = localStorage.getItem('scan_page_results');
+      if (!cached) return;
+      try {
+        const cache = JSON.parse(cached);
+        if (new Date() - new Date(cache.timestamp) < 60 * 60 * 1000) {
+          this.scanResults = cache.results || [];
+          this.filteredResults = [...this.scanResults];
+          this.scanTickers = cache.tickers || this.scanTickers;
+          this.lastScanTime = new Date(cache.timestamp).toLocaleTimeString();
+        }
+      } catch (e) {}
+    },
+
+    // ── Watchlist methods ──
+    async loadLocalWatchlists() {
+      try {
+        const response = await fetch('/api/scanner/watchlists');
+        this.watchlistsArr = await response.json();
+      } catch (error) { console.error('Error loading watchlists:', error); }
+    },
+
+    async loadAlpacaWatchlists() {
+      this.wlRefreshing = true;
+      try {
+        const response = await fetch('/api/trading/watchlists');
+        if (response.ok) this.alpacaWatchlists = await response.json();
+      } catch (error) { console.error('Error loading Alpaca watchlists:', error); }
+      finally { this.wlRefreshing = false; }
+    },
+
+    async loadSelectedList() {
+      if (!this.selectedList) { this.selectedListData = []; return; }
+      const list = this.watchlistsArr.find(l => l.name === this.selectedList);
+      if (list) {
+        this.selectedListData = [...list.tickers];
+        await this.loadWlPrices(this.selectedListData);
+      }
+    },
+
+    async loadWlPrices(tickers) {
+      for (const ticker of tickers) {
+        try {
+          const response = await fetch(`/api/stock/${ticker}/quote`);
+          const data = await response.json();
+          if (data.current) this.priceCache[ticker] = data;
+        } catch (error) { console.error(`Error loading price for ${ticker}:`, error); }
+      }
+    },
+
+    async createWatchlist() {
+      if (!this.newListName.trim() || !this.newListTickers.trim() || this.creating) return;
+      this.creating = true;
+      try {
+        const tickers = this.newListTickers.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
+        const response = await fetch('/api/scanner/watchlists/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: this.newListName.trim(), tickers })
+        });
+        if (response.ok) { this.newListName = ''; this.newListTickers = ''; await this.loadLocalWatchlists(); }
+        else alert('Error creating watchlist');
+      } catch (error) { console.error('Error creating watchlist:', error); }
+      finally { this.creating = false; }
+    },
+
+    async deleteWatchlist() {
+      if (!this.selectedList || this.deleting) return;
+      if (!confirm(`Delete watchlist "${this.selectedList}"?`)) return;
+      this.deleting = true;
+      try {
+        const response = await fetch(`/api/scanner/watchlists/${encodeURIComponent(this.selectedList)}`, { method: 'DELETE' });
+        if (response.ok) { this.selectedList = ''; this.selectedListData = []; await this.loadLocalWatchlists(); }
+        else alert('Error deleting watchlist');
+      } catch (error) { console.error('Error deleting watchlist:', error); }
+      finally { this.deleting = false; }
+    },
+
+    async quickAdd() {
+      if (!this.quickAddTicker.trim() || !this.selectedList || this.adding) return;
+      this.adding = true;
+      try {
+        const response = await fetch('/api/scanner/watchlists/add-ticker', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: this.selectedList, ticker: this.quickAddTicker.trim().toUpperCase() })
+        });
+        if (response.ok) { this.quickAddTicker = ''; await this.loadSelectedList(); await this.loadLocalWatchlists(); }
+        else alert('Error adding ticker');
+      } catch (error) { console.error('Error adding ticker:', error); }
+      finally { this.adding = false; }
+    },
+
+    async removeFromList(ticker) {
+      try {
+        const response = await fetch('/api/scanner/watchlists/remove-ticker', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: this.selectedList, ticker })
+        });
+        if (response.ok) {
+          this.selectedListData = this.selectedListData.filter(t => t !== ticker);
+          delete this.priceCache[ticker];
+          await this.loadLocalWatchlists();
+        }
+      } catch (error) { console.error('Error removing ticker:', error); }
+    },
+
+    async quickScanWatchlist() {
+      if (this.wlScanning || this.selectedListData.length === 0) return;
+      this.wlScanning = true; this.wlScanResults = [];
+      try {
+        const response = await fetch('/api/oracle/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tickers: this.selectedListData })
+        });
+        if (response.ok) this.wlScanResults = await response.json();
+      } catch (error) { console.error('Error during scan:', error); }
+      finally { this.wlScanning = false; }
+    },
+
+    async syncWithAlpaca(list) {
+      if (this.syncing) return;
+      this.syncing = true;
+      try {
+        const response = await fetch(`/api/trading/watchlists/${list.id}/sync`, { method: 'POST' });
+        if (response.ok) await this.loadAlpacaWatchlists();
+      } catch (error) { console.error('Error syncing:', error); }
+      finally { this.syncing = false; }
+    },
+
+    async syncAllWithAlpaca() {
+      if (this.syncing) return;
+      this.syncing = true;
+      try {
+        for (const list of this.watchlistsArr) {
+          try {
+            await fetch('/api/trading/watchlists/sync-local', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: list.name, tickers: list.tickers })
+            });
+          } catch (error) { console.error(`Error syncing ${list.name}:`, error); }
+        }
+        await this.loadAlpacaWatchlists();
+      } catch (error) { console.error('Error in sync all:', error); }
+      finally { this.syncing = false; }
+    },
+
+    async deleteFromAlpaca(list) {
+      if (!confirm(`Delete "${list.name}" from Alpaca?`)) return;
+      try {
+        const response = await fetch(`/api/trading/watchlists/${list.id}`, { method: 'DELETE' });
+        if (response.ok) await this.loadAlpacaWatchlists();
+      } catch (error) { console.error('Error deleting from Alpaca:', error); }
+    },
+
+    getWlPrice(ticker) { return this.priceCache[ticker]?.current; },
+    getWlChange(ticker) { return this.priceCache[ticker]?.percent_change; },
+
+    // ── Shared helpers ──
+    getVerdictBadgeClass(verdict) {
+      if (!verdict) return 'badge-hold';
+      const v = verdict.toLowerCase();
+      if (v.includes('buy')) return 'badge-buy';
+      if (v.includes('sell')) return 'badge-sell';
+      return 'badge-hold';
+    },
+
+    formatVolume(volume) {
+      if (!volume) return '—';
+      if (volume >= 1e9) return (volume / 1e9).toFixed(1) + 'B';
+      if (volume >= 1e6) return (volume / 1e6).toFixed(1) + 'M';
+      if (volume >= 1e3) return (volume / 1e3).toFixed(1) + 'K';
+      return volume.toString();
+    },
+  };
+}
 </script>
+{% endblock %}
 {% endblock %}
