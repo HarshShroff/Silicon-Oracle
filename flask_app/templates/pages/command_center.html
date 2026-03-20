@@ -55,7 +55,7 @@
                         <svg class="w-5 h-5 text-text-4 group-hover:text-gain" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     </div>
                     <div>
-                        <span class="text-[10px] font-black uppercase tracking-[0.2em] text-text-4 block mb-1">Buying Power</span>
+                        <span class="text-[10px] font-black uppercase tracking-[0.2em] text-text-4 block mb-1">Deployed Capital</span>
                         <span class="text-xl font-black font-mono tracking-tighter" x-text="formatCurrency(buyingPower)">$0.00</span>
                     </div>
                 </div>
@@ -262,27 +262,16 @@ function dashboard() {
             window.addEventListener('resize', () => this.chart.applyOptions({ width: container.clientWidth }));
         },
 
-        // ── ACCOUNT: try Alpaca → fallback shadow portfolio ──────────────────
+        // ── ACCOUNT: shadow portfolio only ───────────────────────────────────
         async loadAccount() {
             try {
-                const [acct, shadow] = await Promise.all([
-                    fetch('/api/trading/account').then(r => r.json()).catch(() => null),
-                    fetch('/api/portfolio/shadow-value').then(r => r.json()).catch(() => null)
-                ]);
-
-                if (acct && !acct.error && acct.portfolio_value) {
-                    this.alpacaConnected = true;
-                    this.portfolioValue = acct.portfolio_value;
-                    this.buyingPower    = acct.buying_power;
-                } else if (shadow && !shadow.error && shadow.total_value > 0) {
-                    this.portfolioValue = shadow.total_value;
-                    this.buyingPower    = 0;
-                }
-
-                // Unrealized P&L from shadow as performance indicator
-                if (shadow && !shadow.error) {
-                    this.portfolioChange = Math.abs(shadow.total_pl || 0);
-                    this.portfolioTrend  = shadow.total_plpc || 0;
+                const sv = await fetch('/api/portfolio/shadow-value').then(r => r.json());
+                if (sv && !sv.error) {
+                    this.portfolioValue  = sv.total_value  || 0;
+                    this.portfolioChange = Math.abs(sv.total_pl  || 0);
+                    this.portfolioTrend  = sv.total_plpc   || 0;
+                    // Shadow portfolio has no cash tracking — show cost basis as deployed capital
+                    this.buyingPower     = sv.total_cost || 0;
                 }
             } catch(e) { console.error('Account load error', e); }
         },
