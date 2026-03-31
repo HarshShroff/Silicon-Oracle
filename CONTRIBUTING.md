@@ -20,10 +20,10 @@ Thank you for your interest in contributing! Here's how to help make Silicon-Ora
    ```bash
    git clone https://github.com/YOUR_USERNAME/Silicon-Oracle.git
    cd Silicon-Oracle
-   
+
    python -m venv venv
    source venv/bin/activate  # Windows: venv\Scripts\activate
-   
+
    pip install -e ".[dev]"
    ```
 
@@ -135,20 +135,20 @@ Add docstrings to all public functions:
 ```python
 def calculate_oracle_score(ticker: str, lookback_days: int = 365) -> dict:
     """Calculate Silicon-Oracle composite score for a stock.
-    
+
     Combines technical, sentiment, and fundamental analysis into single metric.
-    
+
     Args:
         ticker: Stock symbol (e.g., 'AAPL')
         lookback_days: Historical data window (default: 365)
-        
+
     Returns:
         dict: Score breakdown with components:
             - oracle_score: Final composite (0-100)
             - technical_score: TA metrics (0-100)
             - sentiment_score: News sentiment (0-100)
             - fundamental_score: P/E, dividend, etc. (0-100)
-            
+
     Raises:
         ValueError: If ticker not found
         APIError: If market data unavailable

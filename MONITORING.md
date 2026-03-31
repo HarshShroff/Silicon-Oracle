@@ -44,10 +44,10 @@ def health_check():
     try:
         # Check database connection
         db.session.execute(text("SELECT 1"))
-        
+
         # Check external API connectivity
         # (optional: quick ping to Finnhub/Alpaca)
-        
+
         return {
             'status': 'healthy',
             'timestamp': datetime.utcnow().isoformat(),
@@ -338,10 +338,10 @@ def get_stock_data(ticker):
         params={'symbol': ticker, 'token': FINNHUB_KEY}
     )
     duration = time.time() - start
-    
+
     if duration > 2.0:
         logger.warning(f"Slow Finnhub API call: {ticker} took {duration:.2f}s")
-    
+
     return response.json()
 ```
 

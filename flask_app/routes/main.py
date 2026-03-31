@@ -3,15 +3,16 @@ Silicon Oracle - Main Routes
 Page rendering routes
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, g
 from functools import wraps
+
+from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for
+
 from flask_app.extensions import limiter
 from flask_app.services import (
-    StockService,
-    OracleService,
-    ScannerService,
-    TradingService,
     PortfolioService,
+    ScannerService,
+    StockService,
+    TradingService,
 )
 from flask_app.services.scanner_service import WATCHLISTS
 
@@ -297,6 +298,7 @@ def settings():
     BYOK (Bring Your Own Keys) - All API keys are user-provided and stored in Supabase.
     """
     from flask import jsonify
+
     from utils import database as db
 
     if request.method == "POST":
@@ -539,10 +541,11 @@ def data_summary():
 @login_required
 def export_data():
     """Export user data as CSV or Excel."""
-    from flask import Response
-    import pandas as pd
-    from io import StringIO
     from datetime import datetime
+    from io import StringIO
+
+    import pandas as pd
+    from flask import Response
 
     format_type = request.args.get("format", "csv").lower()
 
@@ -642,6 +645,7 @@ def export_data():
 def health_check():
     """Health check endpoint for monitoring and deployment verification."""
     from datetime import datetime
+
     from utils import database as db
 
     try:

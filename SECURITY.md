@@ -173,8 +173,8 @@ See [DISCLAIMER.md](DISCLAIMER.md) for full legal terms.
 
 ## Contact
 
-**Security inquiries:** harsh.shroff@vitg.us  
-**Bug reports (non-security):** [GitHub Issues](https://github.com/harshshroff/Silicon-Oracle/issues)  
+**Security inquiries:** harsh.shroff@vitg.us
+**Bug reports (non-security):** [GitHub Issues](https://github.com/harshshroff/Silicon-Oracle/issues)
 **General questions:** [GitHub Discussions](https://github.com/harshshroff/Silicon-Oracle/discussions)
 
 ---

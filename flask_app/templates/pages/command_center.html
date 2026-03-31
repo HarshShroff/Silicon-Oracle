@@ -9,10 +9,10 @@
 <div x-data="dashboard()" x-init="init()" class="max-w-7xl mx-auto px-6 animate-fade-in py-12">
 
     <div class="flex flex-col lg:flex-row gap-16 lg:items-start">
-        
+
         <!-- ── MAIN FEED: PERFORMANCE & INTELLIGENCE ── -->
         <div class="flex-1 min-w-0">
-            
+
             <!-- Performance Spotlight -->
             <div class="mb-16">
                 <div class="flex items-center gap-3 mb-4">
@@ -47,11 +47,11 @@
                         <div class="w-10 h-10 border-4 border-gain border-t-transparent rounded-full animate-spin"></div>
                     </div>
                 </div>
-                
+
                 <!-- Time Range Controls -->
                 <div class="flex items-center gap-10 overflow-x-auto whitespace-nowrap scrollbar-hide pb-2">
                     <template x-for="p in ['1D', '1W', '1M', '3M', '1Y', 'ALL']" :key="p">
-                        <button @click="setPeriod(p)" 
+                        <button @click="setPeriod(p)"
                                 class="text-[11px] font-black tracking-[0.2em] uppercase transition-all pb-1 border-b-2"
                                 :class="chartPeriod === p ? 'border-gain text-gain rh-green-glow' : 'border-transparent text-text-4 hover:text-white'"
                                 x-text="p"></button>
@@ -77,26 +77,26 @@
 
             <!-- ── AI ANALYSIS SECTIONS ──────────────── -->
             <div class="space-y-24">
-                
+
                 <!-- Oracle Convolution Card (Spotlight) -->
                 <section>
                     <div class="flex items-center justify-between mb-10 pb-4 border-b border-[#18181A]">
                         <h2 class="text-xl font-bold tracking-tight">Oracle Conviction Card</h2>
                         <a href="/ai-guidance" class="text-[10px] font-black uppercase text-gain tracking-widest rh-green-glow">Execute Global Scan</a>
                     </div>
-                    
+
                     <template x-if="spotlight.ticker">
-                        <div @click="window.location.href='/analysis/'+spotlight.ticker" 
+                        <div @click="window.location.href='/analysis/'+spotlight.ticker"
                              class="bg-black border border-[#18181A] rounded-2xl p-10 flex flex-col md:flex-row gap-12 hover:border-gain transition-all cursor-pointer shadow-3xl group relative overflow-hidden">
                             <div class="absolute -top-10 -right-10 w-40 h-40 bg-gain/5 rounded-full blur-[80px]"></div>
-                            
+
                             <div class="flex-1">
                                 <div class="flex items-center gap-6 mb-4">
                                     <span class="text-4xl font-black tracking-tighter group-hover:text-gain transition-colors" x-text="spotlight.ticker"></span>
                                     <span class="px-3 py-1 bg-gain text-black text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg" x-text="spotlight.verdict"></span>
                                 </div>
                                 <div class="text-xs font-bold text-text-4 uppercase tracking-[0.2em] mb-10" x-text="spotlight.name"></div>
-                                
+
                                 <div class="grid grid-cols-2 gap-12">
                                     <div>
                                         <div class="text-[10px] font-black uppercase text-text-4 tracking-widest mb-2">Oracle Synergy Score</div>
@@ -117,7 +117,7 @@
                                             <span :class="f.signal === 'BULLISH' ? 'text-gain' : 'text-loss'" x-text="f.signal"></span>
                                         </div>
                                         <div class="h-1 bg-[#0A0A0A] rounded-full overflow-hidden">
-                                            <div class="h-full transition-all duration-1000 ease-out fill-duration" 
+                                            <div class="h-full transition-all duration-1000 ease-out fill-duration"
                                                  :class="f.signal === 'BULLISH' ? 'bg-gain' : 'bg-loss'"
                                                  :style="'width: ' + ((f.points/f.max_points)*100) + '%'"></div>
                                         </div>
@@ -136,7 +136,7 @@
                     </div>
                     <div class="divide-y divide-[#0A0A0A] bg-black border border-[#18181A] rounded-2xl overflow-hidden shadow-2xl">
                         <template x-for="n in news.items" :key="n.id">
-                            <div @click="window.open(n.url, '_blank')" 
+                            <div @click="window.open(n.url, '_blank')"
                                  class="px-8 py-8 flex justify-between gap-12 group cursor-pointer hover:bg-white/[0.02] transition-colors">
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-4 mb-3">
@@ -159,7 +159,7 @@
         <!-- ── RIGHT SIDEBAR: REAL-TIME TRACKER ────── -->
         <aside class="w-full lg:w-96 shrink-0 lg:sticky lg:top-32">
             <div class="space-y-12">
-                
+
                 <!-- Watchlist / Active Holdings -->
                 <section>
                     <div class="flex items-center justify-between mb-6 px-4">
@@ -168,7 +168,7 @@
                             <svg class="w-4 h-4" :class="wl.loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         </button>
                     </div>
-                    
+
                     <div class="bg-black border border-[#18181A] rounded-2xl overflow-hidden shadow-3xl">
                         <div x-show="wl.loading" class="p-8 space-y-10">
                             <template x-for="i in 5" :key="i">
@@ -178,13 +178,13 @@
 
                         <div x-show="!wl.loading">
                             <template x-for="row in wl.rows" :key="row.ticker">
-                                <div @click="window.location.href='/analysis/'+row.ticker" 
+                                <div @click="window.location.href='/analysis/'+row.ticker"
                                      class="flex items-center justify-between px-8 py-6 hover:bg-white/[0.03] border-b border-[#0A0A0A] last:border-0 cursor-pointer group transition-all duration-300">
                                     <div class="min-w-0">
                                         <div class="text-sm font-black tracking-tight group-hover:text-gain transition-colors" x-text="row.ticker"></div>
                                         <div class="text-[9px] text-text-4 font-black uppercase tracking-widest mt-1 truncate w-24" x-text="row.name"></div>
                                     </div>
-                                    
+
                                     <!-- Sidebar Mini Curve -->
                                     <div class="px-6 flex-1 h-4 scale-y-125 opacity-40 group-hover:opacity-100 transition-opacity">
                                         <svg viewBox="0 0 100 20" class="w-full h-full">
@@ -194,7 +194,7 @@
 
                                     <div class="text-right">
                                         <div class="text-sm font-black font-mono tracking-tighter" x-text="formatCurrency(row.price)"></div>
-                                        <div class="text-[10px] font-black tracking-tight mt-1" :class="row.change >= 0 ? 'text-gain rh-green-glow' : 'text-loss rh-red-glow'" 
+                                        <div class="text-[10px] font-black tracking-tight mt-1" :class="row.change >= 0 ? 'text-gain rh-green-glow' : 'text-loss rh-red-glow'"
                                              x-text="(row.change >= 0 ? '+' : '') + (row.change || 0).toFixed(2) + '%'"></div>
                                     </div>
                                 </div>
@@ -210,7 +210,7 @@
                     </div>
                     <div class="grid grid-cols-1 gap-4">
                         <template x-for="l in collections" :key="l.name">
-                            <div @click="window.location.href='/watchlist?list='+l.name" 
+                            <div @click="window.location.href='/watchlist?list='+l.name"
                                  class="px-8 py-5 rounded-xl border border-[#18181A] bg-black hover:border-gain transition-all flex items-center justify-between cursor-pointer group shadow-xl">
                                 <div class="flex items-center gap-4">
                                     <div class="w-2 h-2 rounded-full" :class="l.active ? 'bg-gain animate-pulse' : 'bg-text-4'"></div>
