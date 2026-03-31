@@ -42,7 +42,7 @@
                 </div>
 
                 <!-- Central Performance Curve -->
-                <div class="relative w-full h-[400px] mb-12 border-b border-[#18181A]" id="mainCurve">
+                <div class="relative w-full mb-12 border-b border-[#18181A]" id="mainCurve" style="height: 400px; overflow: hidden;">
                     <div x-show="chartLoading" class="absolute inset-0 flex items-center justify-center bg-black/60 z-20 backdrop-blur-sm">
                         <div class="w-10 h-10 border-4 border-gain border-t-transparent rounded-full animate-spin"></div>
                     </div>
@@ -261,7 +261,18 @@ function dashboard() {
         initChart() {
             const container = document.getElementById('mainCurve');
             if (!container) { console.error('Chart container not found'); return; }
+
+            // Ensure container has proper positioning for chart containment
+            container.style.position = 'relative';
+            container.style.display = 'block';
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            console.log('Initializing chart with dimensions:', { width, height, containerRect: container.getBoundingClientRect() });
+
             this.chart = LightweightCharts.createChart(container, {
+                width: width,
+                height: height,
                 layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#71717A', fontSize: 11, fontFamily: 'Inter' },
                 grid: { vertLines: { visible: false }, horzLines: { color: '#0A0A0A' } },
                 rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.15, bottom: 0.05 } },
@@ -275,7 +286,11 @@ function dashboard() {
                 lastValueVisible: false,
                 crosshairMarkerVisible: true
             });
-            window.addEventListener('resize', () => this.chart.applyOptions({ width: container.clientWidth }));
+            window.addEventListener('resize', () => {
+                if (this.chart && container) {
+                    this.chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+                }
+            });
         },
 
         // ── ACCOUNT: shadow portfolio only ───────────────────────────────────
@@ -310,7 +325,10 @@ function dashboard() {
                         .catch(e => { console.error('History fetch error', e); return []; });
                     if (Array.isArray(hist) && hist.length > 1) {
                         plot = hist
-                            .map(d => ({ time: Math.floor(new Date(d.timestamp).getTime() / 1000), value: d.equity }))
+                            .map(d => {
+                                const dt = new Date(d.timestamp);
+                                return { time: Math.floor(dt.getTime() / 1000), value: parseFloat(d.equity) || 0 };
+                            })
                             .filter(d => d.value > 0 && !isNaN(d.time));
                     }
                 } catch(e) { /* fall through */ }
@@ -323,16 +341,28 @@ function dashboard() {
                     const r = await fetch(`/api/stock/SPY/chart?period=${spyMap[period] || '1mo'}&interval=1d`)
                         .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
                         .catch(e => { console.error('SPY chart fetch error', e); return []; });
+                    if (Array.isArray(r) && r.length > 0) {
+                        console.log('SPY data sample:', r[0], r[r.length - 1]);
+                    }
                     plot = (Array.isArray(r) ? r : [])
-                        .map(d => ({ time: (d.Date?.split('T')[0] || d.time || '').substring(0, 10), value: d.Close || d.value }))
-                        .filter(d => d.time && d.value);
+                        .map(d => {
+                            const dateStr = d.Date?.split('T')[0] || d.Datetime?.split('T')[0] || '';
+                            const dt = new Date(dateStr);
+                            const ts = Math.floor(dt.getTime() / 1000);
+                            const val = parseFloat(d.Close || 0);
+                            return { time: ts, value: val };
+                        })
+                        .filter(d => d.time > 0 && d.value > 0 && !isNaN(d.time) && !isNaN(d.value));
+                    console.log('Processed SPY plot:', plot.length, 'points');
                 } catch(e) { console.error('SPY chart error', e); }
             }
 
             try {
                 if (plot.length > 1 && this.chart && this.mainSeries) {
                     this.mainSeries.setData(plot);
-                    this.chart.timeScale().fitContent();
+                    setTimeout(() => {
+                        if (this.chart) this.chart.timeScale().fitContent();
+                    }, 0);
                     const isUp = plot && plot.length > 0 && plot[plot.length - 1].value >= plot[0].value;
                     const color = isUp ? '#00C805' : '#FF5000';
                     this.mainSeries.applyOptions({
@@ -340,6 +370,8 @@ function dashboard() {
                         topColor: isUp ? 'rgba(0,200,5,0.25)' : 'rgba(255,80,0,0.25)',
                         bottomColor: 'rgba(0,0,0,0)'
                     });
+                } else {
+                    console.warn('Chart render skipped: plot length =', plot.length, 'chart =', !!this.chart, 'series =', !!this.mainSeries);
                 }
             } catch(e) { console.error('Chart render error', e); }
             finally { this.chartLoading = false; }
@@ -366,7 +398,7 @@ function dashboard() {
                         // Async oracle enrichment for names
                         sorted.slice(0, 6).forEach(async (p, i) => {
                             try {
-                                const or = await fetch(`/api/oracle/${p.ticker}`).then(r => r.json());
+                                const or = await fetch(`/api/oracle/${p.ticker}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => null);
                                 if (or && !or.error && this.wl.rows[i]) {
                                     this.wl.rows[i].name  = or.company_name || p.ticker;
                                     this.wl.rows[i].score = or.score || 0;
@@ -381,7 +413,7 @@ function dashboard() {
                 // 2) Alpaca positions (only if Alpaca is enabled)
                 if (_alpacaEnabled) {
                     try {
-                        const positions = await fetch('/api/trading/positions').then(r => r.json());
+                        const positions = await fetch('/api/trading/positions').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => []);
                         if (Array.isArray(positions) && positions.length > 0) {
                             const sorted = [...positions].sort((a, b) => (b.market_value || 0) - (a.market_value || 0));
                             this.wl.rows = sorted.slice(0, 6).map(p => ({
@@ -393,7 +425,7 @@ function dashboard() {
                             }));
                             sorted.slice(0, 6).forEach(async (p, i) => {
                                 try {
-                                    const or = await fetch(`/api/oracle/${p.ticker}`).then(r => r.json());
+                                    const or = await fetch(`/api/oracle/${p.ticker}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => null);
                                     if (or && !or.error && this.wl.rows[i]) {
                                         this.wl.rows[i].name  = or.company_name || p.ticker;
                                         this.wl.rows[i].score = or.score || 0;
@@ -409,7 +441,7 @@ function dashboard() {
                 // 3) First scanner watchlist tickers
                 let tickers = [];
                 try {
-                    const lists = await fetch('/api/scanner/watchlists').then(r => r.json());
+                    const lists = await fetch('/api/scanner/watchlists').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => []);
                     const first = Array.isArray(lists) && lists.find(l => l.tickers?.length > 0);
                     if (first) tickers = first.tickers.slice(0, 6);
                 } catch(e) {}
@@ -419,9 +451,9 @@ function dashboard() {
 
                 const rows = await Promise.all(tickers.map(async t => {
                     try {
-                        const qr = await fetch(`/api/stock/${t}/quote`).then(r => r.json());
-                        const or = await fetch(`/api/oracle/${t}`).then(r => r.json());
-                        return { ticker: t, name: or.company_name || t, price: qr.current, change: qr.percent_change, score: or.score || 0 };
+                        const qr = await fetch(`/api/stock/${t}/quote`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => null);
+                        const or = await fetch(`/api/oracle/${t}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => null);
+                        return qr && or ? { ticker: t, name: or.company_name || t, price: qr.current, change: qr.percent_change, score: or.score || 0 } : null;
                     } catch(e) { return null; }
                 }));
                 this.wl.rows = rows.filter(r => r).sort((a, b) => b.score - a.score);
@@ -432,7 +464,7 @@ function dashboard() {
 
         async syncSpotlight(ticker) {
             try {
-                const d = await fetch(`/api/oracle/${ticker}`).then(res => res.json());
+                const d = await fetch(`/api/oracle/${ticker}`).then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); }).catch(e => null);
                 if (d && !d.error) {
                     this.spotlight = { ticker, name: d.company_name, score: d.score, verdict: d.verdict, confidence: d.confidence, factors: d.factors };
                 }
@@ -442,7 +474,7 @@ function dashboard() {
         // ── COLLECTIONS: from user's scanner watchlists ──────────────────────
         async loadCollections() {
             try {
-                const lists = await fetch('/api/scanner/watchlists').then(r => r.json());
+                const lists = await fetch('/api/scanner/watchlists').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => []);
                 if (Array.isArray(lists) && lists.length > 0) {
                     this.collections = lists.slice(0, 6).map((l, i) => ({ name: l.name, active: i === 0 }));
                 }
@@ -452,7 +484,7 @@ function dashboard() {
         // ── INTELLIGENCE FEED: personalized /api/feed ────────────────────────
         async loadNews() {
             try {
-                const d = await fetch('/api/feed').then(r => r.json());
+                const d = await fetch('/api/feed').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => []);
                 const items = Array.isArray(d) ? d : [];
                 this.news.items = items.slice(0, 4).map((n, i) => ({
                     id:       i,

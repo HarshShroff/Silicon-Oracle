@@ -5,7 +5,7 @@ Page rendering routes
 
 from functools import wraps
 
-from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, session, url_for
 
 from flask_app.extensions import limiter
 from flask_app.services import (
@@ -639,29 +639,3 @@ def export_data():
 
     except Exception as e:
         return jsonify({"error": f"Export failed: {str(e)}"}), 500
-
-
-@main_bp.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint for monitoring and deployment verification."""
-    from datetime import datetime
-
-    from utils import database as db
-
-    try:
-        # Check database connection
-        db.conn  # Access connection object to verify it exists
-
-        return jsonify({
-            'status': 'healthy',
-            'timestamp': datetime.utcnow().isoformat(),
-            'version': '2.1.0'
-        }), 200
-    except Exception as e:
-        import logging
-        logging.error(f"Health check failed: {e}")
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': datetime.utcnow().isoformat()
-        }), 503
