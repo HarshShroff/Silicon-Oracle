@@ -327,9 +327,10 @@ function dashboard() {
                         plot = hist
                             .map(d => {
                                 const dt = new Date(d.timestamp);
-                                return { time: Math.floor(dt.getTime() / 1000), value: parseFloat(d.equity) || 0 };
+                                const dateStr = dt.toISOString().split('T')[0];
+                                return { time: dateStr, value: parseFloat(d.equity) || 0 };
                             })
-                            .filter(d => d.value > 0 && !isNaN(d.time));
+                            .filter(d => d.time && d.value > 0 && !isNaN(d.value));
                     }
                 } catch(e) { /* fall through */ }
             }
@@ -346,14 +347,14 @@ function dashboard() {
                     }
                     plot = (Array.isArray(r) ? r : [])
                         .map(d => {
-                            const dateStr = d.Date?.split('T')[0] || d.Datetime?.split('T')[0] || '';
-                            const dt = new Date(dateStr);
-                            const ts = Math.floor(dt.getTime() / 1000);
+                            // Extract date in YYYY-MM-DD format
+                            const fullDate = d.Date || d.Datetime || '';
+                            const dateStr = fullDate.split(' ')[0] || fullDate.split('T')[0] || '';
                             const val = parseFloat(d.Close || 0);
-                            return { time: ts, value: val };
+                            return { time: dateStr, value: val };
                         })
-                        .filter(d => d.time > 0 && d.value > 0 && !isNaN(d.time) && !isNaN(d.value));
-                    console.log('Processed SPY plot:', plot.length, 'points');
+                        .filter(d => d.time && d.value > 0 && !isNaN(d.value));
+                    console.log('Processed SPY plot:', plot.length, 'points', plot[0], plot[plot.length - 1]);
                 } catch(e) { console.error('SPY chart error', e); }
             }
 
