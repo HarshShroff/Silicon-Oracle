@@ -359,18 +359,26 @@ function dashboard() {
             }
 
             try {
-                if (plot.length > 1 && this.chart && this.mainSeries) {
-                    this.mainSeries.setData(plot);
-                    setTimeout(() => {
-                        if (this.chart) this.chart.timeScale().fitContent();
-                    }, 0);
-                    const isUp = plot && plot.length > 0 && plot[plot.length - 1].value >= plot[0].value;
-                    const color = isUp ? '#00C805' : '#FF5000';
-                    this.mainSeries.applyOptions({
-                        lineColor: color,
-                        topColor: isUp ? 'rgba(0,200,5,0.25)' : 'rgba(255,80,0,0.25)',
-                        bottomColor: 'rgba(0,0,0,0)'
-                    });
+                if (plot.length > 0 && this.chart && this.mainSeries) {
+                    // Remove duplicate dates (keep last value for each date)
+                    const deduped = {};
+                    plot.forEach(p => { deduped[p.time] = p.value; });
+                    const dedupedPlot = Object.entries(deduped).map(([time, value]) => ({ time, value }));
+
+                    if (dedupedPlot.length > 0) {
+                        this.mainSeries.setData(dedupedPlot);
+                        setTimeout(() => {
+                            if (this.chart) this.chart.timeScale().fitContent();
+                        }, 0);
+                        const isUp = dedupedPlot[dedupedPlot.length - 1].value >= dedupedPlot[0].value;
+                        const color = isUp ? '#00C805' : '#FF5000';
+                        this.mainSeries.applyOptions({
+                            lineColor: color,
+                            topColor: isUp ? 'rgba(0,200,5,0.25)' : 'rgba(255,80,0,0.25)',
+                            bottomColor: 'rgba(0,0,0,0)'
+                        });
+                        console.log('Chart rendered with', dedupedPlot.length, 'points');
+                    }
                 } else {
                     console.warn('Chart render skipped: plot length =', plot.length, 'chart =', !!this.chart, 'series =', !!this.mainSeries);
                 }
