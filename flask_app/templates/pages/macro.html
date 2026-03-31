@@ -1,0 +1,131 @@
+{% extends "layouts/base.html" %}
+{% block title %}Macro Intelligence — Silicon Oracle{% endblock %}
+
+{% block content %}
+<div x-data="macroPage()" x-init="init()" x-cloak class="max-w-7xl mx-auto px-6 animate-reveal py-12">
+
+    <!-- ── GLOBAL PULSE CORE ──────────────────── -->
+    <div class="mb-24">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-12">
+            <div class="space-y-6 flex-1">
+                <div class="flex items-center gap-4">
+                    <span class="text-[10px] font-black uppercase tracking-[0.4em] text-text-4">Institutional Surveillance Matrix</span>
+                    <span class="w-2 h-2 rounded-full bg-gain animate-pulse shadow-[0_0_12px_rgba(0,200,5,0.6)]"></span>
+                </div>
+                <h1 class="text-7xl font-black tracking-tighter leading-none">Global Pulse</h1>
+                <p class="text-sm font-medium text-text-3 uppercase tracking-[0.15em] max-w-xl leading-relaxed" x-text="contextMessage"></p>
+            </div>
+            
+            <!-- VIX Reactor -->
+            <div class="bg-black border border-[#18181A] rounded-2xl px-12 py-8 shadow-3xl relative overflow-hidden group min-w-[320px]">
+                <div class="absolute inset-0 bg-gain/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
+                <div class="relative z-10">
+                    <div class="text-[10px] font-black uppercase text-text-4 tracking-widest mb-4">Volatility Index (VIX)</div>
+                    <div class="flex items-baseline gap-6">
+                        <div class="text-5xl font-black tracking-tighter" :class="vix.value < 20 ? 'text-gain rh-green-glow' : 'text-loss rh-red-glow'" x-text="vix.value.toFixed(2)"></div>
+                        <div class="text-[11px] font-black uppercase tracking-[0.2em] px-3 py-1 bg-[#0A0A0A] rounded-full border border-[#18181A]" 
+                             :class="vix.value < 20 ? 'text-gain' : 'text-loss'" x-text="vix.value < 20 ? 'Structural Calm' : 'Risk Fragility'"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── ASSET CLASS JUNCTURE ────────────────── -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 mb-32">
+        <template x-for="item in macroItems" :key="item.symbol">
+            <div class="bg-black border border-[#18181A] rounded-2xl p-10 hover:border-gain transition-all duration-500 group relative overflow-hidden flex flex-col h-64 shadow-2xl">
+                <!-- Background Gradient Flare -->
+                <div class="absolute -bottom-16 -right-16 w-48 h-48 rounded-full blur-[100px] opacity-0 group-hover:opacity-20 transition-all duration-1000"
+                     :class="item.change >= 0 ? 'bg-gain' : 'bg-loss'"></div>
+
+                <div class="flex justify-between items-start mb-auto relative z-10">
+                    <div>
+                        <div class="text-[10px] font-black uppercase tracking-[0.3em] text-text-4 mb-4" x-text="item.label"></div>
+                        <div class="text-4xl font-black tracking-tighter text-text-1 group-hover:text-gain transition-colors" x-text="item.priceDisplay"></div>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <div class="text-[11px] font-black px-4 py-2 rounded-full shadow-2xl transition-all group-hover:scale-110" 
+                             :class="item.change >= 0 ? 'bg-white text-black rh-green-glow' : 'bg-white text-black rh-red-glow'">
+                            <span x-text="(item.change >= 0 ? '+' : '') + item.change + (item.label.includes('Yield') ? 'bps' : '%')"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technical Trace -->
+                <div class="w-full h-16 mt-8 relative z-10">
+                    <svg viewBox="0 0 100 20" class="w-full h-full transform group-hover:scale-y-125 transition-transform duration-700 origin-bottom">
+                        <path :d="item.path" fill="none" :stroke="item.change >= 0 ? '#00C805' : '#FF5000'" stroke-width="3" stroke-linecap="round" />
+                    </svg>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- ── SECONDARY INTELLIGENCE ──────────────── -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-20">
+        
+        <!-- Sector Momentum Heatmap -->
+        <section class="min-w-0">
+            <div class="flex items-center justify-between mb-12 pb-6 border-b border-[#18181A]">
+                <h2 class="text-xl font-bold tracking-tight">Institutional Flow Map</h2>
+                <div class="text-[9px] font-black uppercase text-gain tracking-widest rh-green-glow">S&P 500 Synchronization</div>
+            </div>
+            <div class="bg-black border border-[#18181A] rounded-3xl p-10 shadow-3xl overflow-hidden min-h-[450px]">
+                {% include 'components/sector_heatmap.html' %}
+            </div>
+        </section>
+
+        <!-- Earnings Calibration Radar -->
+        <section class="min-w-0">
+            <div class="flex items-center justify-between mb-12 pb-6 border-b border-[#18181A]">
+                <h2 class="text-xl font-bold tracking-tight">Earnings Calibration</h2>
+                <div class="text-[9px] font-black uppercase text-text-4 tracking-widest">Next 48H Cycle</div>
+            </div>
+            <div class="bg-black border border-[#18181A] rounded-3xl p-10 shadow-3xl">
+                {% include 'components/earnings_calendar.html' %}
+            </div>
+        </section>
+
+    </div>
+
+</div>
+
+<script>
+function macroPage() {
+    return {
+        vix: { value: 0 },
+        contextMessage: 'Synchronizing global institutional flow matrices for real-time risk calibration...',
+        macroItems: [],
+        
+        async init() {
+            await this.fetchData();
+            setInterval(() => this.fetchData(), 60000);
+        },
+
+        async fetchData() {
+            try {
+                const response = await fetch('/api/macro-data');
+                const d = await response.json();
+                
+                this.vix.value = parseFloat(d.vix.value || 0);
+                this.contextMessage = this.vix.value > 25 
+                    ? 'Elevated risk detected in variance swap markets. System suggests defensive rotation as volatility expansion persists in tech.' 
+                    : 'Stable macroeconomic regime confirmed. Oracle suggests opportunistic scaling across momentum-aligned sectors.';
+                
+                const formatPx = (v) => (parseFloat(v) || 0).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+
+                this.macroItems = [
+                    { label: 'S&P 500 Market Cap', symbol: 'SPY', priceDisplay: formatPx(d.spy.price), price: d.spy.price, change: d.spy.change, path: 'M0 15 Q 25 10, 50 18 T 100 8' },
+                    { label: 'Digital Gold (BTC)', symbol: 'BTC', priceDisplay: formatPx(d.btc.price), price: d.btc.price, change: d.btc.change, path: 'M0 12 Q 25 2, 50 18 T 100 10' },
+                    { label: 'US 10Y Yield Core', symbol: '10Y', priceDisplay: (d.yield10y.value || 0).toFixed(3) + '%', price: d.yield10y.value, change: d.yield10y.change, path: 'M0 18 L 20 15 L 40 17 L 60 14 L 80 12 L 100 10' },
+                    { label: 'Nasdaq 100 Alpha', symbol: 'QQQ', priceDisplay: formatPx(d.qqq.price), price: d.qqq.price, change: d.qqq.change, path: 'M0 15 Q 25 5, 50 15 T 100 5' },
+                    { label: 'US Dollar (DXY)', symbol: 'DXY', priceDisplay: (d.dxy.value || 0).toFixed(2), price: d.dxy.value, change: d.dxy.change, path: 'M0 10 L 100 15' },
+                    { label: 'Energy Nexus (WTI)', symbol: 'OIL', priceDisplay: formatPx(d.oil.price), price: d.oil.price, change: d.oil.change, path: 'M0 18 Q 50 2 100 15' }
+                ];
+            } catch(e) { console.error('Macro Matrix Drop', e); }
+        }
+    }
+}
+</script>
+{% endblock %}

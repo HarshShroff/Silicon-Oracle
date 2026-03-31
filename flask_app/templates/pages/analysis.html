@@ -667,6 +667,7 @@
             async calculateMetrics() {
                 try {
                     const response = await fetch(`/api/stock/{{ ticker }}/chart?period=1y&interval=1d`);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const data = await response.json();
                     if (!data || data.length === 0) return;
                     this.calculateSharpeRatio(data);

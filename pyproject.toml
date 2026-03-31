@@ -1,0 +1,121 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "silicon-oracle"
+version = "2.1.0"
+description = "AI-powered stock analysis platform with multi-user BYOK support"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Harsh Shroff", email = "harshrofff@gmail.com"}
+]
+keywords = ["finance", "stock-analysis", "ai", "trading", "investment"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    # Core Framework
+    "flask>=3.0.0",
+    "flask-login>=0.6.0",
+    "flask-wtf>=1.2.0",
+    "flask-caching>=2.1.0",
+    "flask-limiter>=3.5.0",
+    "gunicorn>=21.2.0",
+    "APScheduler>=3.10.0",
+    "flask-apscheduler>=1.13.0",
+    # Data & Finance
+    "yfinance>=1.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    # Technical Analysis
+    "pandas-ta-classic>=0.3.0",
+    "scipy>=1.11.0",
+    # Visualization
+    "plotly>=5.18.0",
+    # Machine Learning
+    "scikit-learn>=1.3.0",
+    # AI/NLP
+    "transformers>=4.36.0",
+    "torch>=2.1.0",
+    "google-generativeai>=0.3.0",
+    "google-genai",
+    # HTTP & APIs
+    "curl-cffi>=0.5.10",
+    "requests>=2.31.0",
+    "alpaca-py>=0.13.0",
+    "finnhub-python>=2.4.0",
+    "feedparser>=6.0.0",
+    # Database
+    "supabase>=2.0.0",
+    "psycopg2-binary>=2.9.0",
+    "SQLAlchemy>=2.0.0",
+    # Security
+    "cryptography>=41.0.0",
+    # Config
+    "pyyaml>=6.0.0",
+    # Timezone
+    "pytz>=2024.1",
+    # Email
+    "python-dotenv>=1.0.0",
+    "sendgrid>=6.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "bandit>=1.7.5",
+]
+frontend = [
+    "tailwindcss>=3.3.0",
+    "autoprefixer>=10.4.0",
+    "lightweightcharts>=3.8.0",
+]
+streamlit = [
+    "streamlit>=1.30.0",
+    "streamlit-autorefresh>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/harshshroff/Silicon-Oracle"
+Documentation = "https://github.com/harshshroff/Silicon-Oracle/blob/main/DOCS.md"
+Repository = "https://github.com/harshshroff/Silicon-Oracle.git"
+Issues = "https://github.com/harshshroff/Silicon-Oracle/issues"
+
+[tool.setuptools]
+packages = ["flask_app"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312", "py313"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]  # Line too long (handled by black)
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short --cov=flask_app --cov-report=term-missing"

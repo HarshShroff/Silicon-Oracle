@@ -9,6 +9,7 @@
 
     <!-- Account Overview -->
     {% if account %}
+    {# Alpaca is connected — show live account data #}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div class="t-card">
             <p class="section-label mb-2">Portfolio</p>
@@ -27,11 +28,43 @@
             <p class="text-2xl font-bold font-mono text-oracle-primary">${{ "{:,.0f}".format(account.equity) }}</p>
         </div>
     </div>
+    {% elif shadow_metrics %}
+    {# Alpaca disabled — show shadow portfolio metrics #}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="t-card">
+            <p class="section-label mb-2">Portfolio Value</p>
+            <p class="text-2xl font-bold font-mono text-white">${{ "{:,.0f}".format(shadow_metrics.total_value) }}</p>
+        </div>
+        <div class="t-card">
+            <p class="section-label mb-2">Deployed Capital</p>
+            <p class="text-2xl font-bold font-mono text-oracle-primary">${{ "{:,.0f}".format(shadow_metrics.total_cost) }}</p>
+        </div>
+        <div class="t-card">
+            <p class="section-label mb-2">Unrealized P&amp;L</p>
+            <p class="text-2xl font-bold font-mono {% if shadow_metrics.total_pl >= 0 %}text-oracle-gain{% else %}text-oracle-loss{% endif %}">
+                ${{ "%+,.0f"|format(shadow_metrics.total_pl) }}
+            </p>
+        </div>
+        <div class="t-card">
+            <p class="section-label mb-2">Return</p>
+            <p class="text-2xl font-bold font-mono {% if shadow_metrics.total_plpc >= 0 %}text-oracle-gain{% else %}text-oracle-loss{% endif %}">
+                {{ "%+.2f"|format(shadow_metrics.total_plpc) }}%
+            </p>
+        </div>
+    </div>
+    <div class="t-card border-oracle-border/50 py-2">
+        <p class="text-xs text-oracle-border-strong">Shadow Portfolio — tracking {{ positions|length }} position{{ 's' if positions|length != 1 else '' }}.
+        {% if not alpaca_enabled %}<a href="{{ url_for('main.settings') }}" class="text-oracle-primary hover:text-oracle-accent underline">Enable Alpaca for live trading →</a>{% endif %}</p>
+    </div>
     {% else %}
-    <div class="t-card border-oracle-warn/30">
-        <div class="flex items-center gap-3">
-            <svg class="w-5 h-5 text-oracle-warn flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            <p class="text-sm text-oracle-warn">Alpaca connection unavailable. <a href="{{ url_for('main.settings') }}" class="underline">Check Settings →</a></p>
+    {# No data — Alpaca disabled and no shadow positions #}
+    <div class="t-card border-oracle-border/50">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <svg class="w-5 h-5 text-oracle-border-strong flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <p class="text-sm text-oracle-border-strong">No positions tracked yet.</p>
+            </div>
+            <a href="{{ url_for('main.trade') }}" class="text-xs text-oracle-primary hover:text-oracle-accent">Add Holdings →</a>
         </div>
     </div>
     {% endif %}
@@ -144,6 +177,8 @@
 </div>
 
 <script>
+    const _alpacaEnabled = {{ alpaca_enabled | tojson }};
+
     function portfolioPage() {
         let activeChart = null;
 
@@ -154,6 +189,7 @@
             lastUpdate: null,
 
             async closePosition(ticker) {
+                if (!_alpacaEnabled) { alert('Enable Alpaca in Settings to close positions.'); return; }
                 if (!confirm(`Close entire position in ${ticker}?`)) return;
                 try {
                     const response = await fetch(`/api/trading/position/${ticker}`, { method: 'DELETE' });
@@ -166,61 +202,86 @@
             init() {
                 this.$nextTick(() => {
                     setTimeout(() => this.loadChart(), 100);
-                    setInterval(() => { this.loadChart(true); }, 30000);
+                    if (_alpacaEnabled) setInterval(() => { this.loadChart(true); }, 30000);
                 });
             },
 
             async loadChart(silent = false) {
                 if (!silent) this.chartLoading = true;
-                const periodMap = {
-                    '1D': { period: '1D', timeframe: '5Min' },
-                    '1W': { period: '1W', timeframe: '1H' },
-                    '1M': { period: '1M', timeframe: '1D' },
-                    '3M': { period: '3M', timeframe: '1D' },
-                    'YTD': { period: 'YTD', timeframe: '1D' },
-                    '1A': { period: '1A', timeframe: '1D' }
-                };
-                const params = periodMap[this.chartPeriod] || periodMap['1D'];
-                try {
-                    const response = await fetch(`/api/trading/history?period=${params.period}&timeframe=${params.timeframe}`);
-                    const data = await response.json();
-                    if (!data || data.length === 0) { this.chartLoading = false; this.hasChartData = false; return; }
-                    this.hasChartData = true;
-                    this.lastUpdate = new Date().toLocaleTimeString();
-                    const container = document.getElementById('portfolioChartContainer');
-                    if (!container) { this.chartLoading = false; return; }
-                    const firstEquity = data[0]?.equity || 0;
-                    const lastEquity = data[data.length - 1]?.equity || 0;
-                    const isPositive = lastEquity >= firstEquity;
-                    if (activeChart) { try { activeChart.remove(); } catch (e) {} }
-                    activeChart = null;
-                    const lineColor = isPositive ? '#4ade80' : '#f87171';
-                    const topColor = isPositive ? 'rgba(74,222,128,0.35)' : 'rgba(248,113,113,0.35)';
-                    const bottomColor = isPositive ? 'rgba(74,222,128,0)' : 'rgba(248,113,113,0)';
-                    const chartInstance = LightweightCharts.createChart(container, {
-                        layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#64748b' },
-                        grid: { vertLines: { color: 'rgba(30,45,61,0.6)' }, horzLines: { color: 'rgba(30,45,61,0.6)' } },
-                        rightPriceScale: { borderVisible: false },
-                        timeScale: { borderVisible: false, timeVisible: (this.chartPeriod === '1D' || this.chartPeriod === '1W'), fixLeftEdge: true, fixRightEdge: true },
-                        crosshair: { mode: 0 }
-                    });
-                    const areaSeries = chartInstance.addAreaSeries({ lineColor, topColor, bottomColor, lineWidth: 2 });
-                    const lwData = data.map(d => ({ time: Math.floor(new Date(d.timestamp).getTime() / 1000), value: d.equity }));
-                    lwData.sort((a,b) => a.time - b.time);
-                    areaSeries.setData(lwData);
-                    chartInstance.timeScale().fitContent();
-                    activeChart = chartInstance;
-                    this.chartLoading = false;
-                } catch (error) {
-                    console.error('Chart error:', error);
-                    this.chartLoading = false;
+
+                // When Alpaca is enabled, try portfolio history first
+                if (_alpacaEnabled) {
+                    const periodMap = {
+                        '1D': { period: '1D', timeframe: '5Min' },
+                        '1W': { period: '1W', timeframe: '1H' },
+                        '1M': { period: '1M', timeframe: '1D' },
+                        '3M': { period: '3M', timeframe: '1D' },
+                        'YTD': { period: 'YTD', timeframe: '1D' },
+                        '1A': { period: '1A', timeframe: '1D' }
+                    };
+                    const params = periodMap[this.chartPeriod] || periodMap['1D'];
+                    try {
+                        const response = await fetch(`/api/trading/history?period=${params.period}&timeframe=${params.timeframe}`);
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        const data = await response.json();
+                        if (data && data.length > 0) {
+                            this.hasChartData = true;
+                            this.lastUpdate = new Date().toLocaleTimeString();
+                            const lwData = data.map(d => ({ time: Math.floor(new Date(d.timestamp).getTime() / 1000), value: d.equity }));
+                            lwData.sort((a,b) => a.time - b.time);
+                            this._renderChart(lwData, this.chartPeriod === '1D' || this.chartPeriod === '1W');
+                            this.chartLoading = false;
+                            return;
+                        }
+                    } catch (e) { console.warn('Portfolio history unavailable, falling back to SPY', e); }
                 }
+
+                // Fallback: SPY benchmark chart
+                const spyPeriodMap = { '1D': '1d', '1W': '5d', '1M': '1mo', '3M': '3mo', 'YTD': 'ytd', '1A': '1y' };
+                const spyPeriod = spyPeriodMap[this.chartPeriod] || '1mo';
+                try {
+                    const r = await fetch(`/api/stock/SPY/chart?period=${spyPeriod}&interval=1d`)
+                        .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+                        .catch(e => { console.error('SPY fetch error:', e); return []; });
+                    const plot = (Array.isArray(r) ? r : [])
+                        .map(d => ({ time: (d.Date?.split('T')[0] || d.time || '').substring(0, 10), value: d.Close || d.value }))
+                        .filter(d => d.time && d.value);
+                    if (plot.length > 1) {
+                        this.hasChartData = true;
+                        this.lastUpdate = 'SPY Benchmark';
+                        this._renderChart(plot, false);
+                    } else {
+                        this.hasChartData = false;
+                    }
+                } catch (e) { this.hasChartData = false; }
+                this.chartLoading = false;
             },
 
-            setPeriod(period) {
-                this.chartPeriod = period;
-                this.loadChart();
-            }
+            _renderChart(lwData, timeVisible) {
+                const container = document.getElementById('portfolioChartContainer');
+                if (!container) return;
+                const first = lwData[0]?.value || 0;
+                const last = lwData[lwData.length - 1]?.value || 0;
+                const isPositive = last >= first;
+                if (activeChart) { try { activeChart.remove(); } catch (e) {} }
+                activeChart = null;
+                const lineColor = isPositive ? '#4ade80' : '#f87171';
+                const topColor = isPositive ? 'rgba(74,222,128,0.35)' : 'rgba(248,113,113,0.35)';
+                const bottomColor = isPositive ? 'rgba(74,222,128,0)' : 'rgba(248,113,113,0)';
+                const chartInstance = LightweightCharts.createChart(container, {
+                    layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#64748b' },
+                    grid: { vertLines: { color: 'rgba(30,45,61,0.6)' }, horzLines: { color: 'rgba(30,45,61,0.6)' } },
+                    rightPriceScale: { borderVisible: false },
+                    timeScale: { borderVisible: false, timeVisible, fixLeftEdge: true, fixRightEdge: true },
+                    crosshair: { mode: 0 }
+                });
+                const areaSeries = chartInstance.addAreaSeries({ lineColor, topColor, bottomColor, lineWidth: 2 });
+                areaSeries.setData(lwData);
+                chartInstance.timeScale().fitContent();
+                activeChart = chartInstance;
+            },
+
+            setPeriod(period) { this.chartPeriod = period; this.loadChart(); }
         }
     }
 </script>

@@ -41,10 +41,31 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
 
 # Cache
 .cache/
 .ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Build & distribution
+build/
+dist/
+*.egg-info/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Sentry & monitoring
+bandit-report.json
+
+# Pre-commit
+.pre-commit
 
 # Backups and Old Files
 backup*/
@@ -57,4 +78,4 @@ test_*.py
 check_*.py
 
 # Streamlit (old app - Flask is the main app now)
-pages/
+# pages/

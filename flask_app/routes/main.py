@@ -27,6 +27,17 @@ def login_required(f):
     return decorated_function
 
 
+def get_alpaca_enabled():
+    """Read alpaca_enabled flag from session (source of truth) or DB."""
+    from flask import session as _sess
+    if 'alpaca_enabled' in _sess:
+        return bool(_sess['alpaca_enabled'])
+    from utils import database as db
+    sim = db.get_simulation_settings(g.user.id) or {}
+    val = sim.get("alpaca_enabled", None)
+    return bool(val) if val is not None else True
+
+
 def get_config():
     """
     Get API config from current user (BYOK - Bring Your Own Keys).
@@ -38,14 +49,7 @@ def get_config():
 
     if g.user and g.user.is_authenticated:
         user_keys = db.get_user_api_keys(g.user.id, decrypt=True)
-        # Session is source of truth; fall back to DB, default True
-        from flask import session as _sess
-        if 'alpaca_enabled' in _sess:
-            alpaca_enabled = bool(_sess['alpaca_enabled'])
-        else:
-            sim = db.get_simulation_settings(g.user.id) or {}
-            val = sim.get("alpaca_enabled", None)
-            alpaca_enabled = bool(val) if val is not None else True
+        alpaca_enabled = get_alpaca_enabled()
         return {
             "FINNHUB_API_KEY": user_keys.get("FINNHUB_API_KEY", ""),
             "ALPACA_API_KEY": user_keys.get("ALPACA_API_KEY", "") if alpaca_enabled else "",
@@ -61,6 +65,52 @@ def get_config():
     }
 
 
+def get_shadow_portfolio(user_id, config):
+    """Compute shadow portfolio positions + metrics for display when Alpaca is disabled."""
+    from utils import database as db
+    try:
+        holdings = db.get_shadow_positions(user_id, is_active=True) or []
+        if not holdings:
+            return [], {}
+        stock_service = StockService(config)
+        positions = []
+        total_value, total_cost = 0.0, 0.0
+        for h in holdings:
+            ticker = h.get("ticker", "")
+            shares = float(h.get("shares") or 0)
+            avg_price = float(h.get("avg_price") or 0)
+            if not ticker or shares <= 0:
+                continue
+            try:
+                quote = stock_service.get_realtime_quote(ticker)
+                current_price = quote.get("current") or avg_price
+            except Exception:
+                current_price = avg_price
+            pos_value = current_price * shares
+            cost_basis = avg_price * shares
+            total_value += pos_value
+            total_cost += cost_basis
+            positions.append({
+                "ticker": ticker,
+                "shares": shares,
+                "avg_price": avg_price,
+                "current_price": current_price,
+                "market_value": pos_value,
+                "unrealized_pl": pos_value - cost_basis,
+                "unrealized_plpc": ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0,
+            })
+        total_pl = total_value - total_cost
+        metrics = {
+            "total_value": round(total_value, 2),
+            "total_cost": round(total_cost, 2),
+            "total_pl": round(total_pl, 2),
+            "total_plpc": round((total_pl / total_cost * 100) if total_cost > 0 else 0, 2),
+        }
+        return positions, metrics
+    except Exception:
+        return [], {}
+
+
 @main_bp.route("/health")
 @limiter.exempt
 def health():
@@ -72,14 +122,14 @@ def health():
 @login_required
 def index():
     """Command Center home page."""
-    return render_template("pages/command_center.html")
+    return render_template("pages/command_center.html", alpaca_enabled=get_alpaca_enabled())
 
 
 @main_bp.route("/command-center")
 @login_required
 def command_center():
     """Alias for index."""
-    return render_template("pages/command_center.html")
+    return render_template("pages/command_center.html", alpaca_enabled=get_alpaca_enabled())
 
 
 @main_bp.route("/analysis")
@@ -121,6 +171,7 @@ def analysis(ticker="NVDA"):
         stock_data=stock_data,
         oracle=oracle_result,
         watchlists=WATCHLISTS,
+        alpaca_enabled=get_alpaca_enabled(),
     )
 
 
@@ -145,6 +196,7 @@ def scanner():
         selected_watchlist=watchlist_name,
         tickers=tickers,
         results=results,
+        alpaca_enabled=get_alpaca_enabled(),
     )
 
 
@@ -155,15 +207,22 @@ def portfolio():
     config = get_config()
     trading_service = TradingService(config)
     portfolio_service = PortfolioService(g.user.id)
+    alpaca_enabled = get_alpaca_enabled()
+    is_connected = trading_service.is_connected()
 
-    # Get Alpaca data if connected
+    # Alpaca data (only when connected)
     account = None
     alpaca_positions = []
-    if trading_service.is_connected():
+    if is_connected:
         account = trading_service.get_account()
         alpaca_positions = trading_service.get_positions()
 
-    # Get local data
+    # Shadow portfolio — always load; used as primary when Alpaca disabled
+    shadow_positions, shadow_metrics = get_shadow_portfolio(g.user.id, config)
+
+    # Positions to display: prefer Alpaca when connected, shadow otherwise
+    display_positions = alpaca_positions if is_connected else shadow_positions
+
     trades = portfolio_service.get_trade_history(limit=50)
     metrics = portfolio_service.get_performance_metrics()
     history = portfolio_service.get_account_history(limit=30)
@@ -171,11 +230,13 @@ def portfolio():
     return render_template(
         "pages/portfolio.html",
         account=account,
-        positions=alpaca_positions,
+        positions=display_positions,
+        shadow_metrics=shadow_metrics,
         trades=trades,
         metrics=metrics,
         history=history,
-        is_connected=trading_service.is_connected(),
+        is_connected=is_connected,
+        alpaca_enabled=alpaca_enabled,
     )
 
 
@@ -210,6 +271,7 @@ def trade(ticker="NVDA"):
         position=position,
         orders=orders,
         is_connected=trading_service.is_connected(),
+        alpaca_enabled=get_alpaca_enabled(),
     )
 
 
@@ -217,7 +279,7 @@ def trade(ticker="NVDA"):
 @login_required
 def ai_guidance():
     """AI Guidance page with Oracle scanning. Quantitative factors load first."""
-    return render_template("pages/ai_guidance.html")
+    return render_template("pages/ai_guidance.html", alpaca_enabled=get_alpaca_enabled())
 
 
 @main_bp.route("/watchlist")
@@ -574,3 +636,28 @@ def export_data():
 
     except Exception as e:
         return jsonify({"error": f"Export failed: {str(e)}"}), 500
+
+
+@main_bp.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for monitoring and deployment verification."""
+    from datetime import datetime
+    from utils import database as db
+
+    try:
+        # Check database connection
+        db.conn  # Access connection object to verify it exists
+
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'version': '2.1.0'
+        }), 200
+    except Exception as e:
+        import logging
+        logging.error(f"Health check failed: {e}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 503

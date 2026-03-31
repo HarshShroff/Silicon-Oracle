@@ -20,12 +20,25 @@
                     <span class="w-1.5 h-1.5 rounded-full bg-gain animate-pulse"></span>
                 </div>
                 <div class="flex flex-col md:flex-row md:items-baseline gap-6 mb-10">
-                    <h1 class="text-6xl font-black tracking-tighter" x-text="formatCurrency(portfolioValue)">$0.00</h1>
-                    <div class="flex items-center gap-3 text-lg font-black" :class="(portfolioTrend || 0) >= 0 ? 'text-gain rh-green-glow' : 'text-loss rh-red-glow'">
-                        <span x-text="((portfolioTrend || 0) >= 0 ? '+' : '-') + formatCurrency(Math.abs(portfolioChange))"></span>
-                        <span x-text="'(' + (portfolioTrend || 0).toFixed(2) + '%)'"></span>
-                        <span class="text-text-4 font-bold ml-2 uppercase text-[10px] tracking-widest">Total Performance</span>
-                    </div>
+                    <template x-if="portfolioHasData">
+                        <div class="flex flex-col md:flex-row md:items-baseline gap-6">
+                            <h1 class="text-6xl font-black tracking-tighter" x-text="formatCurrency(portfolioValue)"></h1>
+                            <div class="flex items-center gap-3 text-lg font-black" :class="(portfolioTrend || 0) >= 0 ? 'text-gain rh-green-glow' : 'text-loss rh-red-glow'">
+                                <span x-text="((portfolioTrend || 0) >= 0 ? '+' : '') + formatCurrency(portfolioChange * Math.sign(portfolioTrend || 1))"></span>
+                                <span x-text="'(' + (portfolioTrend || 0).toFixed(2) + '%)'"></span>
+                                <span class="text-text-4 font-bold ml-2 uppercase text-[10px] tracking-widest">Total Performance</span>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!portfolioHasData">
+                        <div class="flex flex-col gap-3">
+                            <h1 class="text-6xl font-black tracking-tighter text-text-4">—</h1>
+                            <div class="flex items-center gap-4">
+                                <span class="text-text-4 text-sm font-bold uppercase tracking-widest">No positions tracked</span>
+                                <a href="/portfolio" class="text-[11px] font-black uppercase tracking-widest text-gain rh-green-glow border border-gain/30 px-4 py-1.5 rounded-full hover:bg-gain/10 transition-all">Add Holdings →</a>
+                            </div>
+                        </div>
+                    </template>
                 </div>
 
                 <!-- Central Performance Curve -->
@@ -46,8 +59,8 @@
                 </div>
             </div>
 
-            <!-- Buying Power Overview -->
-            <div @click="window.location.href='/portfolio'" 
+            <!-- Deployed Capital (hidden when no portfolio data) -->
+            <div x-show="portfolioHasData" @click="window.location.href='/portfolio'"
                  class="group py-8 px-10 border border-[#18181A] rounded-2xl mb-16 cursor-pointer bg-black hover:bg-gain/5 transition-all flex items-center justify-between shadow-2xl relative overflow-hidden">
                 <div class="absolute inset-0 bg-gain/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <div class="flex items-center gap-6 relative z-10">
@@ -216,13 +229,15 @@
 </div>
 
 <script>
+const _alpacaEnabled = {{ alpaca_enabled | tojson }};
+
 function dashboard() {
     return {
         portfolioValue: 0,
         portfolioChange: 0,
         portfolioTrend: 0,
         buyingPower: 0,
-        alpacaConnected: false,
+        portfolioHasData: false,
         chartLoading: true,
         chartPeriod: '1M',
         wl: { loading: true, rows: [] },
@@ -245,6 +260,7 @@ function dashboard() {
 
         initChart() {
             const container = document.getElementById('mainCurve');
+            if (!container) { console.error('Chart container not found'); return; }
             this.chart = LightweightCharts.createChart(container, {
                 layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#71717A', fontSize: 11, fontFamily: 'Inter' },
                 grid: { vertLines: { visible: false }, horzLines: { color: '#0A0A0A' } },
@@ -265,62 +281,59 @@ function dashboard() {
         // ── ACCOUNT: shadow portfolio only ───────────────────────────────────
         async loadAccount() {
             try {
-                const sv = await fetch('/api/portfolio/shadow-value').then(r => r.json());
-                if (sv && !sv.error) {
-                    this.portfolioValue  = sv.total_value  || 0;
-                    this.portfolioChange = Math.abs(sv.total_pl  || 0);
-                    this.portfolioTrend  = sv.total_plpc   || 0;
-                    // Shadow portfolio has no cash tracking — show cost basis as deployed capital
-                    this.buyingPower     = sv.total_cost || 0;
+                const sv = await fetch('/api/portfolio/shadow-value')
+                    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+                    .catch(e => { console.error('Shadow value fetch error', e); return null; });
+                if (sv && !sv.error && (sv.total_value > 0 || sv.positions > 0)) {
+                    this.portfolioValue    = sv.total_value  || 0;
+                    this.portfolioChange   = Math.abs(sv.total_pl  || 0);
+                    this.portfolioTrend    = sv.total_plpc   || 0;
+                    this.buyingPower       = sv.total_cost   || 0;
+                    this.portfolioHasData  = true;
                 }
             } catch(e) { console.error('Account load error', e); }
         },
 
-        // ── CHART: try Alpaca portfolio history → fallback SPY ───────────────
+        // ── CHART: SPY benchmark (Alpaca history only if enabled+connected) ──
         async loadTrendData(period) {
             this.chartPeriod = period;
             this.chartLoading = true;
             let plot = [];
 
-            // Alpaca portfolio history when connected
-            if (this.alpacaConnected) {
+            // Try Alpaca portfolio history only when explicitly enabled
+            if (_alpacaEnabled) {
                 try {
                     const alpacaPeriod = { '1Y': '1A', 'ALL': 'all' }[period] || period;
                     const tf = period === '1D' ? '5Min' : '1D';
-                    const hist = await fetch(`/api/trading/history?period=${alpacaPeriod}&timeframe=${tf}`).then(r => r.json());
+                    const hist = await fetch(`/api/trading/history?period=${alpacaPeriod}&timeframe=${tf}`)
+                        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+                        .catch(e => { console.error('History fetch error', e); return []; });
                     if (Array.isArray(hist) && hist.length > 1) {
-                        if (period === '1D') {
-                            // Intraday: use unix timestamps
-                            plot = hist
-                                .map(d => ({ time: Math.floor(new Date(d.timestamp).getTime() / 1000), value: d.equity }))
-                                .filter(d => d.value > 0 && !isNaN(d.time));
-                        } else {
-                            plot = hist
-                                .map(d => ({ time: new Date(d.timestamp).toISOString().substring(0, 10), value: d.equity }))
-                                .filter(d => d.time && d.value > 0);
-                        }
+                        plot = hist
+                            .map(d => ({ time: Math.floor(new Date(d.timestamp).getTime() / 1000), value: d.equity }))
+                            .filter(d => d.value > 0 && !isNaN(d.time));
                     }
-                } catch(e) { /* fall through to SPY */ }
+                } catch(e) { /* fall through */ }
             }
 
             // SPY benchmark fallback
             if (plot.length <= 1) {
                 try {
-                    const r = await fetch(`/api/stock/SPY/chart?period=${period}&interval=1d`).then(res => res.json());
+                    const spyMap = { '1D': '1d', '1W': '5d', '1M': '1mo', '3M': '3mo', '1Y': '1y', 'ALL': '5y' };
+                    const r = await fetch(`/api/stock/SPY/chart?period=${spyMap[period] || '1mo'}&interval=1d`)
+                        .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+                        .catch(e => { console.error('SPY chart fetch error', e); return []; });
                     plot = (Array.isArray(r) ? r : [])
-                        .map(d => ({
-                            time: (d.Date?.split('T')[0] || d.time || '').substring(0, 10),
-                            value: d.Close || d.value
-                        }))
+                        .map(d => ({ time: (d.Date?.split('T')[0] || d.time || '').substring(0, 10), value: d.Close || d.value }))
                         .filter(d => d.time && d.value);
                 } catch(e) { console.error('SPY chart error', e); }
             }
 
             try {
-                if (plot.length > 1) {
+                if (plot.length > 1 && this.chart && this.mainSeries) {
                     this.mainSeries.setData(plot);
                     this.chart.timeScale().fitContent();
-                    const isUp = plot[plot.length - 1].value >= plot[0].value;
+                    const isUp = plot && plot.length > 0 && plot[plot.length - 1].value >= plot[0].value;
                     const color = isUp ? '#00C805' : '#FF5000';
                     this.mainSeries.applyOptions({
                         lineColor: color,
@@ -334,18 +347,15 @@ function dashboard() {
 
         setPeriod(p) { this.loadTrendData(p); },
 
-        // ── NEXUS MONITOR: Alpaca positions → scanner watchlist → defaults ────
+        // ── NEXUS MONITOR: shadow positions → Alpaca positions → watchlist → defaults ──
         async loadWatchlist() {
             this.wl.loading = true;
             try {
-                let tickers = [];
-
-                // 1) Try live Alpaca positions
+                // 1) Shadow portfolio positions (always first — source of truth)
                 try {
-                    const positions = await fetch('/api/trading/positions').then(r => r.json());
-                    if (Array.isArray(positions) && positions.length > 0) {
-                        const sorted = [...positions].sort((a, b) => (b.market_value || 0) - (a.market_value || 0));
-                        // Build rows directly from position data
+                    const sv = await fetch('/api/portfolio/shadow-value').then(r => r.json());
+                    if (sv && !sv.error && sv.positions_list?.length > 0) {
+                        const sorted = [...sv.positions_list].sort((a, b) => (b.value || 0) - (a.value || 0));
                         this.wl.rows = sorted.slice(0, 6).map(p => ({
                             ticker: p.ticker,
                             name:   p.ticker,
@@ -353,15 +363,13 @@ function dashboard() {
                             change: p.unrealized_plpc,
                             score:  0
                         }));
-                        // Enrich with oracle names/scores in background
+                        // Async oracle enrichment for names
                         sorted.slice(0, 6).forEach(async (p, i) => {
                             try {
                                 const or = await fetch(`/api/oracle/${p.ticker}`).then(r => r.json());
-                                if (or && !or.error) {
-                                    if (this.wl.rows[i]) {
-                                        this.wl.rows[i].name  = or.company_name || p.ticker;
-                                        this.wl.rows[i].score = or.score || 0;
-                                    }
+                                if (or && !or.error && this.wl.rows[i]) {
+                                    this.wl.rows[i].name  = or.company_name || p.ticker;
+                                    this.wl.rows[i].score = or.score || 0;
                                 }
                             } catch(e) {}
                         });
@@ -370,14 +378,43 @@ function dashboard() {
                     }
                 } catch(e) {}
 
-                // 2) Try first scanner watchlist
+                // 2) Alpaca positions (only if Alpaca is enabled)
+                if (_alpacaEnabled) {
+                    try {
+                        const positions = await fetch('/api/trading/positions').then(r => r.json());
+                        if (Array.isArray(positions) && positions.length > 0) {
+                            const sorted = [...positions].sort((a, b) => (b.market_value || 0) - (a.market_value || 0));
+                            this.wl.rows = sorted.slice(0, 6).map(p => ({
+                                ticker: p.ticker,
+                                name:   p.ticker,
+                                price:  p.current_price,
+                                change: p.unrealized_plpc,
+                                score:  0
+                            }));
+                            sorted.slice(0, 6).forEach(async (p, i) => {
+                                try {
+                                    const or = await fetch(`/api/oracle/${p.ticker}`).then(r => r.json());
+                                    if (or && !or.error && this.wl.rows[i]) {
+                                        this.wl.rows[i].name  = or.company_name || p.ticker;
+                                        this.wl.rows[i].score = or.score || 0;
+                                    }
+                                } catch(e) {}
+                            });
+                            if (this.wl.rows.length > 0) this.syncSpotlight(this.wl.rows[0].ticker);
+                            return;
+                        }
+                    } catch(e) {}
+                }
+
+                // 3) First scanner watchlist tickers
+                let tickers = [];
                 try {
                     const lists = await fetch('/api/scanner/watchlists').then(r => r.json());
                     const first = Array.isArray(lists) && lists.find(l => l.tickers?.length > 0);
                     if (first) tickers = first.tickers.slice(0, 6);
                 } catch(e) {}
 
-                // 3) Market defaults
+                // 4) Market defaults
                 if (tickers.length === 0) tickers = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'META', 'AMD'];
 
                 const rows = await Promise.all(tickers.map(async t => {

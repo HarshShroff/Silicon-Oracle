@@ -1,0 +1,29 @@
+# This file identifies code owners for this repository.
+# Code owners are automatically requested for review when someone opens a pull request that modifies their assigned code.
+
+# Default owner
+* @harshshroff
+
+# Core application logic
+flask_app/routes/ @harshshroff
+flask_app/services/ @harshshroff
+flask_app/models/ @harshshroff
+
+# Frontend templates
+flask_app/templates/ @harshshroff
+
+# Database and configuration
+flask_app/config.py @harshshroff
+flask_app/models.py @harshshroff
+
+# Documentation
+docs/ @harshshroff
+*.md @harshshroff
+CHANGELOG.md @harshshroff
+CONTRIBUTING.md @harshshroff
+
+# CI/CD and project configuration
+.github/ @harshshroff
+pyproject.toml @harshshroff
+requirements.txt @harshshroff
+.env.example @harshshroff

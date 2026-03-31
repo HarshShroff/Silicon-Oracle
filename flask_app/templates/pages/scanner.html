@@ -359,6 +359,8 @@
 
 {% block extra_scripts %}
 <script>
+const _alpacaEnabled = {{ alpaca_enabled | tojson }};
+
 function scanWatchPage() {
   return {
     // Tab
@@ -414,7 +416,7 @@ function scanWatchPage() {
 
       // Watchlist init
       this.loadLocalWatchlists();
-      this.loadAlpacaWatchlists();
+      if (_alpacaEnabled) this.loadAlpacaWatchlists();
     },
 
     setTab(tab) {
@@ -453,8 +455,8 @@ function scanWatchPage() {
           this.progressPercent = Math.round(((i + 1) / total) * 100);
           try {
             const [oracle, quote] = await Promise.all([
-              fetch(`/api/oracle/${ticker}`).then(r => r.json()),
-              fetch(`/api/stock/${ticker}/quote`).then(r => r.json()),
+              fetch(`/api/oracle/${ticker}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => { console.error(`Oracle error for ${ticker}:`, e); return null; }),
+              fetch(`/api/stock/${ticker}/quote`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => { console.error(`Quote error for ${ticker}:`, e); return null; }),
             ]);
             if (oracle && oracle.score !== undefined) {
               this.scanResults.push({
@@ -481,11 +483,12 @@ function scanWatchPage() {
       result.interpretationLoading = true;
       try {
         const r = await fetch(`/api/oracle/ai-interpretation/${result.ticker}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const d = await r.json();
-        if (d.locked) { result.interpretationLocked = true; }
-        else if (d.interpretation) { result.aiInterpretation = d.interpretation; }
+        if (d && d.locked) { result.interpretationLocked = true; }
+        else if (d && d.interpretation) { result.aiInterpretation = d.interpretation; }
         else { result.aiInterpretation = 'AI analysis unavailable.'; }
-      } catch (e) { result.aiInterpretation = 'Failed to load.'; }
+      } catch (e) { console.error('AI interpretation error:', e); result.aiInterpretation = 'Failed to load.'; }
       finally { result.interpretationLoading = false; }
     },
 
@@ -638,6 +641,7 @@ function scanWatchPage() {
     },
 
     async syncWithAlpaca(list) {
+      if (!_alpacaEnabled) { alert('Enable Alpaca in Settings to sync watchlists.'); return; }
       if (this.syncing) return;
       this.syncing = true;
       try {
@@ -695,5 +699,4 @@ function scanWatchPage() {
   };
 }
 </script>
-{% endblock %}
 {% endblock %}
