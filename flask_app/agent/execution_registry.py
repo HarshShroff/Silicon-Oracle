@@ -98,11 +98,9 @@ def _create_stock_quote_handler() -> Callable[[dict[str, Any], ToolContext], Any
             return {"error": "ticker required"}
 
         try:
-            from flask_app.config import get_config
             from flask_app.services import StockService
 
-            config = get_config()
-            stock_service = StockService(config)
+            stock_service = StockService()
             quote = stock_service.get_realtime_quote(ticker)
             if quote:
                 return {
@@ -133,7 +131,7 @@ def _create_portfolio_value_handler() -> Callable[[dict[str, Any], ToolContext],
                 ticker = trade.get("ticker")
                 if ticker:
                     if ticker not in holdings:
-                        holdings[ticker] = {"shares": 0, "avg_price": 0}
+                        holdings[ticker] = {"shares": 0.0, "avg_price": 0.0}
                     side = trade.get("side", "").lower()
                     qty = float(trade.get("quantity", 0))
                     if side == "buy":
@@ -157,35 +155,18 @@ def _create_search_ticker_handler() -> Callable[[dict[str, Any], ToolContext], A
         try:
             import yfinance as yf
 
-            from flask_app.config import get_config
-            from flask_app.services import StockService
-
-            config = get_config()
-            stock_service = StockService(config)
             results = []
-
             upper = query.upper().replace(" ", "-")
             if len(upper) <= 5 and upper.isalpha():
                 try:
                     info = yf.Ticker(upper).fast_info
-                    price = getattr(info, "last_price") or getattr(info, "regularMarketPrice")
+                    price = getattr(info, "last_price", None) or getattr(
+                        info, "regularMarketPrice", None
+                    )
                     if price:
                         results.append({"ticker": upper, "price": round(float(price), 2)})
                 except Exception:
                     pass
-
-            if len(results) < 3:
-                search_results = stock_service.search_ticker(query)
-                if search_results:
-                    for r in search_results[:5]:
-                        if not any(x.get("ticker") == r.get("symbol") for x in results):
-                            results.append(
-                                {
-                                    "ticker": r.get("symbol"),
-                                    "name": r.get("description"),
-                                    "type": r.get("type"),
-                                }
-                            )
 
             return {"results": results[:8]}
         except Exception as e:
@@ -201,22 +182,20 @@ def _create_oracle_analysis_handler() -> Callable[[dict[str, Any], ToolContext],
             return {"error": "ticker required"}
 
         try:
-            from flask_app.config import get_config
             from flask_app.services import OracleService, StockService
 
-            config = get_config()
-            stock_service = StockService(config)
-            oracle_service = OracleService(config)
+            stock_service = StockService()
+            oracle_service = OracleService()
 
             quote = stock_service.get_realtime_quote(ticker)
-            analysis = oracle_service.analyze(ticker)
+            analysis = oracle_service.calculate_oracle_score(ticker)
 
             return {
                 "ticker": ticker,
                 "price": quote.get("current") if quote else 0,
-                "score": analysis.get("oracle_score", {}).get("score", 0),
+                "score": analysis.get("confidence", 0),
                 "verdict": analysis.get("verdict", "HOLD"),
-                "signals": analysis.get("signals", {}),
+                "factors": analysis.get("factors", []),
             }
         except Exception as e:
             return {"error": str(e)}
@@ -231,12 +210,9 @@ def _create_news_fetch_handler() -> Callable[[dict[str, Any], ToolContext], Any]
             return {"error": "ticker required"}
 
         try:
-            from flask_app.config import get_config
             from flask_app.services import StockService
 
-            config = get_config()
-            stock_service = StockService(config)
-
+            stock_service = StockService()
             news = stock_service.get_news(ticker)
             return {"ticker": ticker, "news": news[:5] if news else []}
         except Exception as e:
@@ -254,8 +230,11 @@ def _create_watchlist_get_handler() -> Callable[[dict[str, Any], ToolContext], A
             from flask_app.services.scanner_service import WATCHLISTS
             from utils import database as db
 
-            user_watchlists = db.get_user_watchlists(context.user_id)
-            all_watchlists = {**user_watchlists, **WATCHLISTS}
+            user_watchlists_list = db.get_user_watchlists(context.user_id)
+            user_watchlists_dict = {
+                row.get("name", ""): row.get("tickers", []) for row in user_watchlists_list
+            }
+            all_watchlists = {**user_watchlists_dict, **WATCHLISTS}
 
             return {"watchlists": all_watchlists}
         except Exception as e:
@@ -264,7 +243,10 @@ def _create_watchlist_get_handler() -> Callable[[dict[str, Any], ToolContext], A
     return handler
 
 
-def build_execution_registry() -> ExecutionRegistry:
+def build_execution_registry(
+    extra_tools: tuple[AgentTool, ...] = (),
+    extra_commands: tuple[AgentCommand, ...] = (),
+) -> ExecutionRegistry:
     """Build execution registry with real service handlers."""
     tools: tuple[AgentTool, ...] = (
         AgentTool(
@@ -337,7 +319,7 @@ def build_execution_registry() -> ExecutionRegistry:
         ),
     )
 
-    return ExecutionRegistry(tools=tools, commands=commands)
+    return ExecutionRegistry(tools=tools + extra_tools, commands=commands + extra_commands)
 
 
 DEFAULT_TOOLS: tuple[AgentTool, ...] = ()

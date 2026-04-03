@@ -4,11 +4,11 @@ Supports both Supabase (production) and SQLite (local development).
 Compatible with both Flask and Streamlit environments.
 """
 
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 import json
-import os
 import logging
+import os
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +36,12 @@ def get_supabase_client():
     _supabase_initialized = True
 
     try:
-        from supabase import create_client, Client
+        from supabase import create_client
 
         # run_flask.py already maps streamlit secrets → env vars at startup,
         # so env vars are the single source of truth here.
         url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get(
-            "SUPABASE_ANON_KEY")
+        key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
 
         if url and key:
             _supabase_client = create_client(url, key)
@@ -79,25 +78,32 @@ def run_migrations():
         cur = conn.cursor()
 
         # simulation_settings: trading_style (added for Trading Profile feature)
-        cur.execute("""
+        cur.execute(
+            """
             ALTER TABLE simulation_settings
             ADD COLUMN IF NOT EXISTS trading_style text DEFAULT 'swing_trading';
-        """)
+        """
+        )
 
         # simulation_settings: market_intel_frequency (hourly/daily/weekly)
-        cur.execute("""
+        cur.execute(
+            """
             ALTER TABLE simulation_settings
             ADD COLUMN IF NOT EXISTS market_intel_frequency text DEFAULT 'hourly';
-        """)
+        """
+        )
 
         # simulation_settings: alpaca_enabled (user can disable Alpaca paper trading)
-        cur.execute("""
+        cur.execute(
+            """
             ALTER TABLE simulation_settings
             ADD COLUMN IF NOT EXISTS alpaca_enabled boolean DEFAULT true;
-        """)
+        """
+        )
 
         # market_intelligence_reports: AI memory table (stores per-user reports)
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS public.market_intelligence_reports (
                 id SERIAL PRIMARY KEY,
                 user_id uuid NOT NULL REFERENCES public.user_profiles(id),
@@ -108,12 +114,15 @@ def run_migrations():
                 market_summary text,
                 full_report jsonb
             );
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_market_intelligence_user_timestamp
                 ON public.market_intelligence_reports(user_id, timestamp DESC);
-        """)
+        """
+        )
 
         cur.close()
         conn.close()
@@ -135,15 +144,14 @@ def get_user_profile(user_id: str) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        logger.info(f"[DEBUG] Querying user_profiles for user_id: {user_id} (type: {type(user_id)})")
-        response = (
-            client.table("user_profiles")
-            .select("*")
-            .eq("id", user_id)
-            .execute()
+        logger.info(
+            f"[DEBUG] Querying user_profiles for user_id: {user_id} (type: {type(user_id)})"
         )
+        response = client.table("user_profiles").select("*").eq("id", user_id).execute()
         logger.info(f"[DEBUG] Supabase response.data: {response.data}")
-        logger.info(f"[DEBUG] Response count: {response.count if hasattr(response, 'count') else 'N/A'}")
+        logger.info(
+            f"[DEBUG] Response count: {response.count if hasattr(response, 'count') else 'N/A'}"
+        )
 
         # Don't use .single() — it throws PGRST116 on 0 rows instead of returning None
         result = response.data[0] if response.data else None
@@ -162,18 +170,13 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        response = (
-            client.table("user_profiles")
-            .select("*")
-            .eq("email", email)
-            .execute()
-        )
+        response = client.table("user_profiles").select("*").eq("email", email).execute()
         return response.data[0] if response.data else None
     except Exception:
         return None
 
 
-def create_user_profile(user_id: str, email: str, username: str = None) -> bool:
+def create_user_profile(user_id: str, email: str, username: Optional[str] = None) -> bool:
     """Create a new user profile after signup."""
     client = get_supabase_client()
     if not client:
@@ -254,6 +257,7 @@ def get_user_api_keys(user_id: str, decrypt: bool = True) -> Dict[str, str]:
     if decrypt:
         try:
             from utils.encryption import decrypt_value
+
             decrypted_keys = {}
 
             # Map database field names to service key names
@@ -268,8 +272,7 @@ def get_user_api_keys(user_id: str, decrypt: bool = True) -> Dict[str, str]:
             for key, value in keys.items():
                 if key.endswith("_encrypted") and value:
                     # Decrypt and return with uppercase key name for services
-                    service_key = key_mapping.get(
-                        key, key.replace("_encrypted", "").upper())
+                    service_key = key_mapping.get(key, key.replace("_encrypted", "").upper())
                     decrypted_keys[service_key] = decrypt_value(value)
                 elif key == "gmail_address":
                     decrypted_keys["GMAIL_ADDRESS"] = value
@@ -294,10 +297,7 @@ def get_user_positions(user_id: str) -> List[Dict[str, Any]]:
         return []
 
     try:
-        response = (
-            client.table("positions").select(
-                "*").eq("user_id", user_id).execute()
-        )
+        response = client.table("positions").select("*").eq("user_id", user_id).execute()
         return response.data or []
     except Exception:
         return []
@@ -355,9 +355,7 @@ def delete_position(user_id: str, ticker: str) -> bool:
         return False
 
     try:
-        client.table("positions").delete().eq("user_id", user_id).eq(
-            "ticker", ticker
-        ).execute()
+        client.table("positions").delete().eq("user_id", user_id).eq("ticker", ticker).execute()
         return True
     except Exception:
         return False
@@ -494,8 +492,7 @@ def add_shadow_position(user_id: str, data: Dict[str, Any]) -> bool:
         if "updated_at" not in data:
             data["updated_at"] = datetime.now().isoformat()
 
-        logger.info(
-            f"Adding shadow position for user {user_id}: {data.get('ticker')}")
+        logger.info(f"Adding shadow position for user {user_id}: {data.get('ticker')}")
         result = client.table("shadow_positions").insert(data).execute()
         logger.info(f"Position added successfully: {result.data}")
         return True
@@ -504,9 +501,7 @@ def add_shadow_position(user_id: str, data: Dict[str, Any]) -> bool:
         return False
 
 
-def update_shadow_position(
-    position_id: int, user_id: str, data: Dict[str, Any]
-) -> bool:
+def update_shadow_position(position_id: int, user_id: str, data: Dict[str, Any]) -> bool:
     """Update a shadow position."""
     client = get_supabase_client()
     if not client:
@@ -547,9 +542,7 @@ def record_trade(user_id: str, trade_data: Dict[str, Any]) -> bool:
 
     try:
         trade_data["user_id"] = user_id
-        trade_data["timestamp"] = trade_data.get(
-            "timestamp", datetime.now().isoformat()
-        )
+        trade_data["timestamp"] = trade_data.get("timestamp", datetime.now().isoformat())
         client.table("trades").insert(trade_data).execute()
         return True
     except Exception as e:
@@ -571,12 +564,7 @@ def get_simulation_settings(user_id: str) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        response = (
-            client.table("simulation_settings")
-            .select("*")
-            .eq("user_id", user_id)
-            .execute()
-        )
+        response = client.table("simulation_settings").select("*").eq("user_id", user_id).execute()
         return response.data[0] if response.data else None
     except Exception:
         return None
@@ -592,9 +580,7 @@ def update_simulation_settings(user_id: str, settings: Dict[str, Any]) -> bool:
         settings["user_id"] = user_id
         settings["updated_at"] = datetime.now().isoformat()
 
-        client.table("simulation_settings").upsert(
-            settings, on_conflict="user_id"
-        ).execute()
+        client.table("simulation_settings").upsert(settings, on_conflict="user_id").execute()
         return True
     except Exception as e:
         logger.error(f"Error updating simulation settings: {e}")
@@ -612,7 +598,7 @@ def get_notification_preferences(user_id: str) -> Dict[str, Any]:
             "news_alerts": True,
             "daily_digest": True,
             "alert_threshold_percent": 5.0,
-            "digest_time": "08:00"
+            "digest_time": "08:00",
         }
 
     return {
@@ -621,7 +607,7 @@ def get_notification_preferences(user_id: str) -> Dict[str, Any]:
         "news_alerts": settings.get("news_alerts", True),
         "daily_digest": settings.get("daily_digest", True),
         "alert_threshold_percent": settings.get("alert_threshold_percent", 5.0),
-        "digest_time": settings.get("digest_time", "08:00")
+        "digest_time": settings.get("digest_time", "08:00"),
     }
 
 
@@ -637,10 +623,7 @@ def get_user_watchlists(user_id: str) -> List[Dict[str, Any]]:
         return []
 
     try:
-        response = (
-            client.table("watchlists").select(
-                "*").eq("user_id", user_id).execute()
-        )
+        response = client.table("watchlists").select("*").eq("user_id", user_id).execute()
         return response.data or []
     except Exception:
         return []
@@ -693,9 +676,7 @@ def delete_watchlist(watchlist_id: int, user_id: str) -> bool:
         return False
 
     try:
-        client.table("watchlists").delete().eq("id", watchlist_id).eq(
-            "user_id", user_id
-        ).execute()
+        client.table("watchlists").delete().eq("id", watchlist_id).eq("user_id", user_id).execute()
         return True
     except Exception:
         return False
@@ -721,9 +702,7 @@ def save_scan_results(user_id: str, results: List[Dict[str, Any]]) -> bool:
             if "factors" in result and isinstance(result["factors"], dict):
                 result["factors"] = json.dumps(result["factors"])
 
-        client.table("ai_scan_results").upsert(
-            results, on_conflict="user_id,ticker"
-        ).execute()
+        client.table("ai_scan_results").upsert(results, on_conflict="user_id,ticker").execute()
         return True
     except Exception as e:
         logger.error(f"Error saving scan results: {e}")
@@ -765,34 +744,31 @@ def get_scan_results(user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
 # ============================================
 
 
-def save_market_intelligence_report(
-    user_id: str,
-    report_data: Dict[str, Any]
-) -> bool:
+def save_market_intelligence_report(user_id: str, report_data: Dict[str, Any]) -> bool:
     """Save a market intelligence report for AI memory."""
     client = get_supabase_client()
     if not client:
         return False
 
     try:
-        client.table("market_intelligence_reports").insert({
-            "user_id": user_id,
-            "timestamp": datetime.now().isoformat(),
-            "sentiment_score": report_data.get("sentiment_score"),
-            "top_catalyst": report_data.get("top_catalyst"),
-            "recommendations": json.dumps(report_data.get("recommendations", [])),
-            "market_summary": report_data.get("market_summary"),
-            "full_report": json.dumps(report_data)
-        }).execute()
+        client.table("market_intelligence_reports").insert(
+            {
+                "user_id": user_id,
+                "timestamp": datetime.now().isoformat(),
+                "sentiment_score": report_data.get("sentiment_score"),
+                "top_catalyst": report_data.get("top_catalyst"),
+                "recommendations": json.dumps(report_data.get("recommendations", [])),
+                "market_summary": report_data.get("market_summary"),
+                "full_report": json.dumps(report_data),
+            }
+        ).execute()
         return True
     except Exception as e:
         logger.error(f"Error saving market intelligence report: {e}")
         return False
 
 
-def get_latest_market_intelligence_report(
-    user_id: str
-) -> Optional[Dict[str, Any]]:
+def get_latest_market_intelligence_report(user_id: str) -> Optional[Dict[str, Any]]:
     """Get the most recent market intelligence report for context."""
     client = get_supabase_client()
     if not client:

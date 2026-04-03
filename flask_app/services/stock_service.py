@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class StockService:
     """Service for fetching and processing stock data."""
 
-    def __init__(self, config: Dict[str, str] = None):
+    def __init__(self, config: Optional[Dict[str, str]] = None):
         self.config = config or {}
         self._finnhub_client = None
         self._init_clients()
@@ -60,7 +60,7 @@ class StockService:
 
         return self._get_yfinance_quote(ticker)
 
-    def _get_yfinance_quote(self, ticker: str) -> Optional[Dict[str, float]]:
+    def _get_yfinance_quote(self, ticker: str) -> Optional[Dict[str, Any]]:
         """Fallback to yfinance for quote data."""
         try:
             import yfinance as yf
@@ -396,7 +396,7 @@ class StockService:
             "news": lambda: self.get_news(ticker),
         }
 
-        results = {"ticker": ticker, "timestamp": datetime.now().isoformat()}
+        results: Dict[str, Any] = {"ticker": ticker, "timestamp": datetime.now().isoformat()}
 
         # Execute in parallel
         with ThreadPoolExecutor(max_workers=10) as executor:

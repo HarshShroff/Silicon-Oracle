@@ -56,8 +56,8 @@ def create_secure_permission_context(
     allow_notifications: bool = True,
     allow_market_data: bool = True,
 ) -> ToolPermissionContext:
-    deny_names = []
-    deny_prefixes = []
+    deny_names: list[str] = []
+    deny_prefixes: tuple[str, ...] = ()
 
     if not allow_database:
         deny_prefixes = (*deny_prefixes, "db_", "database_", "sql_")
@@ -71,7 +71,7 @@ def create_secure_permission_context(
     if not allow_market_data:
         deny_prefixes = (*deny_prefixes, "quote_", "stock_", "market_")
 
-    return ToolPermissionContext.from_iterables(deny_names, deny_prefixes)
+    return ToolPermissionContext.from_iterables(deny_names, list(deny_prefixes))
 
 
 __all__ = [

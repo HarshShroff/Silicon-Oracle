@@ -1,6 +1,6 @@
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class AlertEngine:
         Returns:
             List of alert dictionaries.
         """
-        alerts = []
+        alerts: List[Dict[str, Any]] = []
         current_price = data.get("price", 0.0)
         current_score = data.get("score", 0.0)
         earnings_data = data.get("earnings")
@@ -73,8 +73,7 @@ class AlertEngine:
         # 3. Earnings Warning (within 3 days)
         if earnings_data and earnings_data.get("date"):
             try:
-                earn_date = datetime.strptime(
-                    earnings_data["date"], "%Y-%m-%d")
+                earn_date = datetime.strptime(earnings_data["date"], "%Y-%m-%d")
                 days_until = (earn_date - datetime.now()).days
 
                 if 0 <= days_until <= 3:

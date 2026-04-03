@@ -5,10 +5,10 @@ Sends alerts and notifications to users via email (Gmail SMTP or SendGrid API)
 
 import logging
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from typing import Dict, Any, List, Optional
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +16,11 @@ logger = logging.getLogger(__name__)
 class EmailService:
     """Service for sending email notifications."""
 
-    def __init__(self, config: Dict[str, str] = None):
+    def __init__(self, config: Optional[Dict[str, str]] = None):
         self.config = config or {}
-        self.gmail_address = self.config.get('gmail_address')
-        self.gmail_app_password = self.config.get('gmail_app_password')
-        self.base_url = self.config.get(
-            'base_url', 'http://localhost:5000')  # Default
+        self.gmail_address: Optional[str] = self.config.get("gmail_address")
+        self.gmail_app_password: Optional[str] = self.config.get("gmail_app_password")
+        self.base_url = self.config.get("base_url", "http://localhost:5000")  # Default
         self.enabled = bool(self.gmail_address and self.gmail_app_password)
 
     def is_configured(self) -> bool:
@@ -29,50 +28,44 @@ class EmailService:
         return self.enabled
 
     def send_email(
-        self,
-        to_email: str,
-        subject: str,
-        html_body: str,
-        text_body: str = None
+        self, to_email: str, subject: str, html_body: str, text_body: Optional[str] = None
     ) -> bool:
         """Send an email via Gmail SMTP."""
         if not self.enabled:
-            logger.warning(
-                "Email service not configured. Skipping notification.")
+            logger.warning("Email service not configured. Skipping notification.")
             return False
 
         return self._send_via_gmail_smtp(to_email, subject, html_body, text_body)
 
     def _send_via_gmail_smtp(
-        self,
-        to_email: str,
-        subject: str,
-        html_body: str,
-        text_body: str = None
+        self, to_email: str, subject: str, html_body: str, text_body: Optional[str] = None
     ) -> bool:
         """Send email via Gmail SMTP (tries port 465 SSL, then 587 STARTTLS)."""
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = f"Silicon Oracle <{self.gmail_address}>"
-        msg['To'] = to_email
+        if not self.gmail_address or not self.gmail_app_password:
+            return False
+        gmail_address: str = self.gmail_address
+        gmail_app_password: str = self.gmail_app_password
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"Silicon Oracle <{gmail_address}>"
+        msg["To"] = to_email
 
         # Plain text fallback
         if text_body:
-            part1 = MIMEText(text_body, 'plain')
+            part1 = MIMEText(text_body, "plain")
             msg.attach(part1)
 
         # HTML content
-        part2 = MIMEText(html_body, 'html')
+        part2 = MIMEText(html_body, "html")
         msg.attach(part2)
 
         # Try port 465 with SSL first (may work on cloud platforms that block 587)
         try:
-            logger.info(
-                f"Attempting to send email to {to_email} via Gmail SMTP SSL (port 465)...")
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            logger.info(f"Attempting to send email to {to_email} via Gmail SMTP SSL (port 465)...")
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
                 server.ehlo()
-                server.login(self.gmail_address, self.gmail_app_password)
-                server.sendmail(self.gmail_address, to_email, msg.as_string())
+                server.login(gmail_address, gmail_app_password)
+                server.sendmail(gmail_address, to_email, msg.as_string())
 
             logger.info(f"Email sent successfully to {to_email} via Gmail SMTP SSL")
             return True
@@ -83,31 +76,32 @@ class EmailService:
             # Fallback to port 587 with STARTTLS (works locally)
             try:
                 logger.info(
-                    f"Attempting to send email to {to_email} via Gmail SMTP STARTTLS (port 587)...")
-                with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                    f"Attempting to send email to {to_email} via Gmail SMTP STARTTLS (port 587)..."
+                )
+                with smtplib.SMTP("smtp.gmail.com", 587) as server:
                     server.ehlo()
                     server.starttls()
                     server.ehlo()
-                    server.login(self.gmail_address, self.gmail_app_password)
-                    server.sendmail(self.gmail_address, to_email, msg.as_string())
+                    server.login(gmail_address, gmail_app_password)
+                    server.sendmail(gmail_address, to_email, msg.as_string())
 
                 logger.info(f"Email sent successfully to {to_email} via Gmail SMTP STARTTLS")
                 return True
 
             except smtplib.SMTPAuthenticationError:
-                logger.error(
-                    f"Gmail Auth Failed for {self.gmail_address}. Check App Password.")
+                logger.error(f"Gmail Auth Failed for {gmail_address}. Check App Password.")
                 return False
             except Exception as e_starttls:
                 logger.error(
-                    f"Both Gmail SMTP methods failed. SSL (465): {e_ssl}, STARTTLS (587): {e_starttls}")
+                    f"Both Gmail SMTP methods failed. SSL (465): {e_ssl}, STARTTLS (587): {e_starttls}"
+                )
                 return False
 
     def send_alert_notification(
         self,
         to_email: str,
         alerts: List[Dict[str, Any]],
-        portfolio_summary: Dict[str, Any] = None
+        portfolio_summary: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Send portfolio alert notification."""
         if not alerts:
@@ -126,15 +120,13 @@ class EmailService:
         to_email: str,
         positions: List[Dict[str, Any]],
         news_items: List[Dict[str, Any]],
-        portfolio_summary: Dict[str, Any]
+        portfolio_summary: Dict[str, Any],
     ) -> bool:
         """Send daily portfolio digest."""
         subject = f"📊 Silicon Oracle Daily Digest - {datetime.now().strftime('%b %d, %Y')}"
 
-        html_body = self._build_digest_email_html(
-            positions, news_items, portfolio_summary)
-        text_body = self._build_digest_email_text(
-            positions, news_items, portfolio_summary)
+        html_body = self._build_digest_email_html(positions, news_items, portfolio_summary)
+        text_body = self._build_digest_email_text(positions, news_items, portfolio_summary)
 
         return self.send_email(to_email, subject, html_body, text_body)
 
@@ -145,7 +137,7 @@ class EmailService:
         alert_type: str,
         current_price: float,
         trigger_price: float,
-        change_percent: float
+        change_percent: float,
     ) -> bool:
         """Send price movement alert."""
         direction = "📈" if change_percent > 0 else "📉"
@@ -200,12 +192,7 @@ View full analysis at your Silicon Oracle dashboard.
 
         return self.send_email(to_email, subject, html_body, text_body)
 
-    def send_news_alert(
-        self,
-        to_email: str,
-        ticker: str,
-        news_item: Dict[str, Any]
-    ) -> bool:
+    def send_news_alert(self, to_email: str, ticker: str, news_item: Dict[str, Any]) -> bool:
         """Send breaking news alert for a holding."""
         subject = f"📰 News Alert: {ticker} - {news_item.get('headline', 'Breaking News')[:50]}..."
 
@@ -251,19 +238,17 @@ Read more: {news_item.get('url', '')}
         return self.send_email(to_email, subject, html_body, text_body)
 
     def _build_alert_email_html(
-        self,
-        alerts: List[Dict[str, Any]],
-        portfolio_summary: Dict[str, Any] = None
+        self, alerts: List[Dict[str, Any]], portfolio_summary: Optional[Dict[str, Any]] = None
     ) -> str:
         """Build HTML for alert notification email."""
         alert_rows = ""
         for alert in alerts:
             priority_color = {
-                'CRITICAL': '#ef4444',
-                'HIGH': '#f97316',
-                'MEDIUM': '#eab308',
-                'LOW': '#22c55e'
-            }.get(alert.get('priority', 'MEDIUM'), '#94a3b8')
+                "CRITICAL": "#ef4444",
+                "HIGH": "#f97316",
+                "MEDIUM": "#eab308",
+                "LOW": "#22c55e",
+            }.get(alert.get("priority", "MEDIUM"), "#94a3b8")
 
             alert_rows += f"""
             <tr style="border-bottom: 1px solid #334155;">
@@ -281,8 +266,7 @@ Read more: {news_item.get('url', '')}
 
         summary_section = ""
         if portfolio_summary:
-            pnl_color = '#22c55e' if portfolio_summary.get(
-                'total_pnl', 0) >= 0 else '#ef4444'
+            pnl_color = "#22c55e" if portfolio_summary.get("total_pnl", 0) >= 0 else "#ef4444"
             summary_section = f"""
             <div style="background-color: #334155; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
                 <h3 style="margin: 0 0 12px 0; color: #94a3b8; font-size: 14px;">Portfolio Summary</h3>
@@ -345,9 +329,7 @@ Read more: {news_item.get('url', '')}
         """
 
     def _build_alert_email_text(
-        self,
-        alerts: List[Dict[str, Any]],
-        portfolio_summary: Dict[str, Any] = None
+        self, alerts: List[Dict[str, Any]], portfolio_summary: Optional[Dict[str, Any]] = None
     ) -> str:
         """Build plain text for alert notification email."""
         text = f"PORTFOLIO ALERTS - {len(alerts)} Action(s) Required\n\n"
@@ -373,14 +355,13 @@ Portfolio Summary:
         self,
         positions: List[Dict[str, Any]],
         news_items: List[Dict[str, Any]],
-        portfolio_summary: Dict[str, Any]
+        portfolio_summary: Dict[str, Any],
     ) -> str:
         """Build HTML for daily digest email."""
         # Position rows
         position_rows = ""
         for pos in positions[:10]:
-            pnl_color = '#22c55e' if pos.get(
-                'unrealized_pnl', 0) >= 0 else '#ef4444'
+            pnl_color = "#22c55e" if pos.get("unrealized_pnl", 0) >= 0 else "#ef4444"
             position_rows += f"""
             <tr style="border-bottom: 1px solid #334155;">
                 <td style="padding: 8px; font-weight: bold; color: white;">{pos.get('ticker', 'N/A')}</td>
@@ -414,8 +395,7 @@ Portfolio Summary:
             </div>
             """
 
-        pnl_color = '#22c55e' if portfolio_summary.get(
-            'total_pnl', 0) >= 0 else '#ef4444'
+        pnl_color = "#22c55e" if portfolio_summary.get("total_pnl", 0) >= 0 else "#ef4444"
 
         return f"""
         <html>
@@ -474,7 +454,7 @@ Portfolio Summary:
         self,
         positions: List[Dict[str, Any]],
         news_items: List[Dict[str, Any]],
-        portfolio_summary: Dict[str, Any]
+        portfolio_summary: Dict[str, Any],
     ) -> str:
         """Build plain text for daily digest email."""
         text = f"""

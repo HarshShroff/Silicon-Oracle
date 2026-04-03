@@ -4,10 +4,10 @@ Complete implementation with all factors from ai_scanner.py
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
+
 import numpy as np
-from flask_app.services.stock_service import StockService
+
 from flask_app.services.oracle_service import OracleService as BaseOracle
 
 logger = logging.getLogger(__name__)
@@ -34,10 +34,10 @@ class EnhancedOracleService(BaseOracle):
     Inherits from base Oracle and adds missing factors.
     """
 
-    def __init__(self, config: Dict[str, str] = None):
+    def __init__(self, config: Optional[Dict[str, str]] = None):
         super().__init__(config)
-        self.sector_momentum = {}
-        self.market_movers = []
+        self.sector_momentum: Dict[str, Any] = {}
+        self.market_movers: List[Dict[str, Any]] = []
 
     def calculate_enhanced_oracle_score(self, ticker: str) -> Dict[str, Any]:
         """
@@ -53,9 +53,7 @@ class EnhancedOracleService(BaseOracle):
 
         # Get additional data
         stock_service = self.stock_service
-        hist_data = stock_service.get_historical_data(
-            ticker, period="2y", interval="1d"
-        )
+        hist_data = stock_service.get_historical_data(ticker, period="2y", interval="1d")
 
         if hist_data is None or hist_data.empty:
             # Return base result if no historical data
@@ -123,9 +121,7 @@ class EnhancedOracleService(BaseOracle):
 
         return result
 
-    def _calculate_sector_momentum(
-        self, hist_data, ticker: str
-    ) -> Optional[Dict[str, Any]]:
+    def _calculate_sector_momentum(self, hist_data, ticker: str) -> Optional[Dict[str, Any]]:
         """Calculate sector momentum by comparing stock to its sector ETF."""
         try:
             # Get company info to determine sector
@@ -197,9 +193,7 @@ class EnhancedOracleService(BaseOracle):
         """Calculate beta score based on volatility relative to market."""
         try:
             # Get SPY data for market
-            spy_data = self.stock_service.get_historical_data(
-                "SPY", period="1y", interval="1d"
-            )
+            spy_data = self.stock_service.get_historical_data("SPY", period="1y", interval="1d")
             if spy_data is None or spy_data.empty:
                 return None
 
@@ -343,7 +337,7 @@ class EnhancedOracleService(BaseOracle):
                 return None
 
             return ((end_price - start_price) / start_price) * 100
-        except:
+        except Exception:
             return None
 
     def detect_volume_spikes(self, tickers: List[str]) -> List[Dict[str, Any]]:
@@ -352,9 +346,7 @@ class EnhancedOracleService(BaseOracle):
 
         for ticker in tickers:
             try:
-                data = self.stock_service.get_historical_data(
-                    ticker, period="3m", interval="1d"
-                )
+                data = self.stock_service.get_historical_data(ticker, period="3m", interval="1d")
                 if data is None or data.empty:
                     continue
 
@@ -395,10 +387,8 @@ class EnhancedOracleService(BaseOracle):
 
     def get_relative_strength(self, tickers: List[str]) -> List[Dict[str, Any]]:
         """Calculate relative strength vs SPY for tickers."""
-        results = []
-        spy_data = self.stock_service.get_historical_data(
-            "SPY", period="3m", interval="1d"
-        )
+        results: List[Dict[str, Any]] = []
+        spy_data = self.stock_service.get_historical_data("SPY", period="3m", interval="1d")
 
         if spy_data is None or spy_data.empty:
             return results
@@ -407,9 +397,7 @@ class EnhancedOracleService(BaseOracle):
 
         for ticker in tickers:
             try:
-                data = self.stock_service.get_historical_data(
-                    ticker, period="3m", interval="1d"
-                )
+                data = self.stock_service.get_historical_data(ticker, period="3m", interval="1d")
                 if data is None or data.empty:
                     continue
 
@@ -417,9 +405,7 @@ class EnhancedOracleService(BaseOracle):
                 if ticker_return is None:
                     continue
 
-                relative_strength = (
-                    ticker_return - spy_return if spy_return else ticker_return
-                )
+                relative_strength = ticker_return - spy_return if spy_return else ticker_return
 
                 results.append(
                     {

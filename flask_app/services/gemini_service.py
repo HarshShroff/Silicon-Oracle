@@ -5,8 +5,7 @@ Handles communication with Google's Gemini AI for deep dive analysis
 
 import logging
 from datetime import datetime
-from typing import Dict, Any, Tuple, Optional
-from flask import current_app
+from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ TRADING_STYLE_CONTEXT = {
 
 
 class GeminiService:
-    def __init__(self, config: Dict[str, str] = None):
+    def __init__(self, config: Optional[Dict[str, str]] = None):
         self.config = config or {}
         self.client = None
         self.model_name = "gemini-2.0-flash"
@@ -54,7 +53,12 @@ class GeminiService:
         except Exception as e:
             logger.error(f"Failed to initialize Gemini client: {e}")
 
-    def analyze_ticker(self, ticker: str, trading_style: str = "swing_trading", portfolio_context: Optional[Dict] = None) -> Tuple[str, int, str]:
+    def analyze_ticker(
+        self,
+        ticker: str,
+        trading_style: str = "swing_trading",
+        portfolio_context: Optional[Dict] = None,
+    ) -> Tuple[str, int, str]:
         """
         Analyzes a stock using Google Search Grounding.
         When portfolio_context is provided, analysis addresses the user's position (hold/add/trim)
@@ -62,13 +66,19 @@ class GeminiService:
         Returns: (analysis_html, score, label)
         """
         if not self.client:
-            return "<p>Gemini API not connected. Please add your API key in Settings.</p>", 0, "Error"
+            return (
+                "<p>Gemini API not connected. Please add your API key in Settings.</p>",
+                0,
+                "Error",
+            )
 
         try:
             from google.genai import types
 
             current_date = datetime.now().strftime("%B %d, %Y")
-            style_context = TRADING_STYLE_CONTEXT.get(trading_style, TRADING_STYLE_CONTEXT["swing_trading"])
+            style_context = TRADING_STYLE_CONTEXT.get(
+                trading_style, TRADING_STYLE_CONTEXT["swing_trading"]
+            )
 
             # Build portfolio context section
             portfolio_section = ""
@@ -81,8 +91,14 @@ class GeminiService:
                 if plpc is None and avg_price:
                     plpc = 0.0
                 direction = "up" if (plpc or 0) >= 0 else "down"
-                conc_note = (f"Their other holdings include: {', '.join(other[:8])}. "
-                             "If relevant, note any sector concentration risk when adding to this position.") if other else ""
+                conc_note = (
+                    (
+                        f"Their other holdings include: {', '.join(other[:8])}. "
+                        "If relevant, note any sector concentration risk when adding to this position."
+                    )
+                    if other
+                    else ""
+                )
                 portfolio_section = (
                     f"\n\nPORTFOLIO CONTEXT — address this directly in your analysis:\n"
                     f"- User holds {shares:.0f} shares of {ticker} at ${avg_price:.2f} average cost "
@@ -93,9 +109,7 @@ class GeminiService:
                 )
 
             # 1. Define the Grounding Tool
-            google_search_tool = types.Tool(
-                google_search=types.GoogleSearch()
-            )
+            google_search_tool = types.Tool(google_search=types.GoogleSearch())
 
             # 2. The Prompt
             prompt = f"""
@@ -150,18 +164,18 @@ class GeminiService:
                 config=types.GenerateContentConfig(
                     tools=[google_search_tool],
                     response_modalities=["TEXT"],
-                )
+                ),
             )
 
             # 4. Extract Text
             analysis_html = response.text
 
             # Clean up markdown code blocks if present
-            analysis_html = analysis_html.replace(
-                "```html", "").replace("```", "")
+            analysis_html = analysis_html.replace("```html", "").replace("```", "")
 
             # 5. Parse Sentiment using structured markers
             import re
+
             score = 50  # default
             label = "Neutral"  # default
 
@@ -178,11 +192,15 @@ class GeminiService:
                     pass
 
             # Extract label from {LABEL:XX} marker
-            label_match = re.search(r"\{LABEL:(Bullish|Neutral|Bearish)\}", analysis_html, re.IGNORECASE)
+            label_match = re.search(
+                r"\{LABEL:(Bullish|Neutral|Bearish)\}", analysis_html, re.IGNORECASE
+            )
             if label_match:
                 label = label_match.group(1).capitalize()
                 # Remove marker from display
-                analysis_html = re.sub(r"\{LABEL:(Bullish|Neutral|Bearish)\}", "", analysis_html, flags=re.IGNORECASE)
+                analysis_html = re.sub(
+                    r"\{LABEL:(Bullish|Neutral|Bearish)\}", "", analysis_html, flags=re.IGNORECASE
+                )
 
             # Cleanup any extra whitespace from marker removal
             analysis_html = analysis_html.strip()
@@ -202,15 +220,10 @@ class GeminiService:
             return "Gemini API Key Required"
 
         try:
-            from google.genai import types
-
             # Simple prompt for speed and brevity
             prompt = f"Provide a snappy 2-sentence investment thesis for {ticker} stock based on most recent catalysts. Focus on momentum and risk. No markdown bolding, just plain text."
 
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
+            response = self.client.models.generate_content(model=self.model_name, contents=prompt)
 
             insight = response.text.strip()
             # Basic cleanup
@@ -223,7 +236,13 @@ class GeminiService:
             logger.error(f"Quick insight failed for {ticker}: {e}")
             return "Insight currently unavailable."
 
-    def get_factor_interpretation(self, ticker: str, oracle_data: Dict[str, Any], trading_style: str = "swing_trading", portfolio_context: Optional[Dict] = None) -> str:
+    def get_factor_interpretation(
+        self,
+        ticker: str,
+        oracle_data: Dict[str, Any],
+        trading_style: str = "swing_trading",
+        portfolio_context: Optional[Dict] = None,
+    ) -> str:
         """
         Get AI interpretation of Oracle's 15 quantitative factors.
         Explains WHY the score is what it is in plain English.
@@ -255,7 +274,11 @@ class GeminiService:
             bullish_summary = ", ".join([f"{f['name']}: {f['detail']}" for f in bullish_factors])
             bearish_summary = ", ".join([f"{f['name']}: {f['detail']}" for f in bearish_factors])
 
-            style_label = {"day_trading": "day trader", "swing_trading": "swing trader", "long_term": "long-term investor"}.get(trading_style, "swing trader")
+            style_label = {
+                "day_trading": "day trader",
+                "swing_trading": "swing trader",
+                "long_term": "long-term investor",
+            }.get(trading_style, "swing trader")
 
             # Portfolio context paragraph
             portfolio_para = ""
@@ -285,10 +308,7 @@ Provide a 3-4 sentence interpretation that:
 
 Keep it conversational and actionable. No markdown formatting, just plain text."""
 
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
+            response = self.client.models.generate_content(model=self.model_name, contents=prompt)
 
             interpretation = response.text.strip()
             # Limit length
@@ -315,8 +335,6 @@ Keep it conversational and actionable. No markdown formatting, just plain text."
             return "Gemini API Key Required"
 
         try:
-            from google.genai import types
-
             current_date = datetime.now().strftime("%B %d, %Y")
 
             prompt = f"""Today is {current_date}.
@@ -332,10 +350,7 @@ Based on technical analysis principles, identify:
 Provide a 3-4 sentence technical summary. Focus on actionable insights.
 No markdown formatting, just plain text."""
 
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
+            response = self.client.models.generate_content(model=self.model_name, contents=prompt)
 
             pattern_analysis = response.text.strip()
             # Limit length

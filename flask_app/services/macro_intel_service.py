@@ -7,11 +7,11 @@ Sources: GDELT 2.0 (free, no key), RSS feeds (Reuters/BBC/Fed/Al Jazeera), Finnh
 import json
 import logging
 import time
-import urllib.request
 import urllib.parse
+import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +21,20 @@ EVENT_CACHE_TTL = 1800  # 30 minutes
 
 # Free RSS feeds — no API key needed, no rate limits
 RSS_FEEDS = [
-    ("BBC World",       "https://feeds.bbci.co.uk/news/world/rss.xml"),
-    ("BBC Business",    "https://feeds.bbci.co.uk/news/business/rss.xml"),
-    ("Al Jazeera",      "https://www.aljazeera.com/xml/rss/all.xml"),
+    ("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"),
+    ("BBC Business", "https://feeds.bbci.co.uk/news/business/rss.xml"),
+    ("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"),
     ("Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml"),
-    ("MarketWatch",     "https://feeds.marketwatch.com/marketwatch/topstories/"),
-    ("CNBC Economy",    "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258"),
-    ("CNBC Finance",    "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"),
-    ("Yahoo Finance",   "https://finance.yahoo.com/news/rssindex"),
+    ("MarketWatch", "https://feeds.marketwatch.com/marketwatch/topstories/"),
+    (
+        "CNBC Economy",
+        "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258",
+    ),
+    (
+        "CNBC Finance",
+        "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664",
+    ),
+    ("Yahoo Finance", "https://finance.yahoo.com/news/rssindex"),
 ]
 
 # Sector ETF universe for trade suggestions
@@ -49,44 +55,113 @@ SECTOR_ETF_MAP = {
 
 # Ticker → sector lookup for portfolio impact mapping
 TICKER_SECTOR_MAP = {
-    "XLE": "energy", "XOM": "energy", "CVX": "energy", "OXY": "energy",
-    "COP": "energy", "SLB": "energy", "HAL": "energy", "MPC": "energy",
-    "PSX": "energy", "VLO": "energy",
-    "ITA": "defense", "LMT": "defense", "RTX": "defense", "NOC": "defense",
-    "GD": "defense", "BA": "defense", "HII": "defense", "L3H": "defense",
-    "XLK": "technology", "AAPL": "technology", "MSFT": "technology",
-    "NVDA": "technology", "AMD": "technology", "INTC": "technology",
-    "SMH": "technology", "SOXX": "technology", "QQQ": "technology",
-    "TSM": "technology", "ASML": "technology", "META": "technology",
-    "GOOGL": "technology", "GOOG": "technology",
-    "XLF": "financials", "JPM": "financials", "GS": "financials",
-    "BAC": "financials", "C": "financials", "WFC": "financials",
-    "MS": "financials", "BRK-B": "financials", "AXP": "financials",
-    "XLV": "healthcare", "JNJ": "healthcare", "PFE": "healthcare",
-    "UNH": "healthcare", "ABBV": "healthcare", "MRK": "healthcare",
-    "LLY": "healthcare", "TMO": "healthcare",
-    "XLY": "consumer_discretionary", "AMZN": "consumer_discretionary",
-    "TSLA": "consumer_discretionary", "HD": "consumer_discretionary",
-    "UAL": "consumer_discretionary", "DAL": "consumer_discretionary",
-    "AAL": "consumer_discretionary", "LUV": "consumer_discretionary",
-    "XLP": "consumer_staples", "WMT": "consumer_staples",
-    "PG": "consumer_staples", "KO": "consumer_staples", "PEP": "consumer_staples",
-    "GLD": "gold", "GDX": "gold", "IAU": "gold", "GOLD": "gold",
-    "TLT": "bonds", "IEF": "bonds", "AGG": "bonds", "BND": "bonds",
-    "XLU": "utilities", "NEE": "utilities", "DUK": "utilities", "SO": "utilities",
-    "VNQ": "real_estate", "O": "real_estate", "AMT": "real_estate", "SPG": "real_estate",
-    "MSTR": "crypto", "COIN": "crypto", "IBIT": "crypto",
+    "XLE": "energy",
+    "XOM": "energy",
+    "CVX": "energy",
+    "OXY": "energy",
+    "COP": "energy",
+    "SLB": "energy",
+    "HAL": "energy",
+    "MPC": "energy",
+    "PSX": "energy",
+    "VLO": "energy",
+    "ITA": "defense",
+    "LMT": "defense",
+    "RTX": "defense",
+    "NOC": "defense",
+    "GD": "defense",
+    "BA": "defense",
+    "HII": "defense",
+    "L3H": "defense",
+    "XLK": "technology",
+    "AAPL": "technology",
+    "MSFT": "technology",
+    "NVDA": "technology",
+    "AMD": "technology",
+    "INTC": "technology",
+    "SMH": "technology",
+    "SOXX": "technology",
+    "QQQ": "technology",
+    "TSM": "technology",
+    "ASML": "technology",
+    "META": "technology",
+    "GOOGL": "technology",
+    "GOOG": "technology",
+    "XLF": "financials",
+    "JPM": "financials",
+    "GS": "financials",
+    "BAC": "financials",
+    "C": "financials",
+    "WFC": "financials",
+    "MS": "financials",
+    "BRK-B": "financials",
+    "AXP": "financials",
+    "XLV": "healthcare",
+    "JNJ": "healthcare",
+    "PFE": "healthcare",
+    "UNH": "healthcare",
+    "ABBV": "healthcare",
+    "MRK": "healthcare",
+    "LLY": "healthcare",
+    "TMO": "healthcare",
+    "XLY": "consumer_discretionary",
+    "AMZN": "consumer_discretionary",
+    "TSLA": "consumer_discretionary",
+    "HD": "consumer_discretionary",
+    "UAL": "consumer_discretionary",
+    "DAL": "consumer_discretionary",
+    "AAL": "consumer_discretionary",
+    "LUV": "consumer_discretionary",
+    "XLP": "consumer_staples",
+    "WMT": "consumer_staples",
+    "PG": "consumer_staples",
+    "KO": "consumer_staples",
+    "PEP": "consumer_staples",
+    "GLD": "gold",
+    "GDX": "gold",
+    "IAU": "gold",
+    "GOLD": "gold",
+    "TLT": "bonds",
+    "IEF": "bonds",
+    "AGG": "bonds",
+    "BND": "bonds",
+    "XLU": "utilities",
+    "NEE": "utilities",
+    "DUK": "utilities",
+    "SO": "utilities",
+    "VNQ": "real_estate",
+    "O": "real_estate",
+    "AMT": "real_estate",
+    "SPG": "real_estate",
+    "MSTR": "crypto",
+    "COIN": "crypto",
+    "IBIT": "crypto",
 }
 
 # Heuristic keyword → sector classification (fallback when Gemini unavailable)
 SECTOR_KEYWORDS = {
-    "energy": (["oil", "opec", "gas", "energy", "petroleum", "crude", "pipeline", "lng"], "bullish"),
-    "defense": (["war", "military", "conflict", "weapons", "nato", "army", "missile", "troops", "strike"], "bullish"),
+    "energy": (
+        ["oil", "opec", "gas", "energy", "petroleum", "crude", "pipeline", "lng"],
+        "bullish",
+    ),
+    "defense": (
+        ["war", "military", "conflict", "weapons", "nato", "army", "missile", "troops", "strike"],
+        "bullish",
+    ),
     "gold": (["gold", "safe haven", "uncertainty", "crisis", "recession fear"], "bullish"),
-    "bonds": (["fed", "rates", "interest", "treasury", "yield", "central bank", "monetary"], "neutral"),
-    "technology": (["chip", "semiconductor", "ai", "tech", "software", "data center", "cloud"], "neutral"),
+    "bonds": (
+        ["fed", "rates", "interest", "treasury", "yield", "central bank", "monetary"],
+        "neutral",
+    ),
+    "technology": (
+        ["chip", "semiconductor", "ai", "tech", "software", "data center", "cloud"],
+        "neutral",
+    ),
     "financials": (["bank", "credit", "lending", "financial system", "fed rate"], "neutral"),
-    "consumer_discretionary": (["tariff", "consumer spending", "retail sales", "airline"], "neutral"),
+    "consumer_discretionary": (
+        ["tariff", "consumer spending", "retail sales", "airline"],
+        "neutral",
+    ),
 }
 
 
@@ -101,7 +176,7 @@ class MacroIntelService:
       4. Generate Kelly-lite sized trade suggestions
     """
 
-    def __init__(self, config: Dict[str, str] = None):
+    def __init__(self, config: Optional[Dict[str, str]] = None):
         self.config = config or {}
 
     # ------------------------------------------------------------------
@@ -151,13 +226,15 @@ class MacroIntelService:
                     published = (pub_el.text or "").strip() if pub_el is not None else ""
 
                     if title:
-                        events.append({
-                            "title": title,
-                            "url": link,
-                            "source": feed_name,
-                            "published_at": published,
-                            "source_type": "rss",
-                        })
+                        events.append(
+                            {
+                                "title": title,
+                                "url": link,
+                                "source": feed_name,
+                                "published_at": published,
+                                "source_type": "rss",
+                            }
+                        )
             except Exception as e:
                 logger.warning(f"RSS fetch failed for {feed_name}: {e}")
         return events
@@ -177,10 +254,9 @@ class MacroIntelService:
 
             client = genai.Client(api_key=self.config["GEMINI_API_KEY"])
 
-            event_list = "\n".join([
-                f"{i + 1}. [{e['source']}] {e['title']}"
-                for i, e in enumerate(raw_events[:15])
-            ])
+            event_list = "\n".join(
+                [f"{i + 1}. [{e['source']}] {e['title']}" for i, e in enumerate(raw_events[:15])]
+            )
 
             prompt = f"""Analyze these financial/geopolitical news headlines. Today: {datetime.now().strftime("%B %d, %Y")}.
 
@@ -210,7 +286,7 @@ Rules:
                 config=types.GenerateContentConfig(temperature=0.1),
             )
 
-            text = response.text.strip()
+            text = (response.text or "").strip()
             # Strip markdown code fences if present
             if "```" in text:
                 parts = text.split("```")
@@ -249,15 +325,17 @@ Rules:
                     sector_direction[sector] = default_dir
 
             event_copy = event.copy()
-            event_copy.update({
-                "event_type": "other",
-                "affected_sectors": affected_sectors or [],
-                "sector_direction": sector_direction,
-                "confidence": 35,
-                "time_horizon": "days",
-                "summary": event["title"],
-                "severity": "low",
-            })
+            event_copy.update(
+                {
+                    "event_type": "other",
+                    "affected_sectors": affected_sectors or [],
+                    "sector_direction": sector_direction,
+                    "confidence": 35,
+                    "time_horizon": "days",
+                    "summary": event["title"],
+                    "severity": "low",
+                }
+            )
             classified.append(event_copy)
         return classified
 
@@ -283,25 +361,27 @@ Rules:
                 sector = TICKER_SECTOR_MAP.get(ticker)
                 if sector and sector in affected_sectors:
                     direction = sector_direction.get(sector, "neutral")
-                    impacted_positions.append({
-                        "ticker": ticker,
-                        "sector": sector,
-                        "direction": direction,
-                        "market_value": round(float(pos.get("market_value", 0)), 2),
-                        "unrealized_pl": round(float(pos.get("unrealized_pl", 0)), 2),
-                    })
+                    impacted_positions.append(
+                        {
+                            "ticker": ticker,
+                            "sector": sector,
+                            "direction": direction,
+                            "market_value": round(float(pos.get("market_value", 0)), 2),
+                            "unrealized_pl": round(float(pos.get("unrealized_pl", 0)), 2),
+                        }
+                    )
 
             if impacted_positions or event.get("severity") in ("high",):
-                impacts.append({
-                    **event,
-                    "impacted_positions": impacted_positions,
-                    "has_portfolio_exposure": len(impacted_positions) > 0,
-                })
+                impacts.append(
+                    {
+                        **event,
+                        "impacted_positions": impacted_positions,
+                        "has_portfolio_exposure": len(impacted_positions) > 0,
+                    }
+                )
 
         # Sort: most portfolio exposure first, then by confidence
-        impacts.sort(
-            key=lambda x: (-len(x.get("impacted_positions", [])), -x.get("confidence", 0))
-        )
+        impacts.sort(key=lambda x: (-len(x.get("impacted_positions", [])), -x.get("confidence", 0)))
         return impacts
 
     # ------------------------------------------------------------------
@@ -311,9 +391,9 @@ Rules:
     # Risk-profile config
     _RISK_CONFIG = {
         "conservative": {
-            "max_kelly": 0.05,   # max 5% per trade
+            "max_kelly": 0.05,  # max 5% per trade
             "min_confidence": 70,
-            "ticker_index": 0,   # prefer ETFs (index 0 = broadest ETF)
+            "ticker_index": 0,  # prefer ETFs (index 0 = broadest ETF)
             "horizon_ok": {"days", "weeks", "months"},
             "label": "Conservative",
         },
@@ -327,7 +407,7 @@ Rules:
         "aggressive": {
             "max_kelly": 0.15,
             "min_confidence": 50,
-            "ticker_index": 1,   # prefer single stocks (index 1+)
+            "ticker_index": 1,  # prefer single stocks (index 1+)
             "horizon_ok": {"intraday", "days", "weeks", "months"},
             "label": "Aggressive",
         },
@@ -335,9 +415,9 @@ Rules:
 
     # Trading-style time-horizon preference
     _STYLE_HORIZON = {
-        "day_trading":   {"intraday", "days"},
+        "day_trading": {"intraday", "days"},
         "swing_trading": {"days", "weeks"},
-        "long_term":     {"weeks", "months"},
+        "long_term": {"weeks", "months"},
     }
 
     def get_trade_suggestions(
@@ -362,11 +442,11 @@ Rules:
             * If already exposed to the sector on a BUY → halve Kelly (adding, not replacing)
             * Suggest the ticker they already own rather than a new one where possible
         """
-        risk_cfg  = self._RISK_CONFIG.get(risk_profile, self._RISK_CONFIG["moderate"])
-        style_ok  = self._STYLE_HORIZON.get(trading_style, self._STYLE_HORIZON["swing_trading"])
-        min_conf  = risk_cfg["min_confidence"]
+        risk_cfg = self._RISK_CONFIG.get(risk_profile, self._RISK_CONFIG["moderate"])
+        style_ok = self._STYLE_HORIZON.get(trading_style, self._STYLE_HORIZON["swing_trading"])
+        min_conf = risk_cfg["min_confidence"]
         max_kelly = risk_cfg["max_kelly"]
-        tk_idx    = risk_cfg["ticker_index"]
+        tk_idx = risk_cfg["ticker_index"]
 
         # Build portfolio value from account or fall back to sum of sentinel market values
         portfolio_value = 0.0
@@ -430,7 +510,9 @@ Rules:
                         seen_suggest_keys.add(key)
 
                         oracle_score = oracle_scores.get(sell_ticker, 50)
-                        kelly_fraction = (confidence / 100) * (oracle_score / 100) * max_kelly * horizon_penalty
+                        kelly_fraction = (
+                            (confidence / 100) * (oracle_score / 100) * max_kelly * horizon_penalty
+                        )
                         kelly_fraction = max(0.01, min(max_kelly, kelly_fraction))
 
                         pos_value = float(held_pos.get("market_value", 0))
@@ -438,27 +520,31 @@ Rules:
 
                         # No hard minimum — tiny portfolios still get valid % guidance
 
-                        confidence_tier = "HIGH" if confidence >= 75 else "MEDIUM" if confidence >= 60 else "LOW"
+                        confidence_tier = (
+                            "HIGH" if confidence >= 75 else "MEDIUM" if confidence >= 60 else "LOW"
+                        )
 
-                        suggestions.append({
-                            "action": "SELL",
-                            "ticker": sell_ticker,
-                            "sector": sector_info["name"],
-                            "dollar_amount": dollar_amount,
-                            "allocation_pct": round(kelly_fraction * 100, 1),
-                            "confidence": confidence,
-                            "confidence_tier": confidence_tier,
-                            "oracle_score": oracle_score,
-                            "time_horizon": horizon,
-                            "reasoning": event.get("summary", event.get("title", "")),
-                            "event_title": event.get("title", ""),
-                            "event_source": event.get("source", ""),
-                            "already_exposed": True,
-                            "severity": event.get("severity", "medium"),
-                            "trade_url": f"/trade/{sell_ticker}",
-                            "risk_profile": risk_cfg["label"],
-                            "trading_style": trading_style,
-                        })
+                        suggestions.append(
+                            {
+                                "action": "SELL",
+                                "ticker": sell_ticker,
+                                "sector": sector_info["name"],
+                                "dollar_amount": dollar_amount,
+                                "allocation_pct": round(kelly_fraction * 100, 1),
+                                "confidence": confidence,
+                                "confidence_tier": confidence_tier,
+                                "oracle_score": oracle_score,
+                                "time_horizon": horizon,
+                                "reasoning": event.get("summary", event.get("title", "")),
+                                "event_title": event.get("title", ""),
+                                "event_source": event.get("source", ""),
+                                "already_exposed": True,
+                                "severity": event.get("severity", "medium"),
+                                "trade_url": f"/trade/{sell_ticker}",
+                                "risk_profile": risk_cfg["label"],
+                                "trading_style": trading_style,
+                            }
+                        )
 
                 # ── BUY ───────────────────────────────────────────────────────
                 else:
@@ -467,7 +553,7 @@ Rules:
                         buy_ticker = held_in_sector[0].get("ticker", sector_info["tickers"][0])
                     else:
                         # aggressive → prefer single stock; conservative → ETF
-                        pick_idx = min(tk_idx, len(sector_info["tickers"]) - 1)
+                        pick_idx = min(int(str(tk_idx)), len(sector_info["tickers"]) - 1)
                         buy_ticker = sector_info["tickers"][pick_idx]
 
                     key = ("BUY", buy_ticker)
@@ -489,34 +575,44 @@ Rules:
 
                     # No hard minimum — tiny portfolios still get valid % guidance
 
-                    confidence_tier = "HIGH" if confidence >= 75 else "MEDIUM" if confidence >= 60 else "LOW"
+                    confidence_tier = (
+                        "HIGH" if confidence >= 75 else "MEDIUM" if confidence >= 60 else "LOW"
+                    )
 
-                    suggestions.append({
-                        "action": "BUY",
-                        "ticker": buy_ticker,
-                        "sector": sector_info["name"],
-                        "dollar_amount": dollar_amount,
-                        "allocation_pct": round(kelly_fraction * 100, 1),
-                        "confidence": confidence,
-                        "confidence_tier": confidence_tier,
-                        "oracle_score": oracle_score,
-                        "time_horizon": horizon,
-                        "reasoning": event.get("summary", event.get("title", "")),
-                        "event_title": event.get("title", ""),
-                        "event_source": event.get("source", ""),
-                        "already_exposed": already_exposed,
-                        "severity": event.get("severity", "medium"),
-                        "trade_url": f"/trade/{buy_ticker}",
-                        "risk_profile": risk_cfg["label"],
-                        "trading_style": trading_style,
-                    })
+                    suggestions.append(
+                        {
+                            "action": "BUY",
+                            "ticker": buy_ticker,
+                            "sector": sector_info["name"],
+                            "dollar_amount": dollar_amount,
+                            "allocation_pct": round(kelly_fraction * 100, 1),
+                            "confidence": confidence,
+                            "confidence_tier": confidence_tier,
+                            "oracle_score": oracle_score,
+                            "time_horizon": horizon,
+                            "reasoning": event.get("summary", event.get("title", "")),
+                            "event_title": event.get("title", ""),
+                            "event_source": event.get("source", ""),
+                            "already_exposed": already_exposed,
+                            "severity": event.get("severity", "medium"),
+                            "trade_url": f"/trade/{buy_ticker}",
+                            "risk_profile": risk_cfg["label"],
+                            "trading_style": trading_style,
+                        }
+                    )
 
         # Sort: HIGH confidence first, BUYs before SELLs within same tier
-        suggestions.sort(key=lambda x: (
-            0 if x["confidence_tier"] == "HIGH" else 1 if x["confidence_tier"] == "MEDIUM" else 2,
-            0 if x["action"] == "BUY" else 1,
-            -x["confidence"],
-        ))
+        suggestions.sort(
+            key=lambda x: (
+                0
+                if x["confidence_tier"] == "HIGH"
+                else 1
+                if x["confidence_tier"] == "MEDIUM"
+                else 2,
+                0 if x["action"] == "BUY" else 1,
+                -x["confidence"],
+            )
+        )
         return suggestions[:10]
 
     # ------------------------------------------------------------------
@@ -566,7 +662,7 @@ Rules:
         self,
         positions: List[Dict],
         account: Optional[Dict],
-        oracle_scores: Dict[str, int] = None,
+        oracle_scores: Optional[Dict[str, int]] = None,
         force_refresh: bool = False,
         risk_profile: str = "moderate",
         trading_style: str = "swing_trading",
@@ -591,7 +687,10 @@ Rules:
 
         portfolio_impact = self.get_portfolio_impact(classified, positions)
         trade_suggestions = self.get_trade_suggestions(
-            classified, account, positions, oracle_scores,
+            classified,
+            account,
+            positions,
+            oracle_scores,
             risk_profile=risk_profile,
             trading_style=trading_style,
         )

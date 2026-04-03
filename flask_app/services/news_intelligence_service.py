@@ -6,12 +6,13 @@ Sends comprehensive email alerts only when important news is detected.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Tuple
-from flask_app.services.stock_service import StockService
-from flask_app.services.oracle_service import OracleService
+from typing import Any, Dict, List, Optional
+
+from flask_app.services.email_service import EmailService
 from flask_app.services.gemini_service import GeminiService
 from flask_app.services.news_monitor import NewsMonitor
-from flask_app.services.email_service import EmailService
+from flask_app.services.oracle_service import OracleService
+from flask_app.services.stock_service import StockService
 
 logger = logging.getLogger(__name__)
 
@@ -26,18 +27,26 @@ class NewsIntelligenceService:
     """
 
     # Major market tickers to monitor (in addition to user holdings)
-    MARKET_INDICES = ['SPY', 'QQQ', 'DIA', 'IWM']  # S&P 500, Nasdaq, Dow, Russell 2000
+    MARKET_INDICES = ["SPY", "QQQ", "DIA", "IWM"]  # S&P 500, Nasdaq, Dow, Russell 2000
 
     # Top stocks to monitor for broader market sentiment
     MAJOR_STOCKS = [
-        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA',  # Tech giants
-        'TSLA', 'META', 'JPM', 'V', 'WMT'  # Other major players
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "AMZN",
+        "NVDA",  # Tech giants
+        "TSLA",
+        "META",
+        "JPM",
+        "V",
+        "WMT",  # Other major players
     ]
 
     # Minimum importance score to include in digest (0-10)
     IMPORTANCE_THRESHOLD = 7
 
-    def __init__(self, config: Dict[str, str] = None):
+    def __init__(self, config: Optional[Dict[str, str]] = None):
         self.config = config or {}
         self.stock_service = StockService(config)
         self.oracle_service = OracleService(config)
@@ -50,7 +59,7 @@ class NewsIntelligenceService:
         user_holdings: List[str],
         user_email: str,
         include_market_news: bool = True,
-        hours_back: int = 1
+        hours_back: int = 1,
     ) -> bool:
         """
         Main entry point: Scan news and send email if important news found.
@@ -78,8 +87,7 @@ class NewsIntelligenceService:
 
             # Fetch all news
             all_news = self.news_monitor.get_news_for_holdings(
-                tickers=tickers_to_scan,
-                limit_per_ticker=10
+                tickers=tickers_to_scan, limit_per_ticker=10
             )
 
             if not all_news:
@@ -88,9 +96,7 @@ class NewsIntelligenceService:
 
             # Filter for recent and important news
             important_news = self._filter_important_news(
-                all_news,
-                hours_back=hours_back,
-                threshold=self.IMPORTANCE_THRESHOLD
+                all_news, hours_back=hours_back, threshold=self.IMPORTANCE_THRESHOLD
             )
 
             if not important_news:
@@ -111,9 +117,7 @@ class NewsIntelligenceService:
 
             # Send comprehensive email
             return self._send_comprehensive_email(
-                user_email=user_email,
-                news_by_ticker=news_by_ticker,
-                user_holdings=user_holdings
+                user_email=user_email, news_by_ticker=news_by_ticker, user_holdings=user_holdings
             )
 
         except Exception as e:
@@ -121,10 +125,7 @@ class NewsIntelligenceService:
             return False
 
     def _filter_important_news(
-        self,
-        news_items: List[Dict[str, Any]],
-        hours_back: int,
-        threshold: int
+        self, news_items: List[Dict[str, Any]], hours_back: int, threshold: int
     ) -> List[Dict[str, Any]]:
         """Filter news for recency and importance."""
         cutoff = datetime.now() - timedelta(hours=hours_back)
@@ -132,25 +133,23 @@ class NewsIntelligenceService:
 
         for item in news_items:
             # Check importance score
-            if item.get('importance', 0) < threshold:
+            if item.get("importance", 0) < threshold:
                 continue
 
             # Check recency
-            if not self.news_monitor._is_recent(item.get('published', ''), cutoff):
+            if not self.news_monitor._is_recent(item.get("published", ""), cutoff):
                 continue
 
             important.append(item)
 
         # Sort by importance (highest first)
-        important.sort(key=lambda x: x.get('importance', 0), reverse=True)
+        important.sort(key=lambda x: x.get("importance", 0), reverse=True)
 
         # Limit to top 20 most important to avoid overwhelming
         return important[:20]
 
     def _analyze_news_items(
-        self,
-        news_items: List[Dict[str, Any]],
-        user_holdings: List[str]
+        self, news_items: List[Dict[str, Any]], user_holdings: List[str]
     ) -> List[Dict[str, Any]]:
         """
         Analyze each news item with AI insights and Oracle verdict.
@@ -159,7 +158,7 @@ class NewsIntelligenceService:
         analyzed = []
 
         for item in news_items:
-            ticker = item.get('ticker', '')
+            ticker = item.get("ticker", "")
 
             try:
                 # Get Oracle verdict for this stock
@@ -176,13 +175,13 @@ class NewsIntelligenceService:
                 # Build enriched news item
                 enriched = {
                     **item,  # Original news data
-                    'oracle_score': oracle_data.get('score', 0),
-                    'oracle_max': oracle_data.get('max_score', 12),
-                    'oracle_verdict': oracle_data.get('verdict_text', 'HOLD'),
-                    'oracle_confidence': oracle_data.get('confidence', 0),
-                    'ai_insight': ai_insight,
-                    'is_holding': is_holding,
-                    'priority': self._calculate_priority(item, oracle_data, is_holding)
+                    "oracle_score": oracle_data.get("score", 0),
+                    "oracle_max": oracle_data.get("max_score", 12),
+                    "oracle_verdict": oracle_data.get("verdict_text", "HOLD"),
+                    "oracle_confidence": oracle_data.get("confidence", 0),
+                    "ai_insight": ai_insight,
+                    "is_holding": is_holding,
+                    "priority": self._calculate_priority(item, oracle_data, is_holding),
                 }
 
                 analyzed.append(enriched)
@@ -190,71 +189,69 @@ class NewsIntelligenceService:
             except Exception as e:
                 logger.warning(f"Failed to analyze news for {ticker}: {e}")
                 # Include without analysis rather than skip
-                analyzed.append({
-                    **item,
-                    'oracle_score': None,
-                    'oracle_verdict': 'N/A',
-                    'ai_insight': None,
-                    'is_holding': ticker in user_holdings,
-                    'priority': 'MEDIUM'
-                })
+                analyzed.append(
+                    {
+                        **item,
+                        "oracle_score": None,
+                        "oracle_verdict": "N/A",
+                        "ai_insight": None,
+                        "is_holding": ticker in user_holdings,
+                        "priority": "MEDIUM",
+                    }
+                )
 
         return analyzed
 
     def _calculate_priority(
-        self,
-        news_item: Dict[str, Any],
-        oracle_data: Dict[str, Any],
-        is_holding: bool
+        self, news_item: Dict[str, Any], oracle_data: Dict[str, Any], is_holding: bool
     ) -> str:
         """
         Calculate alert priority based on news importance, Oracle verdict, and holding status.
         Returns: CRITICAL, HIGH, MEDIUM, or LOW
         """
-        importance = news_item.get('importance', 5)
-        sentiment = news_item.get('sentiment', 'neutral')
-        oracle_score = oracle_data.get('score', 0)
-        oracle_max = oracle_data.get('max_score', 12)
+        importance = news_item.get("importance", 5)
+        sentiment = news_item.get("sentiment", "neutral")
+        oracle_score = oracle_data.get("score", 0)
+        oracle_max = oracle_data.get("max_score", 12)
         oracle_pct = (oracle_score / oracle_max * 100) if oracle_max > 0 else 50
 
         # CRITICAL: Very important news for holdings with major sentiment
-        if is_holding and importance >= 9 and sentiment != 'neutral':
-            return 'CRITICAL'
+        if is_holding and importance >= 9 and sentiment != "neutral":
+            return "CRITICAL"
 
         # HIGH: Important news for holdings OR very important market news
         if (is_holding and importance >= 8) or (importance >= 9):
-            return 'HIGH'
+            return "HIGH"
 
         # HIGH: Holdings with extreme Oracle scores and negative news
-        if is_holding and (oracle_pct <= 30 or oracle_pct >= 80) and sentiment != 'neutral':
-            return 'HIGH'
+        if is_holding and (oracle_pct <= 30 or oracle_pct >= 80) and sentiment != "neutral":
+            return "HIGH"
 
         # MEDIUM: Moderate importance or market-related
         if importance >= 7:
-            return 'MEDIUM'
+            return "MEDIUM"
 
-        return 'LOW'
+        return "LOW"
 
     def _group_news_by_ticker(
-        self,
-        news_items: List[Dict[str, Any]]
+        self, news_items: List[Dict[str, Any]]
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Group news items by ticker symbol."""
-        grouped = {}
+        grouped: Dict[str, List[Dict[str, Any]]] = {}
 
         for item in news_items:
-            ticker = item.get('ticker', 'OTHER')
+            ticker = item.get("ticker", "OTHER")
             if ticker not in grouped:
                 grouped[ticker] = []
             grouped[ticker].append(item)
 
         # Sort each ticker's news by priority and importance
-        priority_order = {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}
+        priority_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
         for ticker in grouped:
             grouped[ticker].sort(
                 key=lambda x: (
-                    priority_order.get(x.get('priority', 'LOW'), 4),
-                    -x.get('importance', 0)
+                    priority_order.get(x.get("priority", "LOW"), 4),
+                    -x.get("importance", 0),
                 )
             )
 
@@ -264,25 +261,29 @@ class NewsIntelligenceService:
         self,
         user_email: str,
         news_by_ticker: Dict[str, List[Dict[str, Any]]],
-        user_holdings: List[str]
+        user_holdings: List[str],
     ) -> bool:
         """Send comprehensive news intelligence digest email."""
 
         # Count news items by priority
-        priority_counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
+        priority_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
         total_items = 0
 
         for ticker_news in news_by_ticker.values():
             for item in ticker_news:
-                priority = item.get('priority', 'LOW')
+                priority = item.get("priority", "LOW")
                 priority_counts[priority] += 1
                 total_items += 1
 
         # Create subject line based on priority
-        if priority_counts['CRITICAL'] > 0:
-            subject = f"🚨 CRITICAL: {priority_counts['CRITICAL']} Major Alert(s) - Silicon Oracle News"
-        elif priority_counts['HIGH'] > 0:
-            subject = f"⚠️ HIGH Priority: {priority_counts['HIGH']} Important Alert(s) - Silicon Oracle"
+        if priority_counts["CRITICAL"] > 0:
+            subject = (
+                f"🚨 CRITICAL: {priority_counts['CRITICAL']} Major Alert(s) - Silicon Oracle News"
+            )
+        elif priority_counts["HIGH"] > 0:
+            subject = (
+                f"⚠️ HIGH Priority: {priority_counts['HIGH']} Important Alert(s) - Silicon Oracle"
+            )
         else:
             subject = f"📰 Market Intelligence: {total_items} Updates - Silicon Oracle"
 
@@ -292,10 +293,7 @@ class NewsIntelligenceService:
 
         # Send email
         success = self.email_service.send_email(
-            to_email=user_email,
-            subject=subject,
-            html_body=html_body,
-            text_body=text_body
+            to_email=user_email, subject=subject, html_body=html_body, text_body=text_body
         )
 
         if success:
@@ -309,27 +307,27 @@ class NewsIntelligenceService:
         self,
         news_by_ticker: Dict[str, List[Dict[str, Any]]],
         user_holdings: List[str],
-        priority_counts: Dict[str, int]
+        priority_counts: Dict[str, int],
     ) -> str:
         """Build HTML email body for news digest."""
 
-        current_time = datetime.now().strftime('%B %d, %Y at %I:%M %p')
+        current_time = datetime.now().strftime("%B %d, %Y at %I:%M %p")
 
         # Priority summary
         priority_cards = ""
-        if priority_counts['CRITICAL'] > 0:
+        if priority_counts["CRITICAL"] > 0:
             priority_cards += f"""
             <div style="background-color: #7f1d1d; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
                 <span style="font-weight: bold; color: #fca5a5;">🚨 CRITICAL: {priority_counts['CRITICAL']} alert(s)</span>
             </div>
             """
-        if priority_counts['HIGH'] > 0:
+        if priority_counts["HIGH"] > 0:
             priority_cards += f"""
             <div style="background-color: #78350f; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
                 <span style="font-weight: bold; color: #fbbf24;">⚠️ HIGH: {priority_counts['HIGH']} alert(s)</span>
             </div>
             """
-        if priority_counts['MEDIUM'] > 0:
+        if priority_counts["MEDIUM"] > 0:
             priority_cards += f"""
             <div style="background-color: #1e3a8a; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
                 <span style="font-weight: bold; color: #93c5fd;">📊 MEDIUM: {priority_counts['MEDIUM']} alert(s)</span>
@@ -397,25 +395,23 @@ class NewsIntelligenceService:
         """
 
     def _build_ticker_section_html(
-        self,
-        ticker: str,
-        news_items: List[Dict[str, Any]],
-        is_holding: bool
+        self, ticker: str, news_items: List[Dict[str, Any]], is_holding: bool
     ) -> str:
         """Build HTML section for a single ticker's news."""
 
         # Get first item for Oracle score (same for all items of this ticker)
         first_item = news_items[0]
-        oracle_score = first_item.get('oracle_score')
-        oracle_max = first_item.get('oracle_max', 12)
-        oracle_verdict = first_item.get('oracle_verdict', 'N/A')
-        oracle_confidence = first_item.get('oracle_confidence', 0)
+        oracle_score = first_item.get("oracle_score")
+        oracle_max = first_item.get("oracle_max", 12)
+        oracle_verdict = first_item.get("oracle_verdict", "N/A")
 
         # Oracle score badge
         oracle_html = ""
         if oracle_score is not None:
             score_pct = (oracle_score / oracle_max * 100) if oracle_max > 0 else 0
-            score_color = '#22c55e' if score_pct >= 70 else '#eab308' if score_pct >= 50 else '#ef4444'
+            score_color = (
+                "#22c55e" if score_pct >= 70 else "#eab308" if score_pct >= 50 else "#ef4444"
+            )
             oracle_html = f"""
             <div style="background-color: #334155; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -438,20 +434,22 @@ class NewsIntelligenceService:
         # Build news items list
         news_html = ""
         for idx, item in enumerate(news_items[:5]):  # Max 5 news per ticker
-            priority = item.get('priority', 'MEDIUM')
+            priority = item.get("priority", "MEDIUM")
             priority_colors = {
-                'CRITICAL': '#ef4444',
-                'HIGH': '#f97316',
-                'MEDIUM': '#3b82f6',
-                'LOW': '#64748b'
+                "CRITICAL": "#ef4444",
+                "HIGH": "#f97316",
+                "MEDIUM": "#3b82f6",
+                "LOW": "#64748b",
             }
-            priority_color = priority_colors.get(priority, '#64748b')
+            priority_color = priority_colors.get(priority, "#64748b")
 
-            sentiment = item.get('sentiment', 'neutral')
-            sentiment_emoji = '📈' if sentiment == 'positive' else '📉' if sentiment == 'negative' else '➡️'
+            sentiment = item.get("sentiment", "neutral")
+            sentiment_emoji = (
+                "📈" if sentiment == "positive" else "📉" if sentiment == "negative" else "➡️"
+            )
 
             ai_insight_html = ""
-            if item.get('ai_insight'):
+            if item.get("ai_insight"):
                 ai_insight_html = f"""
                 <p style="margin: 8px 0 0 0; font-size: 13px; color: #93c5fd; font-style: italic; padding-left: 12px; border-left: 2px solid #3b82f6;">
                     💡 {item['ai_insight']}
@@ -496,9 +494,7 @@ class NewsIntelligenceService:
         """
 
     def _build_news_email_text(
-        self,
-        news_by_ticker: Dict[str, List[Dict[str, Any]]],
-        user_holdings: List[str]
+        self, news_by_ticker: Dict[str, List[Dict[str, Any]]], user_holdings: List[str]
     ) -> str:
         """Build plain text email body for news digest."""
 
@@ -521,13 +517,13 @@ SILICON ORACLE NEWS INTELLIGENCE DIGEST
             holdings_text += f"{'*' * 60}\n\n"
 
             first_item = news_items[0]
-            if first_item.get('oracle_score') is not None:
+            if first_item.get("oracle_score") is not None:
                 holdings_text += f"Oracle Score: {first_item['oracle_score']:.1f}/{first_item.get('oracle_max', 12)} - {first_item.get('oracle_verdict', 'N/A')}\n\n"
 
             for idx, item in enumerate(news_items[:5], 1):
                 holdings_text += f"{idx}. [{item.get('priority', 'MEDIUM')}] {item.get('headline', 'No headline')}\n"
                 holdings_text += f"   Importance: {item.get('importance', 0)}/10 | {item.get('sentiment', 'neutral')}\n"
-                if item.get('ai_insight'):
+                if item.get("ai_insight"):
                     holdings_text += f"   💡 {item['ai_insight']}\n"
                 holdings_text += f"   {item.get('url', '')}\n\n"
 

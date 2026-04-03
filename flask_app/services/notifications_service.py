@@ -3,12 +3,12 @@ Silicon Oracle - Email Notifications Service
 BYOK: Users send from their own Gmail address using App Passwords.
 """
 
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 import logging
+import smtplib
+from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +177,7 @@ def price_alert_email(ticker: str, current_price: float, target_price: float) ->
     content = f"""
         <h2>🎯 Price Alert: {ticker}</h2>
         <p>Target price has been reached!</p>
-        
+
         <div style="text-align: center; margin: 30px 0;">
             <div style="font-size: 24px; margin-bottom: 10px;">
                 <strong>{ticker}</strong>: ${current_price:.2f}
@@ -186,7 +186,7 @@ def price_alert_email(ticker: str, current_price: float, target_price: float) ->
                 {change_pct:+.2f}% from target
             </div>
         </div>
-        
+
         <p>Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
     """
 
@@ -200,7 +200,7 @@ def ai_signal_email(ticker: str, verdict: str, score: float, reasons: List[str])
     content = f"""
         <h2>🤖 AI Signal Alert: {ticker}</h2>
         <p>The Oracle has identified a trading opportunity!</p>
-        
+
         <div style="text-align: center; margin: 30px 0;">
             <div class="metric {score_color}">
                 Oracle Score: {score:.1f}/12
@@ -209,21 +209,19 @@ def ai_signal_email(ticker: str, verdict: str, score: float, reasons: List[str])
                 <strong>Verdict: {verdict}</strong>
             </div>
         </div>
-        
+
         <h3>Top Reasons:</h3>
         <ul>
             {"<li>" + "</li><li>".join(reasons[:3]) + "</li>" if reasons else "<li>No specific reasons</li>"}
         </ul>
-        
+
         <p>Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
     """
 
     return get_base_template(content, "AI Signal Alert")
 
 
-def position_alert_email(
-    ticker: str, action: str, pnl_amount: float, pnl_percent: float
-) -> str:
+def position_alert_email(ticker: str, action: str, pnl_amount: float, pnl_percent: float) -> str:
     """Generate position alert email content."""
     action_type = (
         "Stop Loss"
@@ -237,7 +235,7 @@ def position_alert_email(
     content = f"""
         <h2>📊 {action_type}: {ticker}</h2>
         <p>Position alert for your {ticker} position</p>
-        
+
         <div style="text-align: center; margin: 30px 0;">
             <div class="metric {pnl_class}">
                 P&L: ${pnl_amount:+.2f}
@@ -246,7 +244,7 @@ def position_alert_email(
                 {pnl_percent:+.2f}%
             </div>
         </div>
-        
+
         <p>Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
     """
 
@@ -254,8 +252,10 @@ def position_alert_email(
 
 
 def daily_digest_email(
-    portfolio_summary: Dict, top_opportunities: List[Dict], market_status: Dict,
-    holdings: List[Dict] = None
+    portfolio_summary: Dict,
+    top_opportunities: List[Dict],
+    market_status: Dict,
+    holdings: Optional[List[Dict]] = None,
 ) -> str:
     """Generate daily digest email content."""
     total_value = portfolio_summary.get("total_value", 0)
@@ -269,7 +269,7 @@ def daily_digest_email(
     holdings_html = ""
     if holdings:
         for h in holdings:
-            h_pnl_class = "positive" if h.get('pnl', 0) >= 0 else "negative"
+            h_pnl_class = "positive" if h.get("pnl", 0) >= 0 else "negative"
             holdings_html += f"""
             <tr>
                 <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>{h.get('ticker', '')}</strong></td>
@@ -300,8 +300,7 @@ def daily_digest_email(
         </tr>
         """
 
-    market_signal = "📈 Risk-On" if market_status.get(
-        "is_healthy") else "📉 Risk-Off"
+    market_signal = "📈 Risk-On" if market_status.get("is_healthy") else "📉 Risk-Off"
 
     content = f"""
         <h2>📈 Silicon Oracle Daily Digest</h2>
@@ -372,9 +371,7 @@ def send_price_alert(
         return {"success": False, "error": "Email credentials not configured"}
 
     body_html = price_alert_email(ticker, current_price, target_price)
-    return send_self_notification(
-        user_email, app_password, f"{ticker} Price Alert", body_html
-    )
+    return send_self_notification(user_email, app_password, f"{ticker} Price Alert", body_html)
 
 
 def send_ai_signal_alert(
@@ -390,9 +387,7 @@ def send_ai_signal_alert(
         return {"success": False, "error": "Email credentials not configured"}
 
     body_html = ai_signal_email(ticker, verdict, score, reasons)
-    return send_self_notification(
-        user_email, app_password, f"AI Signal: {ticker}", body_html
-    )
+    return send_self_notification(user_email, app_password, f"AI Signal: {ticker}", body_html)
 
 
 def send_position_alert(
@@ -408,9 +403,7 @@ def send_position_alert(
         return {"success": False, "error": "Email credentials not configured"}
 
     body_html = position_alert_email(ticker, action, pnl_amount, pnl_percent)
-    return send_self_notification(
-        user_email, app_password, f"{action}: {ticker}", body_html
-    )
+    return send_self_notification(user_email, app_password, f"{action}: {ticker}", body_html)
 
 
 def send_daily_digest(
@@ -420,20 +413,21 @@ def send_daily_digest(
     top_opportunities: List[Dict],
     market_status: Dict,
     sender_email: Optional[str] = None,
-    holdings: List[Dict] = None,
+    holdings: Optional[List[Dict]] = None,
 ) -> Dict[str, Any]:
     """Send daily digest notification."""
     if not target_email or not app_password:
         return {"success": False, "error": "Email credentials not configured"}
 
     body_html = daily_digest_email(
-        portfolio_summary, top_opportunities, market_status, holdings=holdings)
+        portfolio_summary, top_opportunities, market_status, holdings=holdings
+    )
     return send_email(
         target_email,
         "Daily Digest - Shadow Portfolio",
         body_html,
         from_email=sender_email or target_email,
-        app_password=app_password
+        app_password=app_password,
     )
 
 
@@ -456,6 +450,4 @@ def test_email_config(user_email: str, app_password: str) -> Dict[str, Any]:
 
     body_html = get_base_template(content, "Test Email")
 
-    return send_self_notification(
-        user_email, app_password, "Test Successful", body_html
-    )
+    return send_self_notification(user_email, app_password, "Test Successful", body_html)

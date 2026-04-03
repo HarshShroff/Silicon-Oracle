@@ -127,7 +127,10 @@ class AgentRuntime:
                 "error_type": "permission",
             }
 
-        return tool.execute(payload)
+        from .execution_registry import ToolContext
+
+        ctx = ToolContext(user_id=self.user_id or "")
+        return tool.execute(payload, ctx)
 
     def execute_turn(
         self,

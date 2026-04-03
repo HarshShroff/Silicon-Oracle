@@ -5,13 +5,14 @@ Uses Google Gemini AI with search grounding for comprehensive market analysis.
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Tuple
-from flask_app.services.stock_service import StockService
-from flask_app.services.oracle_service import OracleService
-from flask_app.services.gemini_service import GeminiService
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from flask_app.services.email_service import EmailService
-from utils.database import save_market_intelligence_report, get_latest_market_intelligence_report
+from flask_app.services.gemini_service import GeminiService
+from flask_app.services.oracle_service import OracleService
+from flask_app.services.stock_service import StockService
+from utils.database import get_latest_market_intelligence_report, save_market_intelligence_report
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,6 @@ class MarketIntelligenceService:
         "oil prices",
         "dollar index",
         "bond yields treasury",
-
         # Geopolitical
         "US China relations trade",
         "Middle East conflict",
@@ -47,7 +47,6 @@ class MarketIntelligenceService:
         "elections United States",
         "global trade agreements",
         "sanctions international",
-
         # Sector Trends
         "artificial intelligence AI technology",
         "semiconductor chip shortage",
@@ -57,7 +56,6 @@ class MarketIntelligenceService:
         "healthcare biotech FDA",
         "cybersecurity data breach",
         "cloud computing",
-
         # Market Events
         "stock market rally crash",
         "bank crisis financial",
@@ -67,7 +65,7 @@ class MarketIntelligenceService:
         "regulatory SEC investigation",
     ]
 
-    def __init__(self, config: Dict[str, str] = None):
+    def __init__(self, config: Optional[Dict[str, str]] = None):
         self.config = config or {}
         self.stock_service = StockService(config)
         self.oracle_service = OracleService(config)
@@ -82,7 +80,7 @@ class MarketIntelligenceService:
         risk_profile: str = "moderate",
         available_cash: float = 0,
         hours_back: int = 1,
-        trading_style: str = "swing_trading"
+        trading_style: str = "swing_trading",
     ) -> bool:
         """
         Main entry point: Generate comprehensive market intelligence and recommendations.
@@ -104,14 +102,16 @@ class MarketIntelligenceService:
             # Step 0: Retrieve AI memory (previous market intelligence report)
             previous_report = get_latest_market_intelligence_report(user_id)
             if previous_report:
-                logger.info(f"Retrieved previous market intelligence from {previous_report.get('timestamp')}")
+                logger.info(
+                    f"Retrieved previous market intelligence from {previous_report.get('timestamp')}"
+                )
             else:
                 logger.info("No previous market intelligence found - first run for this user")
 
             # Step 1: Get AI-powered market analysis
             market_analysis = self._get_comprehensive_market_analysis()
 
-            if not market_analysis or not market_analysis.get('has_important_news'):
+            if not market_analysis or not market_analysis.get("has_important_news"):
                 logger.info(f"No significant market developments for {user_email}")
                 return False
 
@@ -122,7 +122,7 @@ class MarketIntelligenceService:
                 risk_profile=risk_profile,
                 available_cash=available_cash,
                 previous_report=previous_report,
-                trading_style=trading_style
+                trading_style=trading_style,
             )
 
             if not recommendations:
@@ -131,31 +131,32 @@ class MarketIntelligenceService:
 
             # Step 3: Analyze current holdings impact
             holdings_impact = self._analyze_holdings_impact(
-                user_holdings=user_holdings,
-                market_analysis=market_analysis
+                user_holdings=user_holdings, market_analysis=market_analysis
             )
 
             # Step 4: Generate TL;DR summary
             tldr_summary = self._generate_tldr_summary(
                 market_analysis=market_analysis,
                 recommendations=recommendations,
-                holdings_impact=holdings_impact
+                holdings_impact=holdings_impact,
             )
             logger.info(f"📌 TL;DR Summary generated: {tldr_summary}")
-            logger.info(f"   Will show TL;DR? {bool(tldr_summary and tldr_summary.get('new_buys') is not None)}")
+            logger.info(
+                f"   Will show TL;DR? {bool(tldr_summary and tldr_summary.get('new_buys') is not None)}"
+            )
 
             # Step 5: Calculate portfolio health metrics
             portfolio_health = self._calculate_portfolio_health(
-                user_holdings=user_holdings,
-                recommendations=recommendations
+                user_holdings=user_holdings, recommendations=recommendations
             )
             logger.info(f"📊 Portfolio Health calculated: {portfolio_health}")
-            logger.info(f"   Will show Portfolio Health? {bool(portfolio_health and portfolio_health.get('total_positions') is not None)}")
+            logger.info(
+                f"   Will show Portfolio Health? {bool(portfolio_health and portfolio_health.get('total_positions') is not None)}"
+            )
 
             # Step 6: Calculate stop-loss suggestions
             stop_losses = self._calculate_stop_losses(
-                holdings_impact=holdings_impact,
-                recommendations=recommendations
+                holdings_impact=holdings_impact, recommendations=recommendations
             )
             logger.info(f"🛑 Stop Losses calculated: {len(stop_losses)} positions")
             logger.info(f"   Stop loss details: {stop_losses}")
@@ -164,7 +165,7 @@ class MarketIntelligenceService:
             watchlist = self._generate_watchlist(
                 market_analysis=market_analysis,
                 user_holdings=user_holdings,
-                risk_profile=risk_profile
+                risk_profile=risk_profile,
             )
             logger.info(f"👀 Watchlist generated: {len(watchlist)} stocks")
             logger.info(f"   Will show Watchlist? {bool(watchlist)}")
@@ -174,18 +175,23 @@ class MarketIntelligenceService:
             # Step 8: Save market intelligence report for AI memory
             report_data = {
                 "sentiment_score": market_analysis.get("sentiment_score", 50),
-                "top_catalyst": market_analysis.get("top_catalysts", [{}])[0].get("title", "Market analysis") if market_analysis.get("top_catalysts") else "Market analysis",
+                "top_catalyst": market_analysis.get("top_catalysts", [{}])[0].get(
+                    "title", "Market analysis"
+                )
+                if market_analysis.get("top_catalysts")
+                else "Market analysis",
                 "recommendations": [
                     {
                         "ticker": r.get("ticker"),
                         "action": r.get("action"),
-                        "reasoning": r.get("reasoning", "")[:200]  # Store abbreviated reasoning
-                    } for r in recommendations[:10]  # Store top 10 recommendations
+                        "reasoning": r.get("reasoning", "")[:200],  # Store abbreviated reasoning
+                    }
+                    for r in recommendations[:10]  # Store top 10 recommendations
                 ],
                 "market_summary": market_analysis.get("market_summary", ""),
                 "market_analysis": market_analysis,
                 "holdings_impact": holdings_impact[:5] if holdings_impact else [],  # Store top 5
-                "watchlist": watchlist[:5] if watchlist else []  # Store top 5
+                "watchlist": watchlist[:5] if watchlist else [],  # Store top 5
             }
 
             save_success = save_market_intelligence_report(user_id, report_data)
@@ -204,7 +210,7 @@ class MarketIntelligenceService:
                 tldr_summary=tldr_summary,
                 portfolio_health=portfolio_health,
                 stop_losses=stop_losses,
-                watchlist=watchlist
+                watchlist=watchlist,
             )
 
         except Exception as e:
@@ -218,7 +224,7 @@ class MarketIntelligenceService:
         user_holdings: List[str],
         risk_profile: str = "moderate",
         available_cash: float = 0,
-        trading_style: str = "swing_trading"
+        trading_style: str = "swing_trading",
     ) -> bool:
         """
         Generate market close summary (5 PM email).
@@ -241,14 +247,13 @@ class MarketIntelligenceService:
             # Get market close analysis
             market_analysis = self._get_market_close_analysis()
 
-            if not market_analysis or not market_analysis.get('has_important_news'):
+            if not market_analysis or not market_analysis.get("has_important_news"):
                 logger.info(f"No significant market developments for {user_email}")
                 return False
 
             # Analyze holdings impact with today's performance
             holdings_impact = self._analyze_holdings_impact(
-                user_holdings=user_holdings,
-                market_analysis=market_analysis
+                user_holdings=user_holdings, market_analysis=market_analysis
             )
 
             # Generate recommendations based on today's close
@@ -258,26 +263,24 @@ class MarketIntelligenceService:
                 risk_profile=risk_profile,
                 available_cash=available_cash,
                 previous_report=None,
-                trading_style=trading_style
+                trading_style=trading_style,
             )
 
             # Generate TL;DR summary
             tldr_summary = self._generate_tldr_summary(
                 market_analysis=market_analysis,
                 recommendations=recommendations,
-                holdings_impact=holdings_impact
+                holdings_impact=holdings_impact,
             )
 
             # Calculate portfolio health
             portfolio_health = self._calculate_portfolio_health(
-                user_holdings=user_holdings,
-                recommendations=recommendations
+                user_holdings=user_holdings, recommendations=recommendations
             )
 
             # Calculate stop-losses
             stop_losses = self._calculate_stop_losses(
-                holdings_impact=holdings_impact,
-                recommendations=recommendations
+                holdings_impact=holdings_impact, recommendations=recommendations
             )
 
             # Send market close summary email
@@ -290,7 +293,7 @@ class MarketIntelligenceService:
                 risk_profile=risk_profile,
                 tldr_summary=tldr_summary or {},
                 portfolio_health=portfolio_health or {},
-                stop_losses=stop_losses or {}
+                stop_losses=stop_losses or {},
             )
 
             text_body = f"""
@@ -306,10 +309,7 @@ Powered by Silicon Oracle AI
             """
 
             success = self.email_service.send_email(
-                to_email=user_email,
-                subject=subject,
-                html_body=html_body,
-                text_body=text_body
+                to_email=user_email, subject=subject, html_body=html_body, text_body=text_body
             )
 
             if success:
@@ -330,7 +330,7 @@ Powered by Silicon Oracle AI
         user_holdings: List[str],
         risk_profile: str = "moderate",
         available_cash: float = 0,
-        trading_style: str = "swing_trading"
+        trading_style: str = "swing_trading",
     ) -> bool:
         """
         Generate market preview (9 AM email).
@@ -353,14 +353,13 @@ Powered by Silicon Oracle AI
             # Get market preview analysis
             market_analysis = self._get_market_preview_analysis()
 
-            if not market_analysis or not market_analysis.get('has_important_news'):
+            if not market_analysis or not market_analysis.get("has_important_news"):
                 logger.info(f"No significant market events expected for {user_email}")
                 return False
 
             # Analyze potential holdings impact
             holdings_impact = self._analyze_holdings_impact(
-                user_holdings=user_holdings,
-                market_analysis=market_analysis
+                user_holdings=user_holdings, market_analysis=market_analysis
             )
 
             # Generate recommendations for today
@@ -370,20 +369,19 @@ Powered by Silicon Oracle AI
                 risk_profile=risk_profile,
                 available_cash=available_cash,
                 previous_report=None,
-                trading_style=trading_style
+                trading_style=trading_style,
             )
 
             # Generate TL;DR summary
             tldr_summary = self._generate_tldr_summary(
                 market_analysis=market_analysis,
                 recommendations=recommendations,
-                holdings_impact=holdings_impact
+                holdings_impact=holdings_impact,
             )
 
             # Calculate portfolio health
             portfolio_health = self._calculate_portfolio_health(
-                user_holdings=user_holdings,
-                recommendations=recommendations
+                user_holdings=user_holdings, recommendations=recommendations
             )
 
             # Send market preview email
@@ -395,7 +393,7 @@ Powered by Silicon Oracle AI
                 holdings_impact=holdings_impact,
                 risk_profile=risk_profile,
                 tldr_summary=tldr_summary or {},
-                portfolio_health=portfolio_health or {}
+                portfolio_health=portfolio_health or {},
             )
 
             text_body = f"""
@@ -412,10 +410,7 @@ Powered by Silicon Oracle AI
             """
 
             success = self.email_service.send_email(
-                to_email=user_email,
-                subject=subject,
-                html_body=html_body,
-                text_body=text_body
+                to_email=user_email, subject=subject, html_body=html_body, text_body=text_body
             )
 
             if success:
@@ -436,7 +431,7 @@ Powered by Silicon Oracle AI
         """
         if not self.gemini_service.client:
             logger.warning("Gemini API not configured")
-            return {'has_important_news': False}
+            return {"has_important_news": False}
 
         try:
             from google.genai import types
@@ -445,9 +440,7 @@ Powered by Silicon Oracle AI
             current_time = datetime.now().strftime("%I:%M %p")
 
             # Define Google Search tool for real-time news
-            google_search_tool = types.Tool(
-                google_search=types.GoogleSearch()
-            )
+            google_search_tool = types.Tool(google_search=types.GoogleSearch())
 
             prompt = f"""
 Today is {current_date} at {current_time}.
@@ -529,7 +522,7 @@ CRITICAL RULES:
                     tools=[google_search_tool],
                     response_modalities=["TEXT"],
                     temperature=0.3,  # Lower temperature for more factual analysis
-                )
+                ),
             )
 
             # Parse JSON response
@@ -539,7 +532,7 @@ CRITICAL RULES:
             response_text = response.text.strip()
 
             # Extract JSON from response (in case there's markdown)
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 response_text = json_match.group(0)
 
@@ -554,7 +547,7 @@ CRITICAL RULES:
 
         except Exception as e:
             logger.error(f"Market analysis failed: {e}", exc_info=True)
-            return {'has_important_news': False}
+            return {"has_important_news": False}
 
     def _get_market_close_analysis(self) -> Dict[str, Any]:
         """
@@ -563,7 +556,7 @@ CRITICAL RULES:
         """
         if not self.gemini_service.client:
             logger.warning("Gemini API not configured")
-            return {'has_important_news': False}
+            return {"has_important_news": False}
 
         try:
             from google.genai import types
@@ -571,9 +564,7 @@ CRITICAL RULES:
             current_date = datetime.now().strftime("%B %d, %Y")
             current_time = datetime.now().strftime("%I:%M %p")
 
-            google_search_tool = types.Tool(
-                google_search=types.GoogleSearch()
-            )
+            google_search_tool = types.Tool(google_search=types.GoogleSearch())
 
             prompt = f"""
 Today is {current_date} at {current_time} - Market Close Time.
@@ -645,14 +636,14 @@ Return ONLY valid JSON, no markdown.
                     tools=[google_search_tool],
                     response_modalities=["TEXT"],
                     temperature=0.3,
-                )
+                ),
             )
 
             import json
             import re
 
             response_text = response.text.strip()
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 response_text = json_match.group(0)
 
@@ -661,12 +652,14 @@ Return ONLY valid JSON, no markdown.
             if not isinstance(analysis, dict):
                 raise ValueError("Invalid analysis format")
 
-            logger.info(f"Market close analysis complete: {analysis.get('market_sentiment')} sentiment")
+            logger.info(
+                f"Market close analysis complete: {analysis.get('market_sentiment')} sentiment"
+            )
             return analysis
 
         except Exception as e:
             logger.error(f"Market close analysis failed: {e}", exc_info=True)
-            return {'has_important_news': False}
+            return {"has_important_news": False}
 
     def _get_market_preview_analysis(self) -> Dict[str, Any]:
         """
@@ -675,7 +668,7 @@ Return ONLY valid JSON, no markdown.
         """
         if not self.gemini_service.client:
             logger.warning("Gemini API not configured")
-            return {'has_important_news': False}
+            return {"has_important_news": False}
 
         try:
             from google.genai import types
@@ -683,9 +676,7 @@ Return ONLY valid JSON, no markdown.
             current_date = datetime.now().strftime("%B %d, %Y")
             current_time = datetime.now().strftime("%I:%M %p")
 
-            google_search_tool = types.Tool(
-                google_search=types.GoogleSearch()
-            )
+            google_search_tool = types.Tool(google_search=types.GoogleSearch())
 
             prompt = f"""
 Today is {current_date} at {current_time} - Pre-Market Time.
@@ -757,14 +748,14 @@ Return ONLY valid JSON, no markdown.
                     tools=[google_search_tool],
                     response_modalities=["TEXT"],
                     temperature=0.3,
-                )
+                ),
             )
 
             import json
             import re
 
             response_text = response.text.strip()
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 response_text = json_match.group(0)
 
@@ -773,12 +764,14 @@ Return ONLY valid JSON, no markdown.
             if not isinstance(analysis, dict):
                 raise ValueError("Invalid analysis format")
 
-            logger.info(f"Market preview analysis complete: {analysis.get('market_sentiment')} sentiment")
+            logger.info(
+                f"Market preview analysis complete: {analysis.get('market_sentiment')} sentiment"
+            )
             return analysis
 
         except Exception as e:
             logger.error(f"Market preview analysis failed: {e}", exc_info=True)
-            return {'has_important_news': False}
+            return {"has_important_news": False}
 
     def _generate_personalized_recommendations(
         self,
@@ -787,7 +780,7 @@ Return ONLY valid JSON, no markdown.
         risk_profile: str,
         available_cash: float,
         previous_report: Optional[Dict[str, Any]] = None,
-        trading_style: str = "swing_trading"
+        trading_style: str = "swing_trading",
     ) -> List[Dict[str, Any]]:
         """
         Use AI to generate personalized stock recommendations based on:
@@ -802,8 +795,9 @@ Return ONLY valid JSON, no markdown.
             return []
 
         try:
-            from google.genai import types
             import json
+
+            from google.genai import types
 
             # Build context about user
             holdings_str = ", ".join(user_holdings) if user_holdings else "None (all cash)"
@@ -811,16 +805,18 @@ Return ONLY valid JSON, no markdown.
             risk_descriptions = {
                 "aggressive": "high-risk, high-reward growth stocks with volatility",
                 "moderate": "balanced mix of growth and value with moderate risk",
-                "conservative": "low-risk, stable companies with dividends and minimal volatility"
+                "conservative": "low-risk, stable companies with dividends and minimal volatility",
             }
             risk_desc = risk_descriptions.get(risk_profile.lower(), risk_descriptions["moderate"])
 
             trading_style_descriptions = {
                 "day_trading": "Intraday momentum plays. Focus on high-liquidity stocks with volume spikes and intraday catalysts. All timeframes MUST be 'short-term'. Avoid overnight holds. Prioritize stocks with clear entry/exit triggers within hours.",
                 "swing_trading": "2-10 day setups based on technical breakouts, momentum shifts, and catalyst-driven moves. Timeframes should be 'short-term' or 'medium-term'. Look for stocks at key support/resistance with strong momentum potential.",
-                "long_term": "Multi-month or multi-year fundamental holds. Focus on secular growth trends, strong balance sheets, competitive moats, and dividend quality. All timeframes MUST be 'long-term'. Ignore short-term volatility and noise."
+                "long_term": "Multi-month or multi-year fundamental holds. Focus on secular growth trends, strong balance sheets, competitive moats, and dividend quality. All timeframes MUST be 'long-term'. Ignore short-term volatility and noise.",
             }
-            style_desc = trading_style_descriptions.get(trading_style, trading_style_descriptions["swing_trading"])
+            style_desc = trading_style_descriptions.get(
+                trading_style, trading_style_descriptions["swing_trading"]
+            )
 
             # Pre-calculate Oracle scores for user's holdings to inform AI
             holdings_oracle_context = ""
@@ -829,12 +825,12 @@ Return ONLY valid JSON, no markdown.
                 for ticker in user_holdings[:10]:  # Limit to avoid token bloat
                     try:
                         oracle_data = self.oracle_service.calculate_oracle_score(ticker)
-                        score = oracle_data.get('score', 0)
-                        max_score = oracle_data.get('max_score', 12)
-                        verdict = oracle_data.get('verdict_text', 'HOLD')
+                        score = oracle_data.get("score", 0)
+                        max_score = oracle_data.get("max_score", 12)
+                        verdict = oracle_data.get("verdict_text", "HOLD")
                         score_pct = (score / max_score * 100) if max_score > 0 else 0
                         holdings_oracle_context += f"\n- {ticker}: {score:.1f}/{max_score} ({score_pct:.0f}%) - Oracle says: {verdict}"
-                    except:
+                    except Exception:
                         pass
 
             # Build AI memory context from previous report
@@ -936,7 +932,7 @@ BAD: "catalyst": "N/A - General market conditions"
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.4,  # Slightly higher for creative recommendations
-                )
+                ),
             )
 
             # Parse JSON response
@@ -944,17 +940,17 @@ BAD: "catalyst": "N/A - General market conditions"
             import re
 
             response_text = response.text.strip()
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 response_text = json_match.group(0)
 
             recommendations_data = json.loads(response_text)
-            recommendations = recommendations_data.get('recommendations', [])
+            recommendations = recommendations_data.get("recommendations", [])
 
             # Enrich with Oracle scores (for display in email)
             enriched = []
             for rec in recommendations:
-                ticker = rec.get('ticker', '').upper()
+                ticker = rec.get("ticker", "").upper()
                 if not ticker:
                     continue
 
@@ -962,16 +958,18 @@ BAD: "catalyst": "N/A - General market conditions"
                     # Get Oracle score for this ticker
                     oracle_data = self.oracle_service.calculate_oracle_score(ticker)
 
-                    enriched.append({
-                        **rec,
-                        'oracle_score': oracle_data.get('score', 0),
-                        'oracle_max': oracle_data.get('max_score', 12),
-                        'oracle_verdict': oracle_data.get('verdict_text', 'HOLD'),
-                        'oracle_confidence': oracle_data.get('confidence', 0)
-                    })
+                    enriched.append(
+                        {
+                            **rec,
+                            "oracle_score": oracle_data.get("score", 0),
+                            "oracle_max": oracle_data.get("max_score", 12),
+                            "oracle_verdict": oracle_data.get("verdict_text", "HOLD"),
+                            "oracle_confidence": oracle_data.get("confidence", 0),
+                        }
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to get Oracle score for {ticker}: {e}")
-                    enriched.append({**rec, 'oracle_score': None})
+                    enriched.append({**rec, "oracle_score": None})
 
             logger.info(f"Generated {len(enriched)} Oracle-aware personalized recommendations")
             return enriched
@@ -981,9 +979,7 @@ BAD: "catalyst": "N/A - General market conditions"
             return []
 
     def _analyze_holdings_impact(
-        self,
-        user_holdings: List[str],
-        market_analysis: Dict[str, Any]
+        self, user_holdings: List[str], market_analysis: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Analyze how current market conditions affect user's holdings.
@@ -992,8 +988,9 @@ BAD: "catalyst": "N/A - General market conditions"
             return []
 
         try:
-            from google.genai import types
             import json
+
+            from google.genai import types
 
             holdings_str = ", ".join(user_holdings)
 
@@ -1033,19 +1030,19 @@ Return ONLY valid JSON, no markdown.
             response = self.gemini_service.client.models.generate_content(
                 model=self.gemini_service.model_name,
                 contents=prompt,
-                config=types.GenerateContentConfig(temperature=0.3)
+                config=types.GenerateContentConfig(temperature=0.3),
             )
 
             import json
             import re
 
             response_text = response.text.strip()
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 response_text = json_match.group(0)
 
             impact_data = json.loads(response_text)
-            return impact_data.get('holdings_impact', [])
+            return impact_data.get("holdings_impact", [])
 
         except Exception as e:
             logger.error(f"Holdings impact analysis failed: {e}", exc_info=True)
@@ -1055,61 +1052,72 @@ Return ONLY valid JSON, no markdown.
         self,
         market_analysis: Dict[str, Any],
         recommendations: List[Dict[str, Any]],
-        holdings_impact: List[Dict[str, Any]]
+        holdings_impact: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Generate concise TL;DR summary of key takeaways."""
         try:
-            buy_recs = [r for r in recommendations if r.get('action') == 'BUY']
-            sell_recs = [r for r in recommendations if r.get('action') == 'SELL']
-            hold_recs = [r for r in recommendations if r.get('action') == 'HOLD']
+            buy_recs = [r for r in recommendations if r.get("action") == "BUY"]
+            sell_recs = [r for r in recommendations if r.get("action") == "SELL"]
+            hold_recs = [r for r in recommendations if r.get("action") == "HOLD"]
 
             # Get top catalysts
-            catalysts = market_analysis.get('top_catalysts', [])[:3]
-            catalyst_summary = [c.get('title', '') for c in catalysts]
+            catalysts = market_analysis.get("top_catalysts", [])[:3]
+            catalyst_summary = [c.get("title", "") for c in catalysts]
 
             # Get key risks
-            risks = [c for c in catalysts if c.get('sentiment') == 'negative'][:2]
-            risk_summary = [r.get('title', '') for r in risks] if risks else ['Monitor market volatility']
+            risks = [c for c in catalysts if c.get("sentiment") == "negative"][:2]
+            risk_summary = (
+                [r.get("title", "") for r in risks] if risks else ["Monitor market volatility"]
+            )
 
             # Holdings with highest impact
-            high_impact = [h for h in holdings_impact if h.get('severity') == 'high'][:2]
+            high_impact = [h for h in holdings_impact if h.get("severity") == "high"][:2]
 
             return {
-                'new_buys': len(buy_recs),
-                'new_sells': len(sell_recs),
-                'holds': len(hold_recs),
-                'top_buy_tickers': [r.get('ticker') for r in buy_recs[:3]],
-                'top_catalysts': catalyst_summary,
-                'key_risks': risk_summary,
-                'high_impact_holdings': [h.get('ticker') for h in high_impact]
+                "new_buys": len(buy_recs),
+                "new_sells": len(sell_recs),
+                "holds": len(hold_recs),
+                "top_buy_tickers": [r.get("ticker") for r in buy_recs[:3]],
+                "top_catalysts": catalyst_summary,
+                "key_risks": risk_summary,
+                "high_impact_holdings": [h.get("ticker") for h in high_impact],
             }
         except Exception as e:
             logger.error(f"TL;DR generation failed: {e}")
             return {}
 
     def _calculate_portfolio_health(
-        self,
-        user_holdings: List[str],
-        recommendations: List[Dict[str, Any]]
+        self, user_holdings: List[str], recommendations: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Calculate portfolio health metrics including sector exposure and risk."""
         try:
             if not user_holdings:
-                return {'total_positions': 0, 'sectors': {}}
+                return {"total_positions": 0, "sectors": {}}
 
             # Simple sector mapping (expand this based on your needs)
             sector_map = {
-                'TSM': 'Technology', 'NVDA': 'Technology', 'AAPL': 'Technology', 'MSFT': 'Technology',
-                'PPLT': 'Commodities', 'GLD': 'Commodities', 'GDX': 'Commodities',
-                'MP': 'Materials', 'SPYM': 'Diversified', 'BRK-B': 'Financials',
-                'JPM': 'Financials', 'BAC': 'Financials', 'MRK': 'Healthcare',
-                'JNJ': 'Healthcare', 'CAT': 'Industrials', 'SMCI': 'Technology'
+                "TSM": "Technology",
+                "NVDA": "Technology",
+                "AAPL": "Technology",
+                "MSFT": "Technology",
+                "PPLT": "Commodities",
+                "GLD": "Commodities",
+                "GDX": "Commodities",
+                "MP": "Materials",
+                "SPYM": "Diversified",
+                "BRK-B": "Financials",
+                "JPM": "Financials",
+                "BAC": "Financials",
+                "MRK": "Healthcare",
+                "JNJ": "Healthcare",
+                "CAT": "Industrials",
+                "SMCI": "Technology",
             }
 
             # Calculate sector exposure
-            sectors = {}
+            sectors: Dict[str, int] = {}
             for ticker in user_holdings:
-                sector = sector_map.get(ticker, 'Other')
+                sector = sector_map.get(ticker, "Other")
                 sectors[sector] = sectors.get(sector, 0) + 1
 
             # Calculate percentages
@@ -1120,8 +1128,8 @@ Return ONLY valid JSON, no markdown.
             total_risk_score = 0
             scored_count = 0
             for rec in recommendations:
-                if rec.get('oracle_score'):
-                    score_pct = (rec['oracle_score'] / rec.get('oracle_max', 12)) * 100
+                if rec.get("oracle_score"):
+                    score_pct = (rec["oracle_score"] / rec.get("oracle_max", 12)) * 100
                     # Higher Oracle score = lower risk
                     risk_contribution = 100 - score_pct
                     total_risk_score += risk_contribution
@@ -1130,48 +1138,46 @@ Return ONLY valid JSON, no markdown.
             avg_risk = (total_risk_score / scored_count) if scored_count > 0 else 50
 
             return {
-                'total_positions': total,
-                'sectors': sector_pct,
-                'risk_score': round(avg_risk / 10, 1),  # Scale to 0-10
-                'concentration': max(sector_pct.values()) if sector_pct else 0
+                "total_positions": total,
+                "sectors": sector_pct,
+                "risk_score": round(avg_risk / 10, 1),  # Scale to 0-10
+                "concentration": max(sector_pct.values()) if sector_pct else 0,
             }
         except Exception as e:
             logger.error(f"Portfolio health calculation failed: {e}")
             return {}
 
     def _calculate_stop_losses(
-        self,
-        holdings_impact: List[Dict[str, Any]],
-        recommendations: List[Dict[str, Any]]
+        self, holdings_impact: List[Dict[str, Any]], recommendations: List[Dict[str, Any]]
     ) -> Dict[str, Dict[str, Any]]:
         """Calculate Oracle-based stop-loss levels for holdings."""
         try:
             stop_losses = {}
 
             for rec in recommendations:
-                if rec.get('action') in ['HOLD', 'SELL']:  # Only for held positions
-                    ticker = rec.get('ticker')
-                    oracle_score = rec.get('oracle_score')
-                    oracle_max = rec.get('oracle_max', 12)
+                if rec.get("action") in ["HOLD", "SELL"]:  # Only for held positions
+                    ticker = rec.get("ticker")
+                    oracle_score = rec.get("oracle_score")
+                    oracle_max = rec.get("oracle_max", 12)
 
                     if oracle_score and ticker:
                         # Simple stop-loss: if Oracle score < 40%, suggest caution
                         score_pct = (oracle_score / oracle_max) * 100
 
                         if score_pct >= 70:
-                            risk_level = 'low'
-                            suggestion = 'Strong technical support - wide stop'
+                            risk_level = "low"
+                            suggestion = "Strong technical support - wide stop"
                         elif score_pct >= 50:
-                            risk_level = 'medium'
-                            suggestion = 'Moderate support - standard stop'
+                            risk_level = "medium"
+                            suggestion = "Moderate support - standard stop"
                         else:
-                            risk_level = 'high'
-                            suggestion = 'Weak technicals - tight stop recommended'
+                            risk_level = "high"
+                            suggestion = "Weak technicals - tight stop recommended"
 
                         stop_losses[ticker] = {
-                            'risk_level': risk_level,
-                            'oracle_score_pct': score_pct,
-                            'suggestion': suggestion
+                            "risk_level": risk_level,
+                            "oracle_score_pct": score_pct,
+                            "suggestion": suggestion,
                         }
 
             return stop_losses
@@ -1180,18 +1186,16 @@ Return ONLY valid JSON, no markdown.
             return {}
 
     def _generate_watchlist(
-        self,
-        market_analysis: Dict[str, Any],
-        user_holdings: List[str],
-        risk_profile: str
+        self, market_analysis: Dict[str, Any], user_holdings: List[str], risk_profile: str
     ) -> List[Dict[str, Any]]:
         """Generate watchlist of stocks to monitor (not immediate buys)."""
         if not self.gemini_service.client:
             return []
 
         try:
-            from google.genai import types
             import json
+
+            from google.genai import types
 
             holdings_str = ", ".join(user_holdings) if user_holdings else "None"
 
@@ -1227,19 +1231,19 @@ Return ONLY valid JSON, no markdown.
             response = self.gemini_service.client.models.generate_content(
                 model=self.gemini_service.model_name,
                 contents=prompt,
-                config=types.GenerateContentConfig(temperature=0.5)
+                config=types.GenerateContentConfig(temperature=0.5),
             )
 
             import json
             import re
 
             response_text = response.text.strip()
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 response_text = json_match.group(0)
 
             watchlist_data = json.loads(response_text)
-            watchlist = watchlist_data.get('watchlist', [])
+            watchlist = watchlist_data.get("watchlist", [])
 
             logger.info(f"Generated watchlist with {len(watchlist)} stocks")
             return watchlist
@@ -1255,21 +1259,19 @@ Return ONLY valid JSON, no markdown.
         recommendations: List[Dict[str, Any]],
         holdings_impact: List[Dict[str, Any]],
         risk_profile: str,
-        tldr_summary: Dict[str, Any] = None,
-        portfolio_health: Dict[str, Any] = None,
-        stop_losses: Dict[str, Dict[str, Any]] = None,
-        watchlist: List[Dict[str, Any]] = None
+        tldr_summary: Optional[Dict[str, Any]] = None,
+        portfolio_health: Optional[Dict[str, Any]] = None,
+        stop_losses: Optional[Dict[str, Dict[str, Any]]] = None,
+        watchlist: Optional[List[Dict[str, Any]]] = None,
     ) -> bool:
         """Send comprehensive market intelligence email with recommendations."""
 
-        import json
-
         # Build subject line
-        sentiment = market_analysis.get('market_sentiment', 'neutral').upper()
-        sentiment_emoji = '📈' if sentiment == 'BULLISH' else '📉' if sentiment == 'BEARISH' else '➡️'
+        sentiment = market_analysis.get("market_sentiment", "neutral").upper()
+        sentiment_emoji = "📈" if sentiment == "BULLISH" else "📉" if sentiment == "BEARISH" else "➡️"
 
-        buy_count = len([r for r in recommendations if r.get('action') == 'BUY'])
-        sell_count = len([r for r in recommendations if r.get('action') == 'SELL'])
+        buy_count = len([r for r in recommendations if r.get("action") == "BUY"])
+        sell_count = len([r for r in recommendations if r.get("action") == "SELL"])
 
         subject = f"{sentiment_emoji} Market Intel: {buy_count} BUY, {sell_count} SELL - {sentiment} Market"
 
@@ -1282,7 +1284,7 @@ Return ONLY valid JSON, no markdown.
             tldr_summary=tldr_summary or {},
             portfolio_health=portfolio_health or {},
             stop_losses=stop_losses or {},
-            watchlist=watchlist or []
+            watchlist=watchlist or [],
         )
 
         # Build text email
@@ -1290,15 +1292,12 @@ Return ONLY valid JSON, no markdown.
             market_analysis=market_analysis,
             recommendations=recommendations,
             holdings_impact=holdings_impact,
-            tldr_summary=tldr_summary or {}
+            tldr_summary=tldr_summary or {},
         )
 
         # Send email
         success = self.email_service.send_email(
-            to_email=user_email,
-            subject=subject,
-            html_body=html_body,
-            text_body=text_body
+            to_email=user_email, subject=subject, html_body=html_body, text_body=text_body
         )
 
         if success:
@@ -1317,46 +1316,50 @@ Return ONLY valid JSON, no markdown.
         tldr_summary: Dict[str, Any],
         portfolio_health: Dict[str, Any],
         stop_losses: Dict[str, Dict[str, Any]],
-        watchlist: List[Dict[str, Any]]
+        watchlist: List[Dict[str, Any]],
     ) -> str:
         """Build HTML email for market intelligence with all enhanced features."""
 
-        current_time = datetime.now().strftime('%B %d, %Y at %I:%M %p')
+        current_time = datetime.now().strftime("%B %d, %Y at %I:%M %p")
 
-        sentiment = market_analysis.get('market_sentiment', 'neutral')
-        sentiment_score = market_analysis.get('sentiment_score', 50)
-        market_summary = market_analysis.get('market_summary', 'No summary available')
+        sentiment = market_analysis.get("market_sentiment", "neutral")
+        sentiment_score = market_analysis.get("sentiment_score", 50)
+        market_summary = market_analysis.get("market_summary", "No summary available")
 
-        sentiment_colors = {
-            'bullish': '#059669',
-            'neutral': '#0891b2',
-            'bearish': '#dc2626'
-        }
-        sentiment_bg_colors = {
-            'bullish': '#d1fae5',
-            'neutral': '#cffafe',
-            'bearish': '#fee2e2'
-        }
-        sentiment_color = sentiment_colors.get(sentiment.lower(), '#0891b2')
-        sentiment_bg = sentiment_bg_colors.get(sentiment.lower(), '#cffafe')
+        sentiment_colors = {"bullish": "#059669", "neutral": "#0891b2", "bearish": "#dc2626"}
+        sentiment_bg_colors = {"bullish": "#d1fae5", "neutral": "#cffafe", "bearish": "#fee2e2"}
+        sentiment_color = sentiment_colors.get(sentiment.lower(), "#0891b2")
+        sentiment_bg = sentiment_bg_colors.get(sentiment.lower(), "#cffafe")
 
         # Market overview section
         catalysts_html = ""
-        for catalyst in market_analysis.get('top_catalysts', [])[:5]:
-            impact_color = '#dc2626' if catalyst.get('impact') == 'high' else '#ea580c' if catalyst.get('impact') == 'medium' else '#d97706'
-            sentiment_icon = '📈' if catalyst.get('sentiment') == 'positive' else '📉' if catalyst.get('sentiment') == 'negative' else '➡️'
+        for catalyst in market_analysis.get("top_catalysts", [])[:5]:
+            impact_color = (
+                "#dc2626"
+                if catalyst.get("impact") == "high"
+                else "#ea580c"
+                if catalyst.get("impact") == "medium"
+                else "#d97706"
+            )
+            sentiment_icon = (
+                "📈"
+                if catalyst.get("sentiment") == "positive"
+                else "📉"
+                if catalyst.get("sentiment") == "negative"
+                else "➡️"
+            )
 
             # Build source link if available
             source_html = ""
-            if catalyst.get('source_url'):
-                source_name = catalyst.get('source_name', 'Read article')
-                source_html = f'''
+            if catalyst.get("source_url"):
+                source_name = catalyst.get("source_name", "Read article")
+                source_html = f"""
                 <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #d1d5db;">
                     <a href="{catalyst.get('source_url')}" style="font-size: 11px; color: #2563eb; text-decoration: none; font-weight: 600;">
                         🔗 {source_name} →
                     </a>
                 </div>
-                '''
+                """
 
             catalysts_html += f"""
             <div style="background-color: #f9fafb; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid {impact_color};">
@@ -1382,48 +1385,44 @@ Return ONLY valid JSON, no markdown.
             """
 
         # Recommendations section (grouped by action)
-        buy_recs = [r for r in recommendations if r.get('action') == 'BUY']
-        hold_recs = [r for r in recommendations if r.get('action') == 'HOLD']
-        sell_recs = [r for r in recommendations if r.get('action') == 'SELL']
+        buy_recs = [r for r in recommendations if r.get("action") == "BUY"]
+        hold_recs = [r for r in recommendations if r.get("action") == "HOLD"]
+        sell_recs = [r for r in recommendations if r.get("action") == "SELL"]
 
         def build_rec_card(rec, action_color):
             oracle_html = ""
-            if rec.get('oracle_score') is not None:
-                score = rec['oracle_score']
-                max_score = rec.get('oracle_max', 12)
+            if rec.get("oracle_score") is not None:
+                score = rec["oracle_score"]
+                max_score = rec.get("oracle_max", 12)
                 score_pct = (score / max_score * 100) if max_score > 0 else 0
-                oracle_verdict = rec.get('oracle_verdict', 'N/A').upper()
-                ai_action = rec.get('action', '').upper()
+                oracle_verdict = rec.get("oracle_verdict", "N/A").upper()
+                ai_action = rec.get("action", "").upper()
 
                 # Detect AI vs Oracle conflicts with enhanced verdict display
                 conflict_verdict_html = ""
 
                 # Check if rec has conflict verdict from AI
-                conflict_verdict = rec.get('conflict_verdict')
-                conflict_reason = rec.get('conflict_reason', '')
+                conflict_verdict = rec.get("conflict_verdict")
+                conflict_reason = rec.get("conflict_reason", "")
 
                 # Also detect conflicts manually as fallback
-                has_conflict = False
-                if 'STRONG BUY' in oracle_verdict and ai_action in ['SELL', 'HOLD']:
-                    has_conflict = True
+                if "STRONG BUY" in oracle_verdict and ai_action in ["SELL", "HOLD"]:
                     if not conflict_verdict:
-                        conflict_verdict = 'fundamental_override'
-                elif 'SELL' in oracle_verdict and ai_action == 'BUY':
-                    has_conflict = True
+                        conflict_verdict = "fundamental_override"
+                elif "SELL" in oracle_verdict and ai_action == "BUY":
                     if not conflict_verdict:
-                        conflict_verdict = 'technical_conviction'
+                        conflict_verdict = "technical_conviction"
 
                 # Build conflict verdict box if there's a conflict
                 if conflict_verdict:
                     verdict_labels = {
-                        'fundamental_override': ('FUNDAMENTAL OVERRIDE', '#fef2f2', '#dc2626'),
-                        'technical_conviction': ('TECHNICAL CONVICTION', '#f0fdf4', '#059669'),
-                        'risk_management': ('RISK MANAGEMENT', '#fef9c3', '#d97706')
+                        "fundamental_override": ("FUNDAMENTAL OVERRIDE", "#fef2f2", "#dc2626"),
+                        "technical_conviction": ("TECHNICAL CONVICTION", "#f0fdf4", "#059669"),
+                        "risk_management": ("RISK MANAGEMENT", "#fef9c3", "#d97706"),
                     }
 
                     verdict_label, verdict_bg, verdict_color = verdict_labels.get(
-                        conflict_verdict,
-                        ('OVERRIDE', '#fef2f2', '#dc2626')
+                        conflict_verdict, ("OVERRIDE", "#fef2f2", "#dc2626")
                     )
 
                     conflict_verdict_html = f"""
@@ -1450,8 +1449,8 @@ Return ONLY valid JSON, no markdown.
                 {conflict_verdict_html}
                 """
 
-            priority_colors = {'high': '#ef4444', 'medium': '#f97316', 'low': '#eab308'}
-            priority_color = priority_colors.get(rec.get('priority', 'medium').lower(), '#f97316')
+            priority_colors = {"high": "#ef4444", "medium": "#f97316", "low": "#eab308"}
+            priority_color = priority_colors.get(rec.get("priority", "medium").lower(), "#f97316")
 
             return f"""
             <div style="background-color: #f9fafb; padding: 14px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid {action_color}; border: 1px solid #e5e7eb;">
@@ -1480,9 +1479,9 @@ Return ONLY valid JSON, no markdown.
             </div>
             """
 
-        buy_html = "".join([build_rec_card(r, '#22c55e') for r in buy_recs[:5]])
-        sell_html = "".join([build_rec_card(r, '#ef4444') for r in sell_recs[:5]])
-        hold_html = "".join([build_rec_card(r, '#eab308') for r in hold_recs[:5]])
+        buy_html = "".join([build_rec_card(r, "#22c55e") for r in buy_recs[:5]])
+        sell_html = "".join([build_rec_card(r, "#ef4444") for r in sell_recs[:5]])
+        hold_html = "".join([build_rec_card(r, "#eab308") for r in hold_recs[:5]])
 
         # Watchlist section
         watchlist_html = ""
@@ -1514,16 +1513,22 @@ Return ONLY valid JSON, no markdown.
         # Holdings impact section
         holdings_html = ""
         for holding in holdings_impact[:10]:
-            impact_colors = {'positive': '#059669', 'negative': '#dc2626', 'neutral': '#6b7280'}
-            impact_color = impact_colors.get(holding.get('impact', 'neutral').lower(), '#6b7280')
-            impact_icon = '📈' if holding.get('impact') == 'positive' else '📉' if holding.get('impact') == 'negative' else '➡️'
+            impact_colors = {"positive": "#059669", "negative": "#dc2626", "neutral": "#6b7280"}
+            impact_color = impact_colors.get(holding.get("impact", "neutral").lower(), "#6b7280")
+            impact_icon = (
+                "📈"
+                if holding.get("impact") == "positive"
+                else "📉"
+                if holding.get("impact") == "negative"
+                else "➡️"
+            )
 
-            ticker = holding.get('ticker', 'N/A')
+            ticker = holding.get("ticker", "N/A")
             stop_loss_info = stop_losses.get(ticker, {})
             stop_loss_html = ""
             if stop_loss_info:
-                risk_colors = {'low': '#059669', 'medium': '#d97706', 'high': '#dc2626'}
-                risk_color = risk_colors.get(stop_loss_info.get('risk_level', 'medium'), '#d97706')
+                risk_colors = {"low": "#059669", "medium": "#d97706", "high": "#dc2626"}
+                risk_color = risk_colors.get(stop_loss_info.get("risk_level", "medium"), "#d97706")
                 stop_loss_html = f"""
                 <div style="background-color: #fef3c7; padding: 6px 10px; border-radius: 4px; margin-top: 6px; border-left: 2px solid {risk_color}; border: 1px solid #fde68a;">
                     <span style="font-size: 10px; color: #6b7280;">Stop-Loss: </span>
@@ -1717,7 +1722,7 @@ Return ONLY valid JSON, no markdown.
         market_analysis: Dict[str, Any],
         recommendations: List[Dict[str, Any]],
         holdings_impact: List[Dict[str, Any]],
-        tldr_summary: Dict[str, Any]
+        tldr_summary: Dict[str, Any],
     ) -> str:
         """Build plain text email with TL;DR."""
 
@@ -1735,23 +1740,23 @@ Score: {market_analysis.get('sentiment_score', 50)}/100
 KEY CATALYSTS
 {'=' * 70}
 """
-        for idx, catalyst in enumerate(market_analysis.get('top_catalysts', [])[:5], 1):
+        for idx, catalyst in enumerate(market_analysis.get("top_catalysts", [])[:5], 1):
             text += f"\n{idx}. [{catalyst.get('impact', 'medium').upper()}] {catalyst.get('title', 'Event')}\n"
             text += f"   {catalyst.get('summary', '')}\n"
             text += f"   Sectors: {', '.join(catalyst.get('affected_sectors', []))}\n"
 
         # BUY recommendations
-        buy_recs = [r for r in recommendations if r.get('action') == 'BUY']
+        buy_recs = [r for r in recommendations if r.get("action") == "BUY"]
         if buy_recs:
             text += f"\n\n{'=' * 70}\nBUY RECOMMENDATIONS ({len(buy_recs)})\n{'=' * 70}\n"
             for idx, rec in enumerate(buy_recs, 1):
                 text += f"\n{idx}. {rec.get('ticker', 'N/A')} - {rec.get('priority', 'medium').upper()} PRIORITY\n"
                 text += f"   {rec.get('reasoning', '')}\n"
-                if rec.get('oracle_score'):
+                if rec.get("oracle_score"):
                     text += f"   Oracle: {rec['oracle_score']:.1f}/{rec.get('oracle_max', 12)} - {rec.get('oracle_verdict', 'N/A')}\n"
 
         # SELL recommendations
-        sell_recs = [r for r in recommendations if r.get('action') == 'SELL']
+        sell_recs = [r for r in recommendations if r.get("action") == "SELL"]
         if sell_recs:
             text += f"\n\n{'=' * 70}\nSELL RECOMMENDATIONS ({len(sell_recs)})\n{'=' * 70}\n"
             for idx, rec in enumerate(sell_recs, 1):
@@ -1780,45 +1785,49 @@ KEY CATALYSTS
         risk_profile: str,
         tldr_summary: Dict[str, Any],
         portfolio_health: Dict[str, Any],
-        stop_losses: Dict[str, Dict[str, Any]]
+        stop_losses: Dict[str, Dict[str, Any]],
     ) -> str:
         """Build HTML email for market close summary (5 PM email)."""
 
-        current_time = datetime.now().strftime('%B %d, %Y at %I:%M %p')
+        current_time = datetime.now().strftime("%B %d, %Y at %I:%M %p")
 
-        sentiment = market_analysis.get('market_sentiment', 'neutral')
-        sentiment_score = market_analysis.get('sentiment_score', 50)
-        market_summary = market_analysis.get('market_summary', 'No summary available')
+        sentiment = market_analysis.get("market_sentiment", "neutral")
+        sentiment_score = market_analysis.get("sentiment_score", 50)
+        market_summary = market_analysis.get("market_summary", "No summary available")
 
-        sentiment_colors = {
-            'bullish': '#059669',
-            'neutral': '#0891b2',
-            'bearish': '#dc2626'
-        }
-        sentiment_bg_colors = {
-            'bullish': '#d1fae5',
-            'neutral': '#cffafe',
-            'bearish': '#fee2e2'
-        }
-        sentiment_color = sentiment_colors.get(sentiment.lower(), '#0891b2')
-        sentiment_bg = sentiment_bg_colors.get(sentiment.lower(), '#cffafe')
+        sentiment_colors = {"bullish": "#059669", "neutral": "#0891b2", "bearish": "#dc2626"}
+        sentiment_bg_colors = {"bullish": "#d1fae5", "neutral": "#cffafe", "bearish": "#fee2e2"}
+        sentiment_color = sentiment_colors.get(sentiment.lower(), "#0891b2")
+        sentiment_bg = sentiment_bg_colors.get(sentiment.lower(), "#cffafe")
 
         # Build catalysts HTML
         catalysts_html = ""
-        for catalyst in market_analysis.get('top_catalysts', [])[:5]:
-            impact_color = '#dc2626' if catalyst.get('impact') == 'high' else '#ea580c' if catalyst.get('impact') == 'medium' else '#d97706'
-            sentiment_icon = '📈' if catalyst.get('sentiment') == 'positive' else '📉' if catalyst.get('sentiment') == 'negative' else '➡️'
+        for catalyst in market_analysis.get("top_catalysts", [])[:5]:
+            impact_color = (
+                "#dc2626"
+                if catalyst.get("impact") == "high"
+                else "#ea580c"
+                if catalyst.get("impact") == "medium"
+                else "#d97706"
+            )
+            sentiment_icon = (
+                "📈"
+                if catalyst.get("sentiment") == "positive"
+                else "📉"
+                if catalyst.get("sentiment") == "negative"
+                else "➡️"
+            )
 
             source_html = ""
-            if catalyst.get('source_url'):
-                source_name = catalyst.get('source_name', 'Read article')
-                source_html = f'''
+            if catalyst.get("source_url"):
+                source_name = catalyst.get("source_name", "Read article")
+                source_html = f"""
                 <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #d1d5db;">
                     <a href="{catalyst.get('source_url')}" style="font-size: 11px; color: #2563eb; text-decoration: none; font-weight: 600;">
                         🔗 {source_name} →
                     </a>
                 </div>
-                '''
+                """
 
             catalysts_html += f"""
             <div style="background-color: #f9fafb; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid {impact_color};">
@@ -1840,16 +1849,22 @@ KEY CATALYSTS
         # Holdings impact HTML
         holdings_html = ""
         for holding in holdings_impact[:10]:
-            impact_colors = {'positive': '#059669', 'negative': '#dc2626', 'neutral': '#6b7280'}
-            impact_color = impact_colors.get(holding.get('impact', 'neutral').lower(), '#6b7280')
-            impact_icon = '📈' if holding.get('impact') == 'positive' else '📉' if holding.get('impact') == 'negative' else '➡️'
+            impact_colors = {"positive": "#059669", "negative": "#dc2626", "neutral": "#6b7280"}
+            impact_color = impact_colors.get(holding.get("impact", "neutral").lower(), "#6b7280")
+            impact_icon = (
+                "📈"
+                if holding.get("impact") == "positive"
+                else "📉"
+                if holding.get("impact") == "negative"
+                else "➡️"
+            )
 
-            ticker = holding.get('ticker', 'N/A')
+            ticker = holding.get("ticker", "N/A")
             stop_loss_info = stop_losses.get(ticker, {})
             stop_loss_html = ""
             if stop_loss_info:
-                risk_colors = {'low': '#059669', 'medium': '#d97706', 'high': '#dc2626'}
-                risk_color = risk_colors.get(stop_loss_info.get('risk_level', 'medium'), '#d97706')
+                risk_colors = {"low": "#059669", "medium": "#d97706", "high": "#dc2626"}
+                risk_color = risk_colors.get(stop_loss_info.get("risk_level", "medium"), "#d97706")
                 stop_loss_html = f"""
                 <div style="background-color: #fef3c7; padding: 6px 10px; border-radius: 4px; margin-top: 6px; border-left: 2px solid {risk_color};">
                     <span style="font-size: 10px; color: #6b7280;">Stop-Loss: </span>
@@ -1960,45 +1975,49 @@ KEY CATALYSTS
         holdings_impact: List[Dict[str, Any]],
         risk_profile: str,
         tldr_summary: Dict[str, Any],
-        portfolio_health: Dict[str, Any]
+        portfolio_health: Dict[str, Any],
     ) -> str:
         """Build HTML email for market preview (9 AM email)."""
 
-        current_time = datetime.now().strftime('%B %d, %Y at %I:%M %p')
+        current_time = datetime.now().strftime("%B %d, %Y at %I:%M %p")
 
-        sentiment = market_analysis.get('market_sentiment', 'neutral')
-        sentiment_score = market_analysis.get('sentiment_score', 50)
-        market_summary = market_analysis.get('market_summary', 'No preview available')
+        sentiment = market_analysis.get("market_sentiment", "neutral")
+        sentiment_score = market_analysis.get("sentiment_score", 50)
+        market_summary = market_analysis.get("market_summary", "No preview available")
 
-        sentiment_colors = {
-            'bullish': '#059669',
-            'neutral': '#0891b2',
-            'bearish': '#dc2626'
-        }
-        sentiment_bg_colors = {
-            'bullish': '#d1fae5',
-            'neutral': '#cffafe',
-            'bearish': '#fee2e2'
-        }
-        sentiment_color = sentiment_colors.get(sentiment.lower(), '#0891b2')
-        sentiment_bg = sentiment_bg_colors.get(sentiment.lower(), '#cffafe')
+        sentiment_colors = {"bullish": "#059669", "neutral": "#0891b2", "bearish": "#dc2626"}
+        sentiment_bg_colors = {"bullish": "#d1fae5", "neutral": "#cffafe", "bearish": "#fee2e2"}
+        sentiment_color = sentiment_colors.get(sentiment.lower(), "#0891b2")
+        sentiment_bg = sentiment_bg_colors.get(sentiment.lower(), "#cffafe")
 
         # Build catalysts HTML (what to watch for)
         catalysts_html = ""
-        for catalyst in market_analysis.get('top_catalysts', [])[:5]:
-            impact_color = '#dc2626' if catalyst.get('impact') == 'high' else '#ea580c' if catalyst.get('impact') == 'medium' else '#d97706'
-            sentiment_icon = '📈' if catalyst.get('sentiment') == 'positive' else '📉' if catalyst.get('sentiment') == 'negative' else '➡️'
+        for catalyst in market_analysis.get("top_catalysts", [])[:5]:
+            impact_color = (
+                "#dc2626"
+                if catalyst.get("impact") == "high"
+                else "#ea580c"
+                if catalyst.get("impact") == "medium"
+                else "#d97706"
+            )
+            sentiment_icon = (
+                "📈"
+                if catalyst.get("sentiment") == "positive"
+                else "📉"
+                if catalyst.get("sentiment") == "negative"
+                else "➡️"
+            )
 
             source_html = ""
-            if catalyst.get('source_url'):
-                source_name = catalyst.get('source_name', 'Read more')
-                source_html = f'''
+            if catalyst.get("source_url"):
+                source_name = catalyst.get("source_name", "Read more")
+                source_html = f"""
                 <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #d1d5db;">
                     <a href="{catalyst.get('source_url')}" style="font-size: 11px; color: #2563eb; text-decoration: none; font-weight: 600;">
                         🔗 {source_name} →
                     </a>
                 </div>
-                '''
+                """
 
             catalysts_html += f"""
             <div style="background-color: #f9fafb; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid {impact_color};">
@@ -2020,9 +2039,15 @@ KEY CATALYSTS
         # Holdings impact HTML (potential impact)
         holdings_html = ""
         for holding in holdings_impact[:10]:
-            impact_colors = {'positive': '#059669', 'negative': '#dc2626', 'neutral': '#6b7280'}
-            impact_color = impact_colors.get(holding.get('impact', 'neutral').lower(), '#6b7280')
-            impact_icon = '📈' if holding.get('impact') == 'positive' else '📉' if holding.get('impact') == 'negative' else '➡️'
+            impact_colors = {"positive": "#059669", "negative": "#dc2626", "neutral": "#6b7280"}
+            impact_color = impact_colors.get(holding.get("impact", "neutral").lower(), "#6b7280")
+            impact_icon = (
+                "📈"
+                if holding.get("impact") == "positive"
+                else "📉"
+                if holding.get("impact") == "negative"
+                else "➡️"
+            )
 
             holdings_html += f"""
             <div style="background-color: #f9fafb; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid {impact_color};">

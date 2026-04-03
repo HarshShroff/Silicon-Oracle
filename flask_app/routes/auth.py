@@ -5,6 +5,7 @@ BYOK (Bring Your Own Keys) - Users must provide their own API keys.
 """
 
 from datetime import datetime
+from typing import Optional
 
 from flask import (
     Blueprint,
@@ -22,7 +23,7 @@ from utils import database as db
 auth_bp = Blueprint("auth", __name__)
 
 
-def setup_user_session(user_id: str, email: str = None):
+def setup_user_session(user_id: str, email: Optional[str] = None):
     """Set up a persistent user session across all tabs."""
     session["user_id"] = user_id
     if email:

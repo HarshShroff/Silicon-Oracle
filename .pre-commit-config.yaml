@@ -25,5 +25,12 @@ repos:
       - id: debug-statements
       - id: mixed-line-ending
 
-  # mypy: run manually — pre-existing annotation gaps across services block clean commits
-  # mypy flask_app/routes/ flask_app/models/ --ignore-missing-imports
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: python3.11 -m mypy
+        language: system
+        args: [flask_app/, --ignore-missing-imports]
+        pass_filenames: false
+        types: [python]
