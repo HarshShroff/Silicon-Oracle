@@ -1,46 +1,82 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Silicon Oracle{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    {% block extra_head %}{% endblock %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Silicon Oracle{% endblock %}</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
+
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- Favicon -->
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+
+  {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-oracle-base text-gray-100 min-h-screen font-sans antialiased">
+<body class="antialiased" style="background:#101010;color:#D1D4DC;font-family:'Space Grotesk',system-ui,sans-serif;min-height:100vh;">
 
-    <!-- Grid backdrop -->
-    <div class="fixed inset-0 pointer-events-none" style="background-image: linear-gradient(rgba(30,45,61,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(30,45,61,0.07) 1px, transparent 1px); background-size: 40px 40px;"></div>
+  <!-- Ambient grid backdrop -->
+  <div class="fixed inset-0 pointer-events-none" aria-hidden="true" style="background-image:radial-gradient(circle,rgba(0,200,83,0.03) 1px,transparent 1px);background-size:32px 32px;"></div>
 
-    <!-- Flash messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
-         x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
-         x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-         class="fixed top-4 right-4 z-50 w-full max-w-sm space-y-2">
-        {% for category, message in messages %}
-        <div class="t-card flex items-center gap-3 {% if category == 'success' %}border-oracle-gain/40{% elif category == 'error' %}border-oracle-loss/40{% endif %}">
-            <span class="text-sm flex-1 text-white">{{ message }}</span>
-            <button @click="show = false" class="text-oracle-border-strong hover:text-white transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-        </div>
-        {% endfor %}
+  <!-- Ambient glow orbs -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+    <div style="position:absolute;top:-20%;left:-10%;width:600px;height:600px;background:radial-gradient(circle,rgba(0,200,83,0.04),transparent 60%);border-radius:50%;"></div>
+    <div style="position:absolute;bottom:-20%;right:-10%;width:500px;height:500px;background:radial-gradient(circle,rgba(240,192,96,0.03),transparent 60%);border-radius:50%;"></div>
+  </div>
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div x-data="{ show: true }"
+       x-show="show"
+       x-init="setTimeout(() => show = false, 5000)"
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0 translate-y-2"
+       x-transition:enter-end="opacity-100 translate-y-0"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0"
+       class="fixed top-4 right-4 z-50 w-full max-w-sm space-y-2"
+       role="alert"
+       aria-live="polite">
+    {% for category, message in messages %}
+    <div class="flex items-start gap-3 rounded-xl px-4 py-3"
+         style="background:#131722;border:1px solid {% if category == 'success' %}rgba(0,200,83,0.35){% elif category == 'error' %}rgba(248,113,113,0.35){% else %}rgba(240,192,96,0.35){% endif %};">
+      <div style="flex-shrink:0;margin-top:1px;">
+        {% if category == 'success' %}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00C853" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        {% elif category == 'error' %}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        {% else %}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f0c060" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        {% endif %}
+      </div>
+      <span class="flex-1 text-sm" style="color:#D1D4DC;">{{ message }}</span>
+      <button @click="show = false"
+              class="flex-shrink-0 cursor-pointer"
+              style="background:none;border:none;color:#787B86;padding:0;"
+              aria-label="Dismiss">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
-    {% endif %}
-    {% endwith %}
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
 
-    <!-- Content -->
-    <div class="relative min-h-screen flex flex-col">
-        {% block content %}{% endblock %}
-    </div>
+  <!-- Page content -->
+  <div class="relative min-h-screen flex flex-col">
+    {% block content %}{% endblock %}
+  </div>
 
-    {% block extra_scripts %}{% endblock %}
+  {% block extra_scripts %}{% endblock %}
 </body>
 </html>

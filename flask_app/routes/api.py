@@ -4,33 +4,76 @@ RESTful API endpoints for AJAX calls
 """
 
 import logging
-import numpy as np
 from datetime import datetime
-from flask import Blueprint, jsonify, request, session, g
+
+import numpy as np
+from flask import Blueprint, g, jsonify, request, session
+
+from flask_app.extensions import cache, csrf
 from flask_app.services import (
-    StockService,
     OracleService,
-    ScannerService,
-    TradingService,
     PortfolioService,
+    ScannerService,
+    StockService,
+    TradingService,
 )
 from flask_app.services.enhanced_oracle_service import EnhancedOracleService
 from flask_app.services.notifications_service import (
-    send_price_alert,
     send_ai_signal_alert,
-    send_position_alert,
     send_daily_digest,
+    send_position_alert,
+    send_price_alert,
     test_email_config,
 )
 from flask_app.services.scanner_service import WATCHLISTS
-from flask_app.extensions import cache, csrf
 
 logger = logging.getLogger(__name__)
 api_bp = Blueprint("api", __name__)
 
 
+def api_login_required(f):
+    """Decorator to require authentication for API endpoints."""
+    from functools import wraps
+
+    from flask import jsonify
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not hasattr(g, "user") or not g.user or not g.user.is_authenticated:
+            return jsonify({"error": "Authentication required"}), 401
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+def require_any_api_key(f):
+    """Decorator to require at least one API key configured."""
+    from functools import wraps
+
+    from flask import g, jsonify
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not hasattr(g, "user") or not g.user or not g.user.is_authenticated:
+            return jsonify({"error": "Authentication required"}), 401
+        keys = g.user.get_api_keys() if hasattr(g.user, "get_api_keys") else {}
+        if not any(
+            [keys.get("FINNHUB_API_KEY"), keys.get("ALPACA_API_KEY"), keys.get("GEMINI_API_KEY")]
+        ):
+            return (
+                jsonify(
+                    {
+                        "error": "No API keys configured. Please add at least one API key in Settings."
+                    }
+                ),
+                403,
+            )
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
 @api_bp.route("/search")
-@cache.memoize(timeout=60)
 def ticker_search():
     """Smart ticker search — accepts symbol OR company name.
     Returns up to 8 matches with ticker, name, and latest price.
@@ -40,55 +83,139 @@ def ticker_search():
         return jsonify({"results": []})
 
     try:
+        import logging
+
         import yfinance as yf
+
+        logger = logging.getLogger(__name__)
+
         results = []
 
-        # 1. Try as direct ticker first
+        # 1. Try as direct ticker first - fast path (only if it looks like a ticker)
         upper = q.upper().replace(" ", "-")
-        if len(upper) <= 5 and upper.isalpha():
+        if len(upper) <= 5 and upper.replace("-", "").isalpha():
             try:
-                info = yf.Ticker(upper).fast_info
-                price = getattr(info, 'last_price', None) or getattr(info, 'regularMarketPrice', None)
-                long_name = getattr(yf.Ticker(upper).info, 'longName', None) or upper
+                ticker_obj = yf.Ticker(upper)
+                info = ticker_obj.fast_info
+                price = getattr(info, "last_price", None) or getattr(
+                    info, "regularMarketPrice", None
+                )
                 if price:
-                    results.append({
-                        "ticker": upper,
-                        "name": long_name,
-                        "price": round(float(price), 2),
-                    })
+                    long_name = getattr(ticker_obj.info, "longName", None)
+                    if not long_name:
+                        long_name = upper
+                    results.append(
+                        {
+                            "ticker": upper,
+                            "name": long_name,
+                            "price": round(float(price), 2),
+                        }
+                    )
             except Exception:
                 pass
 
-        # 2. Full-text search via yfinance Search
-        if len(results) == 0 or len(q) > 5:
-            try:
-                search = yf.Search(q, max_results=7, news_count=0)
-                quotes = search.quotes or []
-                for item in quotes:
-                    ticker = item.get("symbol", "")
-                    name   = item.get("longname") or item.get("shortname") or ticker
-                    # Skip duplicates
-                    if any(r["ticker"] == ticker for r in results):
-                        continue
-                    # Quick price fetch
-                    price = None
-                    try:
-                        fi = yf.Ticker(ticker).fast_info
-                        price = getattr(fi, 'last_price', None)
-                        if price:
-                            price = round(float(price), 2)
-                    except Exception:
-                        pass
-                    results.append({"ticker": ticker, "name": name, "price": price})
-                    if len(results) >= 8:
-                        break
-            except Exception:
-                pass
+        # 2. Full-text search via yfinance Search (always run for company name search)
+        try:
+            search = yf.Search(q, max_results=10, news_count=0)
+            quotes = search.quotes
+            for item in quotes:
+                ticker = item.get("symbol", "")
+                name = item.get("longname") or item.get("shortname") or ticker
+                if not ticker:
+                    continue
+                if any(r["ticker"] == ticker for r in results):
+                    continue
+
+                # Fetch price for this ticker
+                price = None
+                try:
+                    ticker_obj = yf.Ticker(ticker)
+                    info = ticker_obj.fast_info
+                    price = getattr(info, "last_price", None) or getattr(
+                        info, "regularMarketPrice", None
+                    )
+                except Exception:
+                    pass
+
+                if not price:
+                    continue
+                results.append(
+                    {
+                        "ticker": ticker,
+                        "name": name[:40] + "..." if len(name) > 40 else name,
+                        "price": round(float(price), 2),
+                    }
+                )
+                if len(results) >= 8:
+                    break
+        except Exception as e:
+            logger.warning(f"Search error: {e}")
 
         return jsonify({"results": results[:8]})
 
-    except Exception as e:
-        logger.error(f"Ticker search error: {e}")
+    except Exception:
+        return jsonify({"results": []})
+
+    try:
+        import yfinance as yf
+
+        results = []
+
+        # 1. Try as direct ticker first - fast path (only if it looks like a ticker)
+        upper = q.upper().replace(" ", "-")
+        if len(upper) <= 5 and upper.replace("-", "").isalpha():
+            try:
+                ticker_obj = yf.Ticker(upper)
+                info = ticker_obj.fast_info
+                price = getattr(info, "last_price", None) or getattr(
+                    info, "regularMarketPrice", None
+                )
+                if price:
+                    long_name = getattr(ticker_obj.info, "longName", None)
+                    if not long_name:
+                        long_name = upper
+                    results.append(
+                        {
+                            "ticker": upper,
+                            "name": long_name,
+                            "price": round(float(price), 2),
+                        }
+                    )
+            except Exception:
+                pass
+
+        # 2. Full-text search via yfinance Search (always run for company name search)
+        # Skip if query looks like a direct ticker (already handled above)
+        try:
+            search = yf.Search(q, max_results=10, news_count=0)
+            quotes = search.quotes or []
+            for item in quotes:
+                ticker = item.get("symbol", "")
+                name = item.get("longname") or item.get("shortname") or ticker
+                if not ticker:
+                    continue
+                if any(r["ticker"] == ticker for r in results):
+                    continue
+                price = item.get("regularMarketPrice") or item.get("postMarketPrice")
+                if not price:
+                    continue
+                results.append(
+                    {
+                        "ticker": ticker,
+                        "name": name[:40] + "..." if len(name) > 40 else name,
+                        "price": round(float(price), 2),
+                    }
+                )
+                if len(results) >= 8:
+                    break
+        except Exception as e:
+            import logging
+
+            logging.warning(f"Search error: {e}")
+
+        return jsonify({"results": results[:8]})
+
+    except Exception:
         return jsonify({"results": []})
 
 
@@ -122,14 +249,16 @@ def get_config():
     TradingService.is_connected() returns False everywhere automatically.
     """
     from flask import g
+
     from utils import database as db
 
-    if hasattr(g, 'user') and g.user and g.user.is_authenticated:
+    if hasattr(g, "user") and g.user and g.user.is_authenticated:
         user_keys = g.user.get_api_keys()
         if user_keys:
             from flask import session as _sess
-            if 'alpaca_enabled' in _sess:
-                alpaca_enabled = bool(_sess['alpaca_enabled'])
+
+            if "alpaca_enabled" in _sess:
+                alpaca_enabled = bool(_sess["alpaca_enabled"])
             else:
                 sim = db.get_simulation_settings(g.user.id) or {}
                 val = sim.get("alpaca_enabled", None)
@@ -152,8 +281,7 @@ def get_trading_style():
     """Get the current user's trading style from simulation settings."""
     from utils import database as db
 
-    user_id = g.user.id if hasattr(
-        g, 'user') and g.user else session.get("user_id")
+    user_id = g.user.id if hasattr(g, "user") and g.user else session.get("user_id")
     if user_id:
         sim_settings = db.get_simulation_settings(user_id)
         if sim_settings:
@@ -167,9 +295,11 @@ def get_trading_style():
 
 
 @api_bp.route("/stock/<ticker>")
+@api_login_required
 def get_stock(ticker):
     """Get complete stock data."""
     from utils.ticker_utils import normalize_ticker
+
     stock_service = StockService(get_config())
     data = stock_service.get_complete_data(normalize_ticker(ticker))
     return jsonify(data)
@@ -177,9 +307,11 @@ def get_stock(ticker):
 
 @api_bp.route("/stock/<ticker>/quote")
 @cache.memoize(timeout=45)
+@api_login_required
 def get_quote(ticker):
     """Get real-time quote — cached 45s to stay within Finnhub 100 req/min limit."""
     from utils.ticker_utils import normalize_ticker
+
     try:
         stock_service = StockService(get_config())
         quote = stock_service.get_realtime_quote(normalize_ticker(ticker))
@@ -190,22 +322,28 @@ def get_quote(ticker):
 
 
 @api_bp.route("/stock/<ticker>/chart")
+@api_login_required
 def get_chart_data(ticker):
     """Get historical chart data."""
     from utils.ticker_utils import normalize_ticker
+
     period = request.args.get("period", "1y")
     interval = request.args.get("interval", "1d")
 
     # Map frontend shorthand to yfinance period strings
     period_map = {
-        "1D": "1d", "1W": "5d", "1M": "1mo", "3M": "3mo",
-        "1Y": "1y", "ALL": "5y", "YTD": "ytd",
+        "1D": "1d",
+        "1W": "5d",
+        "1M": "1mo",
+        "3M": "3mo",
+        "1Y": "1y",
+        "ALL": "5y",
+        "YTD": "ytd",
     }
     period = period_map.get(period.upper(), period)
 
     stock_service = StockService(get_config())
-    df = stock_service.get_historical_data(
-        normalize_ticker(ticker), period, interval)
+    df = stock_service.get_historical_data(normalize_ticker(ticker), period, interval)
 
     if df is not None:
         data = df.reset_index().to_dict(orient="records")
@@ -220,9 +358,11 @@ def get_chart_data(ticker):
 
 
 @api_bp.route("/stock/<ticker>/news")
+@api_login_required
 def get_news(ticker):
     """Get stock news."""
     from utils.ticker_utils import normalize_ticker
+
     stock_service = StockService(get_config())
     news = stock_service.get_news(normalize_ticker(ticker))
     return jsonify(news)
@@ -232,33 +372,27 @@ def get_news(ticker):
 def get_analysis(ticker):
     """Get complete stock analysis data."""
     from utils.ticker_utils import normalize_ticker
+
     oracle_service = OracleService(get_config())
-    data = oracle_service.stock_service.get_complete_data(
-        normalize_ticker(ticker))
+    data = oracle_service.stock_service.get_complete_data(normalize_ticker(ticker))
 
     # Convert to serializable format
     result = {}
 
     # Quote data
     if hasattr(data, "quote") and data.quote is not None:
-        result["quote"] = (
-            data.quote.__dict__ if hasattr(
-                data.quote, "__dict__") else data.quote
-        )
+        result["quote"] = data.quote.__dict__ if hasattr(data.quote, "__dict__") else data.quote
 
     # Company data
     if hasattr(data, "company") and data.company is not None:
         result["company"] = (
-            data.company.__dict__ if hasattr(
-                data.company, "__dict__") else data.company
+            data.company.__dict__ if hasattr(data.company, "__dict__") else data.company
         )
 
     # Technicals
     if hasattr(data, "technicals") and data.technicals is not None:
         result["technicals"] = (
-            data.technicals.__dict__
-            if hasattr(data.technicals, "__dict__")
-            else data.technicals
+            data.technicals.__dict__ if hasattr(data.technicals, "__dict__") else data.technicals
         )
 
     # News
@@ -272,9 +406,7 @@ def get_analysis(ticker):
     # Earnings
     if hasattr(data, "earnings") and data.earnings is not None:
         result["earnings"] = (
-            data.earnings.__dict__
-            if hasattr(data.earnings, "__dict__")
-            else data.earnings
+            data.earnings.__dict__ if hasattr(data.earnings, "__dict__") else data.earnings
         )
 
     return jsonify(result)
@@ -284,8 +416,8 @@ def get_analysis(ticker):
 def get_ai_analysis(ticker):
     """Get AI Deep Dive analysis, tailored to the user's trading style and portfolio context."""
     from flask_app.services.gemini_service import GeminiService
-    from utils.ticker_utils import normalize_ticker
     from utils import database as db
+    from utils.ticker_utils import normalize_ticker
 
     ticker = normalize_ticker(ticker)
 
@@ -311,20 +443,330 @@ def get_ai_analysis(ticker):
 
     gemini_service = GeminiService(get_config())
     html, score, label = gemini_service.analyze_ticker(
-        ticker, trading_style=get_trading_style(), portfolio_context=portfolio_context)
+        ticker, trading_style=get_trading_style(), portfolio_context=portfolio_context
+    )
 
-    return jsonify({
-        "html": html,
-        "score": score,
-        "label": label
-    })
+    return jsonify({"html": html, "score": score, "label": label})
+
+
+def _get_finnhub_key_for_user():
+    """Get Finnhub API key from currently logged-in user's database record."""
+    from flask import g
+
+    from utils import database as db
+
+    if not hasattr(g, "user") or not g.user:
+        return None
+
+    try:
+        keys = db.get_user_api_keys(g.user.id, decrypt=True)
+        return keys.get("FINNHUB_API_KEY") if keys else None
+    except Exception:
+        return None
+
+
+def _get_app_config():
+    """Get app-level config for public endpoints based on logged-in user."""
+    import os
+
+    from flask import g
+
+    finnhub_key = _get_finnhub_key_for_user() if hasattr(g, "user") and g.user else None
+
+    return {
+        "FINNHUB_API_KEY": finnhub_key or "",
+        "ALPACA_API_KEY": os.environ.get("ALPACA_API_KEY", ""),
+        "ALPACA_SECRET_KEY": os.environ.get("ALPACA_SECRET_KEY", ""),
+        "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY", ""),
+    }
 
 
 @api_bp.route("/market/status")
+@cache.memoize(timeout=60)
+@api_login_required
 def market_status():
-    """Get market status."""
-    stock_service = StockService(get_config())
+    """Get market status for logged-in user."""
+    stock_service = StockService(_get_app_config())
     return jsonify(stock_service.get_market_status())
+
+
+# ============================================
+# PUBLIC DEMO ENDPOINTS (no auth required)
+# ============================================
+
+
+@api_bp.route("/demo/quotes")
+@cache.memoize(timeout=60)
+def demo_quotes():
+    """Live quotes for demo page — no auth required. Uses yfinance only."""
+    demo_tickers = ["AAPL", "NVDA", "MSFT", "TSLA", "AMZN", "META", "GOOGL", "SPY"]
+    import yfinance as yf
+
+    results = []
+    for ticker in demo_tickers:
+        try:
+            t = yf.Ticker(ticker)
+            info = t.fast_info
+            price = float(getattr(info, "last_price", 0) or 0)
+            prev = float(getattr(info, "previous_close", price) or price)
+            chg = price - prev
+            chg_pct = (chg / prev * 100) if prev else 0
+            results.append(
+                {
+                    "ticker": ticker,
+                    "price": round(price, 2),
+                    "change": round(chg, 2),
+                    "change_pct": round(chg_pct, 2),
+                }
+            )
+        except Exception:
+            pass
+    return jsonify(results)
+
+
+@api_bp.route("/demo/chart/<ticker>")
+def demo_chart(ticker):
+    """Historical chart data for demo page — no auth required. Uses yfinance only.
+    Supports area (value) and candlestick (open/high/low/close) via ?candle=true."""
+    import yfinance as yf
+
+    ticker = ticker.upper()[:10]
+    period = request.args.get("period", "3mo")
+    candle = request.args.get("candle", "false").lower() == "true"
+    allowed_periods = {"1mo", "3mo", "6mo", "1y", "ytd"}
+    if period not in allowed_periods:
+        period = "3mo"
+
+    cache_key = f"demo_chart_{ticker}_{period}_{candle}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+    try:
+        interval = "1d"
+        df = yf.Ticker(ticker).history(period=period, interval=interval)
+        if df.empty:
+            return jsonify([])
+        result = []
+        for idx, row in df.iterrows():
+            date_str = str(idx.date())
+            if candle:
+                result.append(
+                    {
+                        "time": date_str,
+                        "open": round(float(row["Open"]), 2),
+                        "high": round(float(row["High"]), 2),
+                        "low": round(float(row["Low"]), 2),
+                        "close": round(float(row["Close"]), 2),
+                    }
+                )
+            else:
+                result.append({"time": date_str, "value": round(float(row["Close"]), 2)})
+        cache.set(cache_key, result, timeout=300)
+        return jsonify(result)
+    except Exception:
+        return jsonify([])
+
+
+@api_bp.route("/demo/oracle/<ticker>")
+@cache.memoize(timeout=300)
+def demo_oracle(ticker):
+    """Simplified Oracle score for demo — no auth, no AI, quantitative only."""
+
+    import yfinance as yf
+
+    ticker = ticker.upper()[:10]
+    try:
+        t = yf.Ticker(ticker)
+        hist = t.history(period="6mo", interval="1d")
+        if hist.empty:
+            return jsonify({"score": 0, "verdict": "NO DATA"})
+        # Simple technical score
+        close = hist["Close"]
+        sma50 = close.rolling(50).mean().iloc[-1]
+        sma200 = close.rolling(200).mean().iloc[-1] if len(close) >= 200 else sma50
+        price = close.iloc[-1]
+        vol = hist["Volume"].iloc[-20:].mean()
+        vol_avg = hist["Volume"].mean()
+        score = 50
+        if price > sma50:
+            score += 12
+        if price > sma200:
+            score += 10
+        if not (sma50 != sma50):
+            score += 8 if sma50 > sma200 else -5
+        if vol > vol_avg * 1.2:
+            score += 8
+        momentum_5 = (close.iloc[-1] / close.iloc[-6] - 1) * 100 if len(close) >= 6 else 0
+        if momentum_5 > 2:
+            score += 8
+        elif momentum_5 < -2:
+            score -= 8
+        score = max(0, min(100, score))
+        verdict = (
+            "STRONG BUY"
+            if score >= 75
+            else "BUY"
+            if score >= 60
+            else "HOLD"
+            if score >= 40
+            else "SELL"
+        )
+        return jsonify(
+            {
+                "score": round(score),
+                "verdict": verdict,
+                "factors": [
+                    {
+                        "name": "Price vs SMA-50",
+                        "signal": "BULLISH" if price > sma50 else "BEARISH",
+                    },
+                    {
+                        "name": "Trend (Golden Cross)",
+                        "signal": "BULLISH" if sma50 > sma200 else "BEARISH",
+                    },
+                    {
+                        "name": "Volume Momentum",
+                        "signal": "BULLISH" if vol > vol_avg else "NEUTRAL",
+                    },
+                    {
+                        "name": "5-Day Momentum",
+                        "signal": "BULLISH" if momentum_5 > 0 else "BEARISH",
+                    },
+                ],
+            }
+        )
+    except Exception:
+        return jsonify({"score": 0, "verdict": "ERROR"})
+
+
+@api_bp.route("/demo/macro")
+@cache.memoize(timeout=120)
+def demo_macro():
+    """Macro strip for demo — VIX, 10Y, DXY, BTC, Gold, SPY. No auth required."""
+    import yfinance as yf
+
+    tickers = {
+        "^VIX": ("VIX", "val"),
+        "^TNX": ("10Y", "pct"),
+        "^DXY": ("DXY", "val"),
+        "BTC-USD": ("BTC", "price"),
+        "GC=F": ("Gold", "price"),
+        "SPY": ("SPY", "price"),
+    }
+    out = []
+    for symbol, (label, fmt) in tickers.items():
+        try:
+            info = yf.Ticker(symbol).fast_info
+            price = float(getattr(info, "last_price", 0) or 0)
+            prev = float(getattr(info, "previous_close", price) or price)
+            chg = price - prev
+            chg_pct = round((chg / prev * 100) if prev else 0, 2)
+            if fmt == "val":
+                display = f"{price:.1f}"
+            elif fmt == "pct":
+                display = f"{price:.2f}%"
+            else:
+                display = price
+            out.append(
+                {
+                    "label": label,
+                    "symbol": symbol,
+                    "display": display,
+                    "price": round(price, 2),
+                    "change_pct": chg_pct,
+                }
+            )
+        except Exception:
+            pass
+    return jsonify(out)
+
+
+@api_bp.route("/demo/news/<ticker>")
+@cache.memoize(timeout=300)
+def demo_news(ticker):
+    """Latest news headlines for demo — no auth required. Uses yfinance only."""
+    import yfinance as yf
+
+    ticker = ticker.upper()[:10]
+    try:
+        t = yf.Ticker(ticker)
+        news = t.news or []
+        results = []
+        for item in news[:10]:
+            content = item.get("content", {})
+            title = content.get("title") or item.get("title", "")
+            provider = content.get("provider", {}).get("displayName", "") or item.get(
+                "publisher", ""
+            )
+            url = content.get("canonicalUrl", {}).get("url", "") or item.get("link", "")
+            pub_date = content.get("pubDate", "") or ""
+            if title:
+                results.append(
+                    {
+                        "title": title,
+                        "source": provider,
+                        "url": url,
+                        "time": pub_date[:10] if pub_date else "",
+                    }
+                )
+        return jsonify(results)
+    except Exception:
+        return jsonify([])
+
+
+@api_bp.route("/demo/technicals/<ticker>")
+@cache.memoize(timeout=300)
+def demo_technicals(ticker):
+    """RSI, SMA, volatility for demo — no auth required. Uses yfinance only."""
+    import yfinance as yf
+
+    ticker = ticker.upper()[:10]
+    try:
+        hist = yf.Ticker(ticker).history(period="6mo", interval="1d")
+        if hist.empty:
+            return jsonify({})
+        close = hist["Close"]
+        price = float(close.iloc[-1])
+
+        # RSI-14
+        delta = close.diff()
+        gain = delta.clip(lower=0).rolling(14).mean()
+        loss = (-delta.clip(upper=0)).rolling(14).mean()
+        rs = gain / loss.replace(0, float("nan"))
+        rsi = float((100 - 100 / (1 + rs)).iloc[-1])
+
+        # SMA 50 / 200
+        sma50 = float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else price
+        sma200 = float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else sma50
+
+        # 30-day historical volatility (annualised %)
+        returns = close.pct_change().dropna()
+        vol = float(returns.iloc[-30:].std() * (252**0.5) * 100) if len(returns) >= 30 else 0
+
+        # 5-day momentum %
+        mom5 = float((price / float(close.iloc[-6]) - 1) * 100) if len(close) >= 6 else 0
+
+        # MACD signal (simple: EMA12 - EMA26)
+        ema12 = float(close.ewm(span=12).mean().iloc[-1])
+        ema26 = float(close.ewm(span=26).mean().iloc[-1])
+        macd = ema12 - ema26
+
+        return jsonify(
+            {
+                "rsi": round(rsi, 1),
+                "sma50": round(sma50, 2),
+                "sma200": round(sma200, 2),
+                "volatility": round(vol, 1),
+                "momentum5": round(mom5, 2),
+                "macd": round(macd, 3),
+                "price": round(price, 2),
+                "above_sma50": price > sma50,
+                "above_sma200": price > sma200,
+                "golden_cross": sma50 > sma200,
+            }
+        )
+    except Exception:
+        return jsonify({})
 
 
 # ============================================
@@ -336,8 +778,8 @@ def market_status():
 @cache.memoize(timeout=300)
 def get_oracle(ticker):
     """Get enhanced Oracle analysis for a ticker, enriched with portfolio context. Cached 5 min."""
-    from utils.ticker_utils import normalize_ticker
     from utils import database as db
+    from utils.ticker_utils import normalize_ticker
 
     ticker = normalize_ticker(ticker)
     oracle_service = EnhancedOracleService(get_config())
@@ -356,7 +798,9 @@ def get_oracle(ticker):
                 avg_price = float(position.get("avg_price") or 0)
                 shares = float(position.get("shares") or 0)
                 unrealized_pl = (current_price - avg_price) * shares if avg_price > 0 else 0
-                unrealized_plpc = ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0
+                unrealized_plpc = (
+                    ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0
+                )
 
                 result["portfolio_context"] = {
                     "holds": True,
@@ -382,14 +826,16 @@ def get_oracle(ticker):
                     pts, signal = 0.25, "Monitor Position"
                     detail = f"{shares:.2f} sh @ ${avg_price:.2f} ({unrealized_plpc:+.1f}%) — Oracle says watch closely"
 
-                result.setdefault("factors", []).append({
-                    "name": "Portfolio Position",
-                    "signal": signal,
-                    "detail": detail,
-                    "points": pts,
-                    "max_points": 0.5,
-                    "has_data": True,
-                })
+                result.setdefault("factors", []).append(
+                    {
+                        "name": "Portfolio Position",
+                        "signal": signal,
+                        "detail": detail,
+                        "points": pts,
+                        "max_points": 0.5,
+                        "has_data": True,
+                    }
+                )
                 result["score"] = round(result.get("score", 0) + pts, 2)
                 result["max_score"] = round(result.get("max_score", 13.0) + 0.5, 1)
                 if result["max_score"] > 0:
@@ -453,8 +899,8 @@ def get_relative_strength():
 def get_oracle_ai_interpretation(ticker):
     """Get AI interpretation of Oracle factors, framed for the user's trading style and portfolio context."""
     from flask_app.services.gemini_service import GeminiService
-    from utils.ticker_utils import normalize_ticker
     from utils import database as db
+    from utils.ticker_utils import normalize_ticker
 
     ticker = normalize_ticker(ticker)
 
@@ -478,7 +924,9 @@ def get_oracle_ai_interpretation(ticker):
                     "holds": True,
                     "shares": shares,
                     "avg_price": avg_price,
-                    "unrealized_plpc": ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0,
+                    "unrealized_plpc": ((current_price - avg_price) / avg_price * 100)
+                    if avg_price > 0
+                    else 0,
                     "other_holdings": [t for t in all_tickers if t != ticker],
                 }
             else:
@@ -489,7 +937,8 @@ def get_oracle_ai_interpretation(ticker):
     # Get AI interpretation with trading style + portfolio context
     gemini_service = GeminiService(get_config())
     interpretation = gemini_service.get_factor_interpretation(
-        ticker, oracle_data, trading_style=get_trading_style(), portfolio_context=portfolio_context)
+        ticker, oracle_data, trading_style=get_trading_style(), portfolio_context=portfolio_context
+    )
 
     if interpretation == "Gemini API Key Required":
         return jsonify({"locked": True, "interpretation": None})
@@ -504,8 +953,7 @@ def get_oracle_pattern_analysis(ticker):
     from utils.ticker_utils import normalize_ticker
 
     gemini_service = GeminiService(get_config())
-    pattern_analysis = gemini_service.get_pattern_analysis(
-        normalize_ticker(ticker))
+    pattern_analysis = gemini_service.get_pattern_analysis(normalize_ticker(ticker))
 
     if pattern_analysis == "Gemini API Key Required":
         return jsonify({"locked": True, "pattern_analysis": None})
@@ -528,17 +976,18 @@ def get_watchlists():
 
     # Add predefined watchlists
     for name, tickers in WATCHLISTS.items():
-        all_watchlists.append(
-            {"name": name, "tickers": tickers, "type": "predefined"})
+        all_watchlists.append({"name": name, "tickers": tickers, "type": "predefined"})
 
     # Add user watchlists
     for name, data in user_lists.items():
-        all_watchlists.append({
-            "name": name,
-            "tickers": data["tickers"],
-            "type": "user",
-            "created_at": data.get("created_at"),
-        })
+        all_watchlists.append(
+            {
+                "name": name,
+                "tickers": data["tickers"],
+                "type": "user",
+                "created_at": data.get("created_at"),
+            }
+        )
 
     return jsonify(all_watchlists)
 
@@ -644,9 +1093,19 @@ def get_shadow_portfolio_value():
 
     try:
         from utils import database as db
+
         holdings = db.get_shadow_positions(user_id, is_active=True)
         if not holdings:
-            return jsonify({"total_value": 0, "total_cost": 0, "total_pl": 0, "total_plpc": 0, "positions": 0, "positions_list": []})
+            return jsonify(
+                {
+                    "total_value": 0,
+                    "total_cost": 0,
+                    "total_pl": 0,
+                    "total_plpc": 0,
+                    "positions": 0,
+                    "positions_list": [],
+                }
+            )
 
         stock_service = StockService(get_config())
         total_value = 0.0
@@ -669,30 +1128,90 @@ def get_shadow_portfolio_value():
             cost_basis = avg_price * shares
             total_value += pos_value
             total_cost += cost_basis
-            positions_out.append({
-                "ticker": ticker,
-                "shares": shares,
-                "avg_price": avg_price,
-                "current_price": current_price,
-                "value": pos_value,
-                "unrealized_pl": pos_value - cost_basis,
-                "unrealized_plpc": ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0,
-            })
+            positions_out.append(
+                {
+                    "ticker": ticker,
+                    "shares": shares,
+                    "avg_price": avg_price,
+                    "current_price": current_price,
+                    "value": pos_value,
+                    "unrealized_pl": pos_value - cost_basis,
+                    "unrealized_plpc": ((current_price - avg_price) / avg_price * 100)
+                    if avg_price > 0
+                    else 0,
+                }
+            )
 
         total_pl = total_value - total_cost
         total_plpc = (total_pl / total_cost * 100) if total_cost > 0 else 0
 
-        return jsonify({
-            "total_value": round(total_value, 2),
-            "total_cost": round(total_cost, 2),
-            "total_pl": round(total_pl, 2),
-            "total_plpc": round(total_plpc, 2),
-            "positions": len(positions_out),
-            "positions_list": positions_out,
-        })
+        return jsonify(
+            {
+                "total_value": round(total_value, 2),
+                "total_cost": round(total_cost, 2),
+                "total_pl": round(total_pl, 2),
+                "total_plpc": round(total_plpc, 2),
+                "positions": len(positions_out),
+                "positions_list": positions_out,
+            }
+        )
     except Exception as e:
         logger.error(f"Shadow portfolio value failed: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/portfolio/shadow-chart")
+def get_shadow_portfolio_chart():
+    """Build historical chart from shadow positions × stock price history."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    try:
+        from utils import database as db
+
+        period = request.args.get("period", "1mo")
+        holdings = db.get_shadow_positions(user_id, is_active=True)
+        if not holdings:
+            return jsonify([])
+
+        stock_service = StockService(get_config())
+
+        # Fetch price history for each position
+        all_hist = {}
+        for pos in holdings:
+            ticker = pos.get("ticker", "")
+            shares = float(pos.get("shares") or pos.get("quantity") or 0)
+            if not ticker or shares <= 0:
+                continue
+            df = stock_service.get_historical_data(ticker, period=period, interval="1d")
+            if df is not None and not df.empty:
+                all_hist[ticker] = {"df": df, "shares": shares}
+
+        if not all_hist:
+            return jsonify([])
+
+        # Align on common dates and sum portfolio value per day
+
+        combined = None
+        for ticker, data in all_hist.items():
+            series = (data["df"]["Close"] * data["shares"]).rename(ticker)
+            combined = series if combined is None else combined.add(series, fill_value=0)
+
+        if combined is None or combined.empty:
+            return jsonify([])
+
+        combined = combined.sort_index()
+        result = [
+            {"date": str(idx.date()), "value": round(float(val), 2)}
+            for idx, val in combined.items()
+            if val > 0
+        ]
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Shadow portfolio chart failed: {e}")
+        return jsonify([])
 
 
 @api_bp.route("/feed")
@@ -707,6 +1226,7 @@ def get_feed():
 
     try:
         from utils import database as db
+
         stock_service = StockService(get_config())
 
         holdings = db.get_shadow_positions(user_id, is_active=True)
@@ -722,18 +1242,20 @@ def get_feed():
                     headline = item.get("headline") or item.get("title") or ""
                     if not headline:
                         continue
-                    feed_items.append({
-                        "type": "holding_news",
-                        "ticker": ticker,
-                        "headline": headline,
-                        "source": item.get("source") or "",
-                        "url": item.get("url") or "",
-                        "time": item.get("datetime") or 0,
-                        "oracle_verdict": None,
-                        "oracle_confidence": 0,
-                        "is_holding": True,
-                        "priority": 1,
-                    })
+                    feed_items.append(
+                        {
+                            "type": "holding_news",
+                            "ticker": ticker,
+                            "headline": headline,
+                            "source": item.get("source") or "",
+                            "url": item.get("url") or "",
+                            "time": item.get("datetime") or 0,
+                            "oracle_verdict": None,
+                            "oracle_confidence": 0,
+                            "is_holding": True,
+                            "priority": 1,
+                        }
+                    )
             except Exception:
                 pass
 
@@ -746,18 +1268,20 @@ def get_feed():
                     item = news_list[0]
                     headline = item.get("headline") or item.get("title") or ""
                     if headline:
-                        feed_items.append({
-                            "type": "market_mover",
-                            "ticker": ticker,
-                            "headline": headline,
-                            "source": item.get("source") or "",
-                            "url": item.get("url") or "",
-                            "time": item.get("datetime") or 0,
-                            "oracle_verdict": None,
-                            "oracle_confidence": 0,
-                            "is_holding": False,
-                            "priority": 2,
-                        })
+                        feed_items.append(
+                            {
+                                "type": "market_mover",
+                                "ticker": ticker,
+                                "headline": headline,
+                                "source": item.get("source") or "",
+                                "url": item.get("url") or "",
+                                "time": item.get("datetime") or 0,
+                                "oracle_verdict": None,
+                                "oracle_confidence": 0,
+                                "is_holding": False,
+                                "priority": 2,
+                            }
+                        )
             except Exception:
                 pass
 
@@ -767,18 +1291,20 @@ def get_feed():
             for item in market_news[:4]:
                 headline = item.get("headline") or item.get("title") or ""
                 if headline:
-                    feed_items.append({
-                        "type": "market_news",
-                        "ticker": "MKT",
-                        "headline": headline,
-                        "source": item.get("source") or "",
-                        "url": item.get("url") or "",
-                        "time": item.get("datetime") or 0,
-                        "oracle_verdict": None,
-                        "oracle_confidence": 0,
-                        "is_holding": False,
-                        "priority": 3,
-                    })
+                    feed_items.append(
+                        {
+                            "type": "market_news",
+                            "ticker": "MKT",
+                            "headline": headline,
+                            "source": item.get("source") or "",
+                            "url": item.get("url") or "",
+                            "time": item.get("datetime") or 0,
+                            "oracle_verdict": None,
+                            "oracle_confidence": 0,
+                            "is_holding": False,
+                            "priority": 3,
+                        }
+                    )
         except Exception:
             pass
 
@@ -818,6 +1344,7 @@ def get_positions():
 
 
 @api_bp.route("/trading/orders")
+@api_login_required
 def get_orders():
     """Get orders."""
     status = request.args.get("status", "open")
@@ -826,6 +1353,7 @@ def get_orders():
 
 
 @api_bp.route("/trading/order", methods=["POST"])
+@api_login_required
 def submit_order():
     """Submit a new order."""
     data = request.get_json()
@@ -843,19 +1371,16 @@ def submit_order():
     if not trading_service.is_connected():
         return jsonify({"error": "Not connected to Alpaca"}), 401
 
-    result = trading_service.submit_order(
-        ticker, float(qty), side, order_type, limit_price
-    )
+    result = trading_service.submit_order(ticker, float(qty), side, order_type, limit_price)
 
     # Log trade to local DB
-    if result.get("success") and hasattr(g, 'user') and g.user:
+    if result.get("success") and hasattr(g, "user") and g.user:
         portfolio_service = PortfolioService(g.user.id)
         stock_service = StockService(get_config())
         quote = stock_service.get_realtime_quote(ticker)
         price = quote.get("current", 0) if quote else 0
         portfolio_service.add_trade(
-            ticker, side, float(qty), price, "Alpaca", result.get(
-                "order_id"), "alpaca"
+            ticker, side, float(qty), price, "Alpaca", result.get("order_id"), "alpaca"
         )
 
     return jsonify(result)
@@ -883,8 +1408,7 @@ def portfolio_history():
     period = request.args.get("period", "1M")
     timeframe = request.args.get("timeframe", "1D")
     trading_service = TradingService(get_config())
-    df = trading_service.get_portfolio_history(
-        period=period, timeframe=timeframe)
+    df = trading_service.get_portfolio_history(period=period, timeframe=timeframe)
 
     if df is not None:
         data = df.to_dict(orient="records")
@@ -957,12 +1481,12 @@ def sync_local_to_alpaca():
         # Watchlist may already exist, try updating
         try:
             from alpaca.trading.requests import UpdateWatchlistRequest
+
             watchlists = trading_service.get_watchlists()
             existing = next((w for w in watchlists if w["name"] == name), None)
             if existing:
                 req = UpdateWatchlistRequest(symbols=tickers)
-                trading_service.trading_client.update_watchlist_by_id(
-                    existing["id"], req)
+                trading_service.trading_client.update_watchlist_by_id(existing["id"], req)
                 return jsonify({"success": True, "message": "Updated existing watchlist"})
         except Exception as update_error:
             logger.error(f"Error updating watchlist: {update_error}")
@@ -977,7 +1501,7 @@ def sync_local_to_alpaca():
 @api_bp.route("/portfolio/trades")
 def get_trades():
     """Get trade history for current user."""
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify([])
     limit = request.args.get("limit", 50, type=int)
     portfolio_service = PortfolioService(g.user.id)
@@ -987,7 +1511,7 @@ def get_trades():
 @api_bp.route("/portfolio/metrics")
 def get_metrics():
     """Get performance metrics for current user."""
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({})
     portfolio_service = PortfolioService(g.user.id)
     return jsonify(portfolio_service.get_performance_metrics())
@@ -996,7 +1520,7 @@ def get_metrics():
 @api_bp.route("/portfolio/history")
 def account_history():
     """Get account history for current user."""
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify([])
     portfolio_service = PortfolioService(g.user.id)
     return jsonify(portfolio_service.get_account_history())
@@ -1034,8 +1558,7 @@ def send_price_notification():
     if not all([email, app_password, ticker, current_price, target_price]):
         return jsonify({"error": "Missing required fields"}), 400
 
-    result = send_price_alert(
-        email, app_password, ticker, current_price, target_price)
+    result = send_price_alert(email, app_password, ticker, current_price, target_price)
     return jsonify(result)
 
 
@@ -1053,8 +1576,7 @@ def send_ai_signal_notification():
     if not all([email, app_password, ticker, verdict, score is not None]):
         return jsonify({"error": "Missing required fields"}), 400
 
-    result = send_ai_signal_alert(
-        email, app_password, ticker, verdict, score, reasons)
+    result = send_ai_signal_alert(email, app_password, ticker, verdict, score, reasons)
     return jsonify(result)
 
 
@@ -1081,9 +1603,7 @@ def send_position_notification():
     ):
         return jsonify({"error": "Missing required fields"}), 400
 
-    result = send_position_alert(
-        email, app_password, ticker, action, pnl_amount, pnl_percent
-    )
+    result = send_position_alert(email, app_password, ticker, action, pnl_amount, pnl_percent)
     return jsonify(result)
 
 
@@ -1115,7 +1635,8 @@ def send_daily_digest_notification():
 def load_settings():
     """Load user settings from database."""
     from utils import database as db
-    if not hasattr(g, 'user') or not g.user:
+
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     user_keys = db.get_user_api_keys(g.user.id, decrypt=True)
@@ -1138,17 +1659,15 @@ def load_settings():
         "alert_daily_digest": notif_prefs.get("daily_digest", False),
     }
 
-    return jsonify({
-        "api_keys": masked_keys,
-        "email_settings": email_settings
-    })
+    return jsonify({"api_keys": masked_keys, "email_settings": email_settings})
 
 
 @api_bp.route("/settings/save-api-keys", methods=["POST"])
 def save_api_keys():
     """Save API keys to database (BYOK)."""
     from utils import database as db
-    if not hasattr(g, 'user') or not g.user:
+
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     data = request.get_json()
@@ -1176,7 +1695,7 @@ def save_email_settings():
     from utils import database as db
     from utils.encryption import encrypt_value
 
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     data = request.get_json()
@@ -1190,8 +1709,7 @@ def save_email_settings():
     # Only update password if provided and not a masked placeholder
     gmail_password = data.get("gmail_password", "").strip()
     if gmail_password and not gmail_password.startswith("***"):
-        email_data["gmail_app_password_encrypted"] = encrypt_value(
-            gmail_password)
+        email_data["gmail_app_password_encrypted"] = encrypt_value(gmail_password)
 
     # Save notification preferences
     notification_prefs = {
@@ -1220,29 +1738,31 @@ def test_api_connections():
     if alpaca_key and alpaca_secret and not alpaca_key.startswith("***"):
         try:
             from alpaca.trading.client import TradingClient
-            client = TradingClient(
-                api_key=alpaca_key, secret_key=alpaca_secret, paper=True)
+
+            client = TradingClient(api_key=alpaca_key, secret_key=alpaca_secret, paper=True)
             account = client.get_account()
             results["Alpaca"] = {
-                "success": True, "message": f"Connected (${float(account.portfolio_value):,.2f})"}
+                "success": True,
+                "message": f"Connected (${float(account.portfolio_value):,.2f})",
+            }
         except Exception as e:
             results["Alpaca"] = {"success": False, "error": str(e)}
     else:
-        results["Alpaca"] = {"success": False,
-                             "error": "No credentials provided"}
+        results["Alpaca"] = {"success": False, "error": "No credentials provided"}
 
     # Test Finnhub
     finnhub_key = data.get("finnhub_key") or session.get("finnhub_key")
     if finnhub_key and not finnhub_key.startswith("***"):
         try:
             import requests
+
             resp = requests.get(
-                f"https://finnhub.io/api/v1/quote?symbol=AAPL&token={finnhub_key}", timeout=5)
+                f"https://finnhub.io/api/v1/quote?symbol=AAPL&token={finnhub_key}", timeout=5
+            )
             if resp.status_code == 200 and resp.json().get("c"):
                 results["Finnhub"] = {"success": True, "message": "Connected"}
             else:
-                results["Finnhub"] = {"success": False,
-                                      "error": "Invalid response"}
+                results["Finnhub"] = {"success": False, "error": "Invalid response"}
         except Exception as e:
             results["Finnhub"] = {"success": False, "error": str(e)}
     else:
@@ -1253,6 +1773,7 @@ def test_api_connections():
     if gemini_key and not gemini_key.startswith("***"):
         try:
             import google.generativeai as genai
+
             genai.configure(api_key=gemini_key)
             model = genai.GenerativeModel("gemini-2.0-flash")
             response = model.generate_content("Say 'Connected' in one word")
@@ -1271,31 +1792,33 @@ def test_api_connections():
 @api_bp.route("/settings/data-summary")
 def get_data_summary():
     """Get data summary for export section."""
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
     trading_service = TradingService(get_config())
     portfolio_service = PortfolioService(g.user.id)
 
     # Get counts
     watchlists = len(session.get("user_watchlists", {})) + len(WATCHLISTS)
-    positions = len(trading_service.get_positions()
-                    ) if trading_service.is_connected() else 0
+    positions = len(trading_service.get_positions()) if trading_service.is_connected() else 0
     trades = len(portfolio_service.get_trade_history(limit=1000))
 
-    return jsonify({
-        "watchlists": watchlists,
-        "positions": positions,
-        "trades": trades,
-        "scan_results": session.get("scan_results_count", 0)
-    })
+    return jsonify(
+        {
+            "watchlists": watchlists,
+            "positions": positions,
+            "trades": trades,
+            "scan_results": session.get("scan_results_count", 0),
+        }
+    )
 
 
 @api_bp.route("/settings/export")
 def export_data():
     """Export user data as CSV or Excel."""
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
     import io
+
     from flask import Response
 
     export_format = request.args.get("format", "csv")
@@ -1308,6 +1831,7 @@ def export_data():
         return jsonify({"error": "No data to export"}), 404
 
     import pandas as pd
+
     df = pd.DataFrame(trades)
 
     if export_format == "csv":
@@ -1316,8 +1840,7 @@ def export_data():
         return Response(
             output.getvalue(),
             mimetype="text/csv",
-            headers={
-                "Content-Disposition": "attachment;filename=silicon_oracle_export.csv"}
+            headers={"Content-Disposition": "attachment;filename=silicon_oracle_export.csv"},
         )
     elif export_format == "excel":
         output = io.BytesIO()
@@ -1326,8 +1849,7 @@ def export_data():
         return Response(
             output.getvalue(),
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={
-                "Content-Disposition": "attachment;filename=silicon_oracle_export.xlsx"}
+            headers={"Content-Disposition": "attachment;filename=silicon_oracle_export.xlsx"},
         )
     else:
         return jsonify({"error": "Invalid format"}), 400
@@ -1344,12 +1866,12 @@ def trigger_news_intelligence():
     Manual trigger for news intelligence scan.
     Useful for testing the hourly news digest feature immediately.
     """
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     try:
-        from utils import database as db
         from flask_app.services.news_intelligence_service import NewsIntelligenceService
+        from utils import database as db
 
         user_id = g.user.id
         user_email = g.user.email
@@ -1357,54 +1879,60 @@ def trigger_news_intelligence():
         # Get user's API keys
         config = db.get_user_api_keys(user_id, decrypt=True)
         if not config.get("GMAIL_ADDRESS") or not config.get("GMAIL_APP_PASSWORD"):
-            return jsonify({
-                "error": "Gmail credentials not configured. Please add them in Settings."
-            }), 400
+            return (
+                jsonify(
+                    {"error": "Gmail credentials not configured. Please add them in Settings."}
+                ),
+                400,
+            )
 
         # Add Gmail credentials to config
-        config['gmail_address'] = config.get("GMAIL_ADDRESS")
-        config['gmail_app_password'] = config.get("GMAIL_APP_PASSWORD")
+        config["gmail_address"] = config.get("GMAIL_ADDRESS")
+        config["gmail_app_password"] = config.get("GMAIL_APP_PASSWORD")
 
         # Get user's shadow portfolio holdings
         holdings = db.get_shadow_positions(user_id, is_active=True)
-        holding_tickers = [pos.get('ticker')
-                           for pos in holdings if pos.get('ticker')]
+        holding_tickers = [pos.get("ticker") for pos in holdings if pos.get("ticker")]
 
         logger.info(
-            f"Manual news intelligence trigger for {user_email} with {len(holding_tickers)} holdings")
+            f"Manual news intelligence trigger for {user_email} with {len(holding_tickers)} holdings"
+        )
 
         # Initialize news intelligence service
         news_service = NewsIntelligenceService(config)
 
         # Get hours_back from request (default 2 hours for manual trigger)
-        hours_back = request.json.get('hours_back', 2) if request.json else 2
+        hours_back = request.json.get("hours_back", 2) if request.json else 2
 
         # Scan and notify
         sent = news_service.scan_and_notify(
             user_holdings=holding_tickers,
             user_email=user_email,
             include_market_news=True,
-            hours_back=hours_back
+            hours_back=hours_back,
         )
 
         if sent:
-            return jsonify({
-                "success": True,
-                "message": f"News intelligence email sent to {user_email}",
-                "holdings_count": len(holding_tickers),
-                "hours_scanned": hours_back
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"News intelligence email sent to {user_email}",
+                    "holdings_count": len(holding_tickers),
+                    "hours_scanned": hours_back,
+                }
+            )
         else:
-            return jsonify({
-                "success": False,
-                "message": "No important news found in the last {} hour(s)".format(hours_back),
-                "holdings_count": len(holding_tickers),
-                "hours_scanned": hours_back
-            })
+            return jsonify(
+                {
+                    "success": False,
+                    "message": "No important news found in the last {} hour(s)".format(hours_back),
+                    "holdings_count": len(holding_tickers),
+                    "hours_scanned": hours_back,
+                }
+            )
 
     except Exception as e:
-        logger.error(
-            f"Manual news intelligence trigger failed: {e}", exc_info=True)
+        logger.error(f"Manual news intelligence trigger failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
@@ -1413,7 +1941,7 @@ def get_news_intelligence_status():
     """
     Get status of news intelligence configuration and last run info.
     """
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     try:
@@ -1427,41 +1955,38 @@ def get_news_intelligence_status():
 
         # Get holdings count
         holdings = db.get_shadow_positions(user_id, is_active=True)
-        holding_tickers = [pos.get('ticker')
-                           for pos in holdings if pos.get('ticker')]
+        holding_tickers = [pos.get("ticker") for pos in holdings if pos.get("ticker")]
 
         status = {
             "configured": bool(
-                config.get("GMAIL_ADDRESS") and
-                config.get("GMAIL_APP_PASSWORD") and
-                config.get("GEMINI_API_KEY")
+                config.get("GMAIL_ADDRESS")
+                and config.get("GMAIL_APP_PASSWORD")
+                and config.get("GEMINI_API_KEY")
             ),
             "news_alerts_enabled": prefs.get("news_alerts", True),
             "notifications_enabled": config.get("notifications_enabled", True),
             "holdings_count": len(holding_tickers),
-            "gmail_configured": bool(config.get("GMAIL_ADDRESS") and config.get("GMAIL_APP_PASSWORD")),
+            "gmail_configured": bool(
+                config.get("GMAIL_ADDRESS") and config.get("GMAIL_APP_PASSWORD")
+            ),
             "gemini_configured": bool(config.get("GEMINI_API_KEY")),
             "finnhub_configured": bool(config.get("FINNHUB_API_KEY")),
             "scan_schedule": "Every hour (top of the hour)",
-            "missing_config": []
+            "missing_config": [],
         }
 
         # Add missing configuration items
         if not config.get("GMAIL_ADDRESS") or not config.get("GMAIL_APP_PASSWORD"):
-            status["missing_config"].append(
-                "Gmail credentials (required for email alerts)")
+            status["missing_config"].append("Gmail credentials (required for email alerts)")
         if not config.get("GEMINI_API_KEY"):
-            status["missing_config"].append(
-                "Gemini API Key (optional, for AI insights)")
+            status["missing_config"].append("Gemini API Key (optional, for AI insights)")
         if not config.get("FINNHUB_API_KEY"):
-            status["missing_config"].append(
-                "Finnhub API Key (optional, for better data)")
+            status["missing_config"].append("Finnhub API Key (optional, for better data)")
 
         return jsonify(status)
 
     except Exception as e:
-        logger.error(
-            f"Failed to get news intelligence status: {e}", exc_info=True)
+        logger.error(f"Failed to get news intelligence status: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
@@ -1476,12 +2001,12 @@ def trigger_market_intelligence():
     Manual trigger for AI-powered market intelligence analysis.
     Scans broad financial/geopolitical news and generates personalized recommendations.
     """
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     try:
-        from utils import database as db
         from flask_app.services.market_intelligence_service import MarketIntelligenceService
+        from utils import database as db
 
         user_id = g.user.id
         user_email = g.user.email
@@ -1489,42 +2014,49 @@ def trigger_market_intelligence():
         # Get user's API keys
         config = db.get_user_api_keys(user_id, decrypt=True)
         if not config.get("GMAIL_ADDRESS") or not config.get("GMAIL_APP_PASSWORD"):
-            return jsonify({
-                "error": "Gmail credentials not configured. Please add them in Settings."
-            }), 400
+            return (
+                jsonify(
+                    {"error": "Gmail credentials not configured. Please add them in Settings."}
+                ),
+                400,
+            )
 
         if not config.get("GEMINI_API_KEY"):
-            return jsonify({
-                "error": "Gemini API Key required for AI-powered recommendations. Please add it in Settings."
-            }), 400
+            return (
+                jsonify(
+                    {
+                        "error": "Gemini API Key required for AI-powered recommendations. Please add it in Settings."
+                    }
+                ),
+                400,
+            )
 
         # Add Gmail credentials to config
-        config['gmail_address'] = config.get("GMAIL_ADDRESS")
-        config['gmail_app_password'] = config.get("GMAIL_APP_PASSWORD")
+        config["gmail_address"] = config.get("GMAIL_ADDRESS")
+        config["gmail_app_password"] = config.get("GMAIL_APP_PASSWORD")
 
         # Get user's shadow portfolio holdings
         holdings = db.get_shadow_positions(user_id, is_active=True)
-        holding_tickers = [pos.get('ticker')
-                           for pos in holdings if pos.get('ticker')]
+        holding_tickers = [pos.get("ticker") for pos in holdings if pos.get("ticker")]
 
         # Get user's risk profile, trading style, and available cash
         sim_settings = db.get_simulation_settings(user_id)
-        risk_profile = sim_settings.get(
-            'risk_profile', 'moderate') if sim_settings else 'moderate'
-        available_cash = sim_settings.get(
-            'current_cash', 0) if sim_settings else 0
-        trading_style = sim_settings.get(
-            'trading_style', 'swing_trading') if sim_settings else 'swing_trading'
+        risk_profile = sim_settings.get("risk_profile", "moderate") if sim_settings else "moderate"
+        available_cash = sim_settings.get("current_cash", 0) if sim_settings else 0
+        trading_style = (
+            sim_settings.get("trading_style", "swing_trading") if sim_settings else "swing_trading"
+        )
 
         logger.info(f"Manual AI market intelligence trigger for {user_email}")
         logger.info(
-            f"  Holdings: {len(holding_tickers)}, Risk: {risk_profile}, Style: {trading_style}, Cash: ${available_cash:,.2f}")
+            f"  Holdings: {len(holding_tickers)}, Risk: {risk_profile}, Style: {trading_style}, Cash: ${available_cash:,.2f}"
+        )
 
         # Initialize market intelligence service
         intelligence_service = MarketIntelligenceService(config)
 
         # Get hours_back from request (default 2 hours for manual trigger)
-        hours_back = request.json.get('hours_back', 2) if request.json else 2
+        hours_back = request.json.get("hours_back", 2) if request.json else 2
 
         # Generate intelligence and recommendations
         sent = intelligence_service.generate_market_intelligence(
@@ -1534,30 +2066,35 @@ def trigger_market_intelligence():
             risk_profile=risk_profile,
             available_cash=available_cash,
             hours_back=hours_back,
-            trading_style=trading_style
+            trading_style=trading_style,
         )
 
         if sent:
-            return jsonify({
-                "success": True,
-                "message": f"AI market intelligence email sent to {user_email}",
-                "holdings_count": len(holding_tickers),
-                "risk_profile": risk_profile,
-                "available_cash": available_cash,
-                "hours_scanned": hours_back
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"AI market intelligence email sent to {user_email}",
+                    "holdings_count": len(holding_tickers),
+                    "risk_profile": risk_profile,
+                    "available_cash": available_cash,
+                    "hours_scanned": hours_back,
+                }
+            )
         else:
-            return jsonify({
-                "success": False,
-                "message": "No significant market developments in the last {} hour(s)".format(hours_back),
-                "holdings_count": len(holding_tickers),
-                "risk_profile": risk_profile,
-                "hours_scanned": hours_back
-            })
+            return jsonify(
+                {
+                    "success": False,
+                    "message": "No significant market developments in the last {} hour(s)".format(
+                        hours_back
+                    ),
+                    "holdings_count": len(holding_tickers),
+                    "risk_profile": risk_profile,
+                    "hours_scanned": hours_back,
+                }
+            )
 
     except Exception as e:
-        logger.error(
-            f"Manual market intelligence trigger failed: {e}", exc_info=True)
+        logger.error(f"Manual market intelligence trigger failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
@@ -1566,7 +2103,7 @@ def get_market_intelligence_status():
     """
     Get status of AI market intelligence configuration and diagnostics.
     """
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     try:
@@ -1580,27 +2117,26 @@ def get_market_intelligence_status():
 
         # Get holdings and portfolio info
         holdings = db.get_shadow_positions(user_id, is_active=True)
-        holding_tickers = [pos.get('ticker')
-                           for pos in holdings if pos.get('ticker')]
+        holding_tickers = [pos.get("ticker") for pos in holdings if pos.get("ticker")]
 
         sim_settings = db.get_simulation_settings(user_id)
-        risk_profile = sim_settings.get(
-            'risk_profile', 'moderate') if sim_settings else 'moderate'
-        available_cash = sim_settings.get(
-            'current_cash', 0) if sim_settings else 0
+        risk_profile = sim_settings.get("risk_profile", "moderate") if sim_settings else "moderate"
+        available_cash = sim_settings.get("current_cash", 0) if sim_settings else 0
 
         status = {
             "configured": bool(
-                config.get("GMAIL_ADDRESS") and
-                config.get("GMAIL_APP_PASSWORD") and
-                config.get("GEMINI_API_KEY")
+                config.get("GMAIL_ADDRESS")
+                and config.get("GMAIL_APP_PASSWORD")
+                and config.get("GEMINI_API_KEY")
             ),
             "news_alerts_enabled": prefs.get("news_alerts", True),
             "notifications_enabled": config.get("notifications_enabled", True),
             "holdings_count": len(holding_tickers),
             "risk_profile": risk_profile,
             "available_cash": available_cash,
-            "gmail_configured": bool(config.get("GMAIL_ADDRESS") and config.get("GMAIL_APP_PASSWORD")),
+            "gmail_configured": bool(
+                config.get("GMAIL_ADDRESS") and config.get("GMAIL_APP_PASSWORD")
+            ),
             "gemini_configured": bool(config.get("GEMINI_API_KEY")),
             "finnhub_configured": bool(config.get("FINNHUB_API_KEY")),
             "scan_schedule": "Every hour (top of the hour)",
@@ -1610,27 +2146,23 @@ def get_market_intelligence_status():
                 "ai_recommendations": config.get("GEMINI_API_KEY") is not None,
                 "personalized_risk_profile": True,
                 "holdings_impact_analysis": True,
-                "buy_sell_hold_suggestions": config.get("GEMINI_API_KEY") is not None
+                "buy_sell_hold_suggestions": config.get("GEMINI_API_KEY") is not None,
             },
-            "missing_config": []
+            "missing_config": [],
         }
 
         # Add missing configuration items
         if not config.get("GMAIL_ADDRESS") or not config.get("GMAIL_APP_PASSWORD"):
-            status["missing_config"].append(
-                "Gmail credentials (REQUIRED for email alerts)")
+            status["missing_config"].append("Gmail credentials (REQUIRED for email alerts)")
         if not config.get("GEMINI_API_KEY"):
-            status["missing_config"].append(
-                "Gemini API Key (REQUIRED for AI recommendations)")
+            status["missing_config"].append("Gemini API Key (REQUIRED for AI recommendations)")
         if not config.get("FINNHUB_API_KEY"):
-            status["missing_config"].append(
-                "Finnhub API Key (optional, improves data quality)")
+            status["missing_config"].append("Finnhub API Key (optional, improves data quality)")
 
         return jsonify(status)
 
     except Exception as e:
-        logger.error(
-            f"Failed to get market intelligence status: {e}", exc_info=True)
+        logger.error(f"Failed to get market intelligence status: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
@@ -1640,36 +2172,32 @@ def debug_market_intelligence():
     Debug endpoint to see what the AI is analyzing without sending email.
     Returns the raw market analysis and recommendations.
     """
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     try:
-        from utils import database as db
         from flask_app.services.market_intelligence_service import MarketIntelligenceService
+        from utils import database as db
 
         user_id = g.user.id
         config = db.get_user_api_keys(user_id, decrypt=True)
 
         if not config.get("GEMINI_API_KEY"):
-            return jsonify({
-                "error": "Gemini API Key required. Please add it in Settings."
-            }), 400
+            return jsonify({"error": "Gemini API Key required. Please add it in Settings."}), 400
 
-        config['gmail_address'] = config.get("GMAIL_ADDRESS", "")
-        config['gmail_app_password'] = config.get("GMAIL_APP_PASSWORD", "")
+        config["gmail_address"] = config.get("GMAIL_ADDRESS", "")
+        config["gmail_app_password"] = config.get("GMAIL_APP_PASSWORD", "")
 
         # Get holdings and settings
         holdings = db.get_shadow_positions(user_id, is_active=True)
-        holding_tickers = [pos.get('ticker')
-                           for pos in holdings if pos.get('ticker')]
+        holding_tickers = [pos.get("ticker") for pos in holdings if pos.get("ticker")]
 
         sim_settings = db.get_simulation_settings(user_id)
-        risk_profile = sim_settings.get(
-            'risk_profile', 'moderate') if sim_settings else 'moderate'
-        available_cash = sim_settings.get(
-            'current_cash', 0) if sim_settings else 0
-        trading_style = sim_settings.get(
-            'trading_style', 'swing_trading') if sim_settings else 'swing_trading'
+        risk_profile = sim_settings.get("risk_profile", "moderate") if sim_settings else "moderate"
+        available_cash = sim_settings.get("current_cash", 0) if sim_settings else 0
+        trading_style = (
+            sim_settings.get("trading_style", "swing_trading") if sim_settings else "swing_trading"
+        )
 
         logger.info(f"Debug: Analyzing market for {g.user.email}")
 
@@ -1680,42 +2208,48 @@ def debug_market_intelligence():
         market_analysis = intelligence_service._get_comprehensive_market_analysis()
 
         if not market_analysis:
-            return jsonify({
-                "error": "Failed to get market analysis from Gemini",
-                "details": "Check logs for Gemini API errors"
-            }), 500
+            return (
+                jsonify(
+                    {
+                        "error": "Failed to get market analysis from Gemini",
+                        "details": "Check logs for Gemini API errors",
+                    }
+                ),
+                500,
+            )
 
         # Generate recommendations (if market analysis succeeded)
         recommendations = []
-        if market_analysis.get('has_important_news'):
+        if market_analysis.get("has_important_news"):
             recommendations = intelligence_service._generate_personalized_recommendations(
                 market_analysis=market_analysis,
                 user_holdings=holding_tickers,
                 risk_profile=risk_profile,
                 available_cash=available_cash,
-                trading_style=trading_style
+                trading_style=trading_style,
             )
 
         # Get holdings impact
         holdings_impact = []
-        if holding_tickers and market_analysis.get('has_important_news'):
+        if holding_tickers and market_analysis.get("has_important_news"):
             holdings_impact = intelligence_service._analyze_holdings_impact(
-                user_holdings=holding_tickers,
-                market_analysis=market_analysis
+                user_holdings=holding_tickers, market_analysis=market_analysis
             )
 
-        return jsonify({
-            "success": True,
-            "market_analysis": market_analysis,
-            "recommendations": recommendations,
-            "holdings_impact": holdings_impact,
-            "user_context": {
-                "holdings": holding_tickers,
-                "risk_profile": risk_profile,
-                "trading_style": trading_style,
-                "available_cash": available_cash
+        return jsonify(
+            {
+                "success": True,
+                "market_analysis": market_analysis,
+                "recommendations": recommendations,
+                "holdings_impact": holdings_impact,
+                "user_context": {
+                    "holdings": holding_tickers,
+                    "risk_profile": risk_profile,
+                    "trading_style": trading_style,
+                    "available_cash": available_cash,
+                },
             }
-        })
+        )
 
     except Exception as e:
         logger.error(f"Debug endpoint failed: {e}", exc_info=True)
@@ -1728,12 +2262,12 @@ def force_send_market_intelligence():
     Force send an email regardless of whether there's important news.
     Useful for testing email formatting and delivery.
     """
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     try:
-        from utils import database as db
         from flask_app.services.market_intelligence_service import MarketIntelligenceService
+        from utils import database as db
 
         user_id = g.user.id
         user_email = g.user.email
@@ -1741,30 +2275,29 @@ def force_send_market_intelligence():
         # Get user's API keys
         config = db.get_user_api_keys(user_id, decrypt=True)
         if not config.get("GMAIL_ADDRESS") or not config.get("GMAIL_APP_PASSWORD"):
-            return jsonify({
-                "error": "Gmail credentials not configured. Please add them in Settings."
-            }), 400
+            return (
+                jsonify(
+                    {"error": "Gmail credentials not configured. Please add them in Settings."}
+                ),
+                400,
+            )
 
         if not config.get("GEMINI_API_KEY"):
-            return jsonify({
-                "error": "Gemini API Key required. Please add it in Settings."
-            }), 400
+            return jsonify({"error": "Gemini API Key required. Please add it in Settings."}), 400
 
-        config['gmail_address'] = config.get("GMAIL_ADDRESS")
-        config['gmail_app_password'] = config.get("GMAIL_APP_PASSWORD")
+        config["gmail_address"] = config.get("GMAIL_ADDRESS")
+        config["gmail_app_password"] = config.get("GMAIL_APP_PASSWORD")
 
         # Get holdings and settings
         holdings = db.get_shadow_positions(user_id, is_active=True)
-        holding_tickers = [pos.get('ticker')
-                           for pos in holdings if pos.get('ticker')]
+        holding_tickers = [pos.get("ticker") for pos in holdings if pos.get("ticker")]
 
         sim_settings = db.get_simulation_settings(user_id)
-        risk_profile = sim_settings.get(
-            'risk_profile', 'moderate') if sim_settings else 'moderate'
-        available_cash = sim_settings.get(
-            'current_cash', 0) if sim_settings else 0
-        trading_style = sim_settings.get(
-            'trading_style', 'swing_trading') if sim_settings else 'swing_trading'
+        risk_profile = sim_settings.get("risk_profile", "moderate") if sim_settings else "moderate"
+        available_cash = sim_settings.get("current_cash", 0) if sim_settings else 0
+        trading_style = (
+            sim_settings.get("trading_style", "swing_trading") if sim_settings else "swing_trading"
+        )
 
         logger.info(f"Force send: Generating intelligence for {user_email}")
 
@@ -1775,12 +2308,10 @@ def force_send_market_intelligence():
         market_analysis = intelligence_service._get_comprehensive_market_analysis()
 
         if not market_analysis:
-            return jsonify({
-                "error": "Failed to get market analysis from Gemini"
-            }), 500
+            return jsonify({"error": "Failed to get market analysis from Gemini"}), 500
 
         # Force has_important_news to True for testing
-        market_analysis['has_important_news'] = True
+        market_analysis["has_important_news"] = True
 
         # Generate recommendations
         recommendations = intelligence_service._generate_personalized_recommendations(
@@ -1788,13 +2319,12 @@ def force_send_market_intelligence():
             user_holdings=holding_tickers,
             risk_profile=risk_profile,
             available_cash=available_cash,
-            trading_style=trading_style
+            trading_style=trading_style,
         )
 
         # Get holdings impact
         holdings_impact = intelligence_service._analyze_holdings_impact(
-            user_holdings=holding_tickers,
-            market_analysis=market_analysis
+            user_holdings=holding_tickers, market_analysis=market_analysis
         )
 
         # Force send email
@@ -1803,22 +2333,26 @@ def force_send_market_intelligence():
             market_analysis=market_analysis,
             recommendations=recommendations,
             holdings_impact=holdings_impact,
-            risk_profile=risk_profile
+            risk_profile=risk_profile,
         )
 
         if sent:
-            return jsonify({
-                "success": True,
-                "message": f"Test email forcefully sent to {user_email}",
-                "market_sentiment": market_analysis.get('market_sentiment'),
-                "recommendations_count": len(recommendations),
-                "holdings_impact_count": len(holdings_impact)
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Test email forcefully sent to {user_email}",
+                    "market_sentiment": market_analysis.get("market_sentiment"),
+                    "recommendations_count": len(recommendations),
+                    "holdings_impact_count": len(holdings_impact),
+                }
+            )
         else:
-            return jsonify({
-                "success": False,
-                "error": "Email sending failed (check Gmail credentials)"
-            }), 500
+            return (
+                jsonify(
+                    {"success": False, "error": "Email sending failed (check Gmail credentials)"}
+                ),
+                500,
+            )
 
     except Exception as e:
         logger.error(f"Force send failed: {e}", exc_info=True)
@@ -1830,39 +2364,51 @@ def debug_user_keys():
     """
     Debug endpoint to see what API keys are actually stored and loaded.
     """
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Not logged in"}), 401
 
     try:
         from utils import database as db
 
         # Get keys from g.user (what's currently loaded in memory)
-        loaded_keys = g.user.get_api_keys() if hasattr(g.user, 'get_api_keys') else {}
+        loaded_keys = g.user.get_api_keys() if hasattr(g.user, "get_api_keys") else {}
 
         # Get keys directly from database
         db_keys = db.get_user_api_keys(g.user.id, decrypt=True) or {}
 
-        return jsonify({
-            "user_id": g.user.id,
-            "user_email": g.user.email,
-            "loaded_in_memory": {
-                "finnhub": bool(loaded_keys.get('FINNHUB_API_KEY')),
-                "alpaca": bool(loaded_keys.get('ALPACA_API_KEY')),
-                "gemini": bool(loaded_keys.get('GEMINI_API_KEY')),
-                "finnhub_preview": loaded_keys.get('FINNHUB_API_KEY', '')[:10] + '...' if loaded_keys.get('FINNHUB_API_KEY') else 'NOT_SET'
-            },
-            "in_database": {
-                "finnhub": bool(db_keys.get('FINNHUB_API_KEY')),
-                "alpaca": bool(db_keys.get('ALPACA_API_KEY')),
-                "gemini": bool(db_keys.get('GEMINI_API_KEY')),
-                "finnhub_preview": db_keys.get('FINNHUB_API_KEY', '')[:10] + '...' if db_keys.get('FINNHUB_API_KEY') else 'NOT_SET'
-            },
-            "diagnosis": "Keys are " + ("LOADED CORRECTLY" if loaded_keys.get('FINNHUB_API_KEY') and db_keys.get('FINNHUB_API_KEY') else "MISSING OR NOT LOADED")
-        })
+        return jsonify(
+            {
+                "user_id": g.user.id,
+                "user_email": g.user.email,
+                "loaded_in_memory": {
+                    "finnhub": bool(loaded_keys.get("FINNHUB_API_KEY")),
+                    "alpaca": bool(loaded_keys.get("ALPACA_API_KEY")),
+                    "gemini": bool(loaded_keys.get("GEMINI_API_KEY")),
+                    "finnhub_preview": loaded_keys.get("FINNHUB_API_KEY", "")[:10] + "..."
+                    if loaded_keys.get("FINNHUB_API_KEY")
+                    else "NOT_SET",
+                },
+                "in_database": {
+                    "finnhub": bool(db_keys.get("FINNHUB_API_KEY")),
+                    "alpaca": bool(db_keys.get("ALPACA_API_KEY")),
+                    "gemini": bool(db_keys.get("GEMINI_API_KEY")),
+                    "finnhub_preview": db_keys.get("FINNHUB_API_KEY", "")[:10] + "..."
+                    if db_keys.get("FINNHUB_API_KEY")
+                    else "NOT_SET",
+                },
+                "diagnosis": "Keys are "
+                + (
+                    "LOADED CORRECTLY"
+                    if loaded_keys.get("FINNHUB_API_KEY") and db_keys.get("FINNHUB_API_KEY")
+                    else "MISSING OR NOT LOADED"
+                ),
+            }
+        )
 
     except Exception as e:
         logger.error(f"Debug keys failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
 
 # ========================================
 # NEW FEATURE ENDPOINTS
@@ -1870,58 +2416,59 @@ def debug_user_keys():
 
 
 @api_bp.route("/macro-data")
+@cache.memoize(timeout=60)
 def get_macro_data():
-    """Get global macro indicators (SPY, VIX, 10Y, DXY, BTC, Gold, Oil)."""
-    try:
-        config = get_config()
-        stock_service = StockService(config)
+    """Get global macro indicators via yfinance — no auth required."""
+    import yfinance as yf
 
-        # Fetch key macro indicators
-        macro_tickers = {
-            'SPY': 'spy',
-            '^VIX': 'vix',      # correct yfinance symbol for CBOE VIX
-            '^TNX': 'yield10y',  # 10-Year Treasury Yield
-            # Dollar Index futures (DX-Y.NYB is delisted on yfinance)
-            'DX=F': 'dxy',
-            'BTC-USD': 'btc',
-            'GC=F': 'gold',
-            'CL=F': 'oil'
-        }
+    macro_tickers = {
+        "SPY": "spy",
+        "QQQ": "qqq",
+        "IWM": "iwm",
+        "DIA": "djia",
+        "EEM": "eem",
+        "VEU": "veu",
+        "^VIX": "vix",
+        "^TNX": "yield10y",
+        "^DXY": "dxy",
+        "BTC-USD": "btc",
+        "ETH-USD": "eth",
+        "GLD": "gold",
+        "GC=F": "gold",
+        "CL=F": "oil",
+    }
 
-        results = {}
-        for ticker, key in macro_tickers.items():
-            try:
-                quote = stock_service.get_realtime_quote(ticker)
-                if quote:
-                    price = quote.get('current', 0)
-                    prev_close = quote.get('previous_close', price)
-                    change_pct = ((price - prev_close) /
-                                  prev_close * 100) if prev_close else 0
+    results = {}
+    for symbol, key in macro_tickers.items():
+        try:
+            info = yf.Ticker(symbol).fast_info
+            price = float(getattr(info, "last_price", 0) or 0)
+            prev = float(getattr(info, "previous_close", price) or price)
+            chg = price - prev
+            chg_pct = round((chg / prev * 100) if prev else 0, 2)
 
-                    if key == 'vix':
-                        results[key] = {
-                            'value': f"{price:.1f}",
-                            'label': 'High Fear' if price > 25 else 'Moderate' if price > 15 else 'Low Fear'
-                        }
-                    elif key == 'yield10y':
-                        results[key] = {
-                            'value': f"{price:.2f}",
-                            # In basis points
-                            'change': round(change_pct * 100, 0)
-                        }
-                    else:
-                        results[key] = {
-                            'price': f"{price:,.0f}" if price > 100 else f"{price:.2f}",
-                            'change': round(change_pct, 2)
-                        }
-            except Exception as e:
-                logger.warning(f"Failed to fetch {ticker}: {e}")
+            if key == "vix":
+                results[key] = {
+                    "value": f"{price:.1f}",
+                    "label": "High Fear"
+                    if price > 25
+                    else "Moderate"
+                    if price > 15
+                    else "Low Fear",
+                    "change": chg_pct,
+                }
+            elif key == "dxy":
+                results[key] = {"value": f"{price:.1f}", "change": chg_pct}
+            elif key == "yield10y":
+                results[key] = {"value": f"{price:.2f}", "change": chg_pct}
+            elif key in ("btc", "eth", "gold", "oil"):
+                results[key] = {"price": round(price, 2), "change": chg_pct}
+            else:
+                results[key] = {"price": round(price, 2), "change": chg_pct}
+        except Exception as e:
+            logger.warning(f"macro-data: failed to fetch {symbol}: {e}")
 
-        return jsonify(results)
-
-    except Exception as e:
-        logger.error(f"Macro data fetch failed: {e}")
-        return jsonify({"error": str(e)}), 500
+    return jsonify(results)
 
 
 @api_bp.route("/earnings-calendar")
@@ -1941,7 +2488,7 @@ def get_earnings_calendar():
 
         earnings_data = []
         for position in positions:
-            ticker = position.get('ticker')
+            ticker = position.get("ticker")
             if not ticker:
                 continue
 
@@ -1949,15 +2496,17 @@ def get_earnings_calendar():
                 # Get earnings calendar from Finnhub
                 earnings = stock_service.get_earnings_calendar(ticker)
                 if earnings:
-                    earnings_data.append({
-                        'ticker': ticker,
-                        'earnings_date': earnings.get('date'),
-                        'eps_estimate': earnings.get('epsEstimate'),
-                        'eps_actual': earnings.get('epsActual'),
-                        'quarter': earnings.get('quarter'),
-                        'year': earnings.get('year')
-                    })
-            except:
+                    earnings_data.append(
+                        {
+                            "ticker": ticker,
+                            "earnings_date": earnings.get("date"),
+                            "eps_estimate": earnings.get("epsEstimate"),
+                            "eps_actual": earnings.get("epsActual"),
+                            "quarter": earnings.get("quarter"),
+                            "year": earnings.get("year"),
+                        }
+                    )
+            except Exception:
                 pass
 
         return jsonify(earnings_data)
@@ -1973,13 +2522,19 @@ def get_insider_trades(ticker):
     try:
         config = get_config()
 
-        finnhub_key = config.get('FINNHUB_API_KEY', '')
-        logger.info(
-            f"Insider trades request for {ticker}. API key present: {bool(finnhub_key)}")
+        finnhub_key = config.get("FINNHUB_API_KEY", "")
+        logger.info(f"Insider trades request for {ticker}. API key present: {bool(finnhub_key)}")
 
         # Check if Finnhub API key is available
         if not finnhub_key:
-            return jsonify({"error": "Finnhub API key required. Please add your Finnhub API key in Settings page (not .env file)."}), 400
+            return (
+                jsonify(
+                    {
+                        "error": "Finnhub API key required. Please add your Finnhub API key in Settings page (not .env file)."
+                    }
+                ),
+                400,
+            )
 
         stock_service = StockService(config)
 
@@ -1991,13 +2546,13 @@ def get_insider_trades(ticker):
 
             # Finnhub often returns both value=0 and price=0 for insider trades.
             # Fall back to current price for any trades that still have no value.
-            if insiders and any(not t.get('value') for t in insiders):
+            if insiders and any(not t.get("value") for t in insiders):
                 quote = stock_service.get_realtime_quote(ticker)
-                current_price = quote.get('current', 0) if quote else 0
+                current_price = quote.get("current", 0) if quote else 0
                 if current_price:
                     for t in insiders:
-                        if not t.get('value'):
-                            t['value'] = current_price * t.get('share', 0)
+                        if not t.get("value"):
+                            t["value"] = current_price * t.get("share", 0)
 
             return jsonify(insiders if insiders else [])
         except Exception as method_error:
@@ -2020,17 +2575,17 @@ def get_sector_rotation():
 
         # Sector ETFs to track
         sectors = {
-            'XLK': 'Technology',
-            'XLF': 'Financials',
-            'XLE': 'Energy',
-            'XLV': 'Healthcare',
-            'XLI': 'Industrials',
-            'XLY': 'Consumer Disc',
-            'XLP': 'Consumer Staples',
-            'XLU': 'Utilities',
-            'XLRE': 'Real Estate',
-            'XLB': 'Materials',
-            'XLC': 'Communications'
+            "XLK": "Technology",
+            "XLF": "Financials",
+            "XLE": "Energy",
+            "XLV": "Healthcare",
+            "XLI": "Industrials",
+            "XLY": "Consumer Disc",
+            "XLP": "Consumer Staples",
+            "XLU": "Utilities",
+            "XLRE": "Real Estate",
+            "XLB": "Materials",
+            "XLC": "Communications",
         }
 
         sector_data = []
@@ -2039,75 +2594,79 @@ def get_sector_rotation():
                 # Try Finnhub first
                 quote = stock_service.get_realtime_quote(etf)
 
-                if quote and quote.get('current') and quote.get('previous_close'):
-                    price = quote.get('current', 0)
-                    prev_close = quote.get('previous_close', price)
-                    change_pct = ((price - prev_close) /
-                                  prev_close * 100) if prev_close else 0
+                if quote and quote.get("current") and quote.get("previous_close"):
+                    price = quote.get("current", 0)
+                    prev_close = quote.get("previous_close", price)
+                    change_pct = ((price - prev_close) / prev_close * 100) if prev_close else 0
 
-                    sector_data.append({
-                        'sector': sector_name,
-                        'etf': etf,
-                        'change': round(change_pct, 2),
-                        'price': round(price, 2)
-                    })
-                    logger.info(
-                        f"Finnhub: {etf} ${price:.2f} ({change_pct:+.2f}%)")
+                    sector_data.append(
+                        {
+                            "sector": sector_name,
+                            "etf": etf,
+                            "change": round(change_pct, 2),
+                            "price": round(price, 2),
+                        }
+                    )
+                    logger.info(f"Finnhub: {etf} ${price:.2f} ({change_pct:+.2f}%)")
                 else:
                     # Fallback to yfinance if Finnhub fails
-                    logger.info(
-                        f"Finnhub failed for {etf}, trying yfinance fallback")
+                    logger.info(f"Finnhub failed for {etf}, trying yfinance fallback")
                     ticker_obj = yf.Ticker(etf)
                     info = ticker_obj.info
 
-                    current_price = info.get(
-                        'regularMarketPrice') or info.get('currentPrice', 0)
-                    prev_close = info.get('previousClose', current_price)
+                    current_price = info.get("regularMarketPrice") or info.get("currentPrice", 0)
+                    prev_close = info.get("previousClose", current_price)
 
                     if current_price and prev_close:
-                        change_pct = (
-                            (current_price - prev_close) / prev_close * 100)
-                        sector_data.append({
-                            'sector': sector_name,
-                            'etf': etf,
-                            'change': round(change_pct, 2),
-                            'price': round(current_price, 2)
-                        })
-                        logger.info(
-                            f"yfinance: {etf} ${current_price:.2f} ({change_pct:+.2f}%)")
+                        change_pct = (current_price - prev_close) / prev_close * 100
+                        sector_data.append(
+                            {
+                                "sector": sector_name,
+                                "etf": etf,
+                                "change": round(change_pct, 2),
+                                "price": round(current_price, 2),
+                            }
+                        )
+                        logger.info(f"yfinance: {etf} ${current_price:.2f} ({change_pct:+.2f}%)")
             except Exception as sector_error:
-                logger.warning(
-                    f"Failed to fetch {etf} from Finnhub: {sector_error}")
+                logger.warning(f"Failed to fetch {etf} from Finnhub: {sector_error}")
                 # Last resort: try yfinance even if exception occurred
                 try:
                     ticker_obj = yf.Ticker(etf)
                     info = ticker_obj.info
-                    current_price = info.get(
-                        'regularMarketPrice') or info.get('currentPrice', 0)
-                    prev_close = info.get('previousClose', current_price)
+                    current_price = info.get("regularMarketPrice") or info.get("currentPrice", 0)
+                    prev_close = info.get("previousClose", current_price)
 
                     if current_price and prev_close:
-                        change_pct = (
-                            (current_price - prev_close) / prev_close * 100)
-                        sector_data.append({
-                            'sector': sector_name,
-                            'etf': etf,
-                            'change': round(change_pct, 2),
-                            'price': round(current_price, 2)
-                        })
+                        change_pct = (current_price - prev_close) / prev_close * 100
+                        sector_data.append(
+                            {
+                                "sector": sector_name,
+                                "etf": etf,
+                                "change": round(change_pct, 2),
+                                "price": round(current_price, 2),
+                            }
+                        )
                         logger.info(
-                            f"yfinance (backup): {etf} ${current_price:.2f} ({change_pct:+.2f}%)")
+                            f"yfinance (backup): {etf} ${current_price:.2f} ({change_pct:+.2f}%)"
+                        )
                 except Exception as yf_error:
-                    logger.error(
-                        f"Both Finnhub and yfinance failed for {etf}: {yf_error}")
+                    logger.error(f"Both Finnhub and yfinance failed for {etf}: {yf_error}")
 
         # If no data was fetched, return error
         if not sector_data:
             logger.warning("No sector data available from any source")
-            return jsonify({"error": "Unable to fetch sector data. Please check your Finnhub API key or try again later."}), 503
+            return (
+                jsonify(
+                    {
+                        "error": "Unable to fetch sector data. Please check your Finnhub API key or try again later."
+                    }
+                ),
+                503,
+            )
 
         # Sort by performance
-        sector_data.sort(key=lambda x: x['change'], reverse=True)
+        sector_data.sort(key=lambda x: x["change"], reverse=True)
 
         return jsonify(sector_data)
 
@@ -2124,16 +2683,17 @@ def get_portfolio_correlation():
         if not user_id:
             return jsonify({"error": "Not logged in"}), 401
 
+        from datetime import timedelta
+
         import pandas as pd
         import yfinance as yf
-        from datetime import timedelta
 
         config = get_config()
         trading_service = TradingService(config)
 
         # Get user's Alpaca positions
         positions = trading_service.get_positions()
-        tickers = [p.get('ticker') for p in positions if p.get('ticker')]
+        tickers = [p.get("ticker") for p in positions if p.get("ticker")]
 
         if len(tickers) < 2:
             return jsonify({"error": "Need at least 2 holdings to calculate correlation"}), 400
@@ -2144,8 +2704,7 @@ def get_portfolio_correlation():
 
         # Download all tickers at once for aligned dates
         try:
-            df = yf.download(tickers[:10], start=start_date,
-                             end=end_date, progress=False)['Close']
+            df = yf.download(tickers[:10], start=start_date, end=end_date, progress=False)["Close"]
 
             # Handle single ticker case (returns Series not DataFrame)
             if len(tickers) == 1:
@@ -2153,7 +2712,7 @@ def get_portfolio_correlation():
 
             # Drop any columns with all NaN values
             if isinstance(df, pd.DataFrame):
-                df = df.dropna(axis=1, how='all')
+                df = df.dropna(axis=1, how="all")
 
             if df.empty or (isinstance(df, pd.DataFrame) and len(df.columns) < 2):
                 return jsonify({"error": "Not enough price data"}), 400
@@ -2171,8 +2730,8 @@ def get_portfolio_correlation():
 
         # Convert to JSON format
         result = {
-            'tickers': list(correlation_matrix.columns),
-            'matrix': correlation_matrix.values.tolist()
+            "tickers": list(correlation_matrix.columns),
+            "matrix": correlation_matrix.values.tolist(),
         }
 
         return jsonify(result)
@@ -2185,6 +2744,7 @@ def get_portfolio_correlation():
 # ============================================
 # SWING TRADING ADVANCED FEATURES
 # ============================================
+
 
 @api_bp.route("/backtest", methods=["POST"])
 def run_backtest():
@@ -2203,10 +2763,8 @@ def run_backtest():
         if not ticker:
             return jsonify({"error": "Ticker required"}), 400
 
-        import yfinance as yf
-        import pandas as pd
         import numpy as np
-        from datetime import timedelta
+        import yfinance as yf
 
         # Download historical data
         stock = yf.Ticker(ticker)
@@ -2216,122 +2774,124 @@ def run_backtest():
             return jsonify({"error": "No data available for ticker"}), 400
 
         # Calculate indicators
-        hist['RSI'] = calculate_rsi(hist['Close'])
-        hist['SMA_20'] = hist['Close'].rolling(window=20).mean()
-        hist['SMA_50'] = hist['Close'].rolling(window=50).mean()
-        hist['High_20'] = hist['High'].rolling(window=20).max()
+        hist["RSI"] = calculate_rsi(hist["Close"])
+        hist["SMA_20"] = hist["Close"].rolling(window=20).mean()
+        hist["SMA_50"] = hist["Close"].rolling(window=50).mean()
+        hist["High_20"] = hist["High"].rolling(window=20).max()
 
         # Run strategy simulation
         trades = []
-        equity_curve = [
-            {'date': hist.index[0].strftime('%Y-%m-%d'), 'value': 10000}]
+        equity_curve = [{"date": hist.index[0].strftime("%Y-%m-%d"), "value": 10000}]
         current_cash = 10000
         position = None
 
         for i in range(50, len(hist)):
             date = hist.index[i]
-            price = hist['Close'].iloc[i]
-            rsi = hist['RSI'].iloc[i]
+            price = hist["Close"].iloc[i]
+            rsi = hist["RSI"].iloc[i]
 
             # Entry logic based on strategy
             if position is None:
                 entry_signal = False
 
-                if strategy == 'rsi' and rsi < 30:
+                if strategy == "rsi" and rsi < 30:
                     entry_signal = True
-                elif strategy == 'ma_crossover' and hist['SMA_20'].iloc[i] > hist['SMA_50'].iloc[i] and hist['SMA_20'].iloc[i-1] <= hist['SMA_50'].iloc[i-1]:
+                elif (
+                    strategy == "ma_crossover"
+                    and hist["SMA_20"].iloc[i] > hist["SMA_50"].iloc[i]
+                    and hist["SMA_20"].iloc[i - 1] <= hist["SMA_50"].iloc[i - 1]
+                ):
                     entry_signal = True
-                elif strategy == 'breakout' and price > hist['High_20'].iloc[i-1]:
+                elif strategy == "breakout" and price > hist["High_20"].iloc[i - 1]:
                     entry_signal = True
 
                 if entry_signal:
                     shares = current_cash / price
                     position = {
-                        'entry_date': date,
-                        'entry_price': price,
-                        'shares': shares,
-                        'hold_days': 0
+                        "entry_date": date,
+                        "entry_price": price,
+                        "shares": shares,
+                        "hold_days": 0,
                     }
                     current_cash = 0
 
             # Exit logic
             elif position is not None:
-                position['hold_days'] += 1
+                position["hold_days"] += 1
                 exit_signal = False
 
-                if strategy == 'rsi' and rsi > 70:
+                if strategy == "rsi" and rsi > 70:
                     exit_signal = True
-                elif position['hold_days'] >= hold_days:
+                elif position["hold_days"] >= hold_days:
                     exit_signal = True
 
                 if exit_signal:
                     exit_price = price
-                    pnl = (exit_price -
-                           position['entry_price']) * position['shares']
                     pnl_percent = (
-                        (exit_price - position['entry_price']) / position['entry_price']) * 100
+                        (exit_price - position["entry_price"]) / position["entry_price"]
+                    ) * 100
 
-                    trades.append({
-                        'id': len(trades),
-                        'entryDate': position['entry_date'].strftime('%Y-%m-%d'),
-                        'exitDate': date.strftime('%Y-%m-%d'),
-                        'entryPrice': round(position['entry_price'], 2),
-                        'exitPrice': round(exit_price, 2),
-                        'pnlPercent': round(pnl_percent, 2),
-                        'holdDays': position['hold_days']
-                    })
+                    trades.append(
+                        {
+                            "id": len(trades),
+                            "entryDate": position["entry_date"].strftime("%Y-%m-%d"),
+                            "exitDate": date.strftime("%Y-%m-%d"),
+                            "entryPrice": round(position["entry_price"], 2),
+                            "exitPrice": round(exit_price, 2),
+                            "pnlPercent": round(pnl_percent, 2),
+                            "holdDays": position["hold_days"],
+                        }
+                    )
 
-                    current_cash = position['shares'] * exit_price
+                    current_cash = position["shares"] * exit_price
                     position = None
 
             # Update equity curve
-            portfolio_value = current_cash if position is None else position['shares'] * price
-            equity_curve.append({'date': date.strftime(
-                '%Y-%m-%d'), 'value': round(portfolio_value, 2)})
+            portfolio_value = current_cash if position is None else position["shares"] * price
+            equity_curve.append(
+                {"date": date.strftime("%Y-%m-%d"), "value": round(portfolio_value, 2)}
+            )
 
         # Calculate metrics
-        winning_trades = [t for t in trades if t['pnlPercent'] > 0]
+        winning_trades = [t for t in trades if t["pnlPercent"] > 0]
         win_rate = (len(winning_trades) / len(trades) * 100) if trades else 0
-        total_return = ((equity_curve[-1]['value'] - 10000) / 10000) * 100
+        total_return = ((equity_curve[-1]["value"] - 10000) / 10000) * 100
 
         # Max drawdown
-        peak = equity_curve[0]['value']
+        peak = equity_curve[0]["value"]
         max_dd = 0
         for point in equity_curve:
-            if point['value'] > peak:
-                peak = point['value']
-            dd = ((peak - point['value']) / peak) * 100
+            if point["value"] > peak:
+                peak = point["value"]
+            dd = ((peak - point["value"]) / peak) * 100
             max_dd = max(max_dd, dd)
 
         # Profit factor
-        gross_profit = sum([t['pnlPercent']
-                           for t in trades if t['pnlPercent'] > 0])
-        gross_loss = abs(sum([t['pnlPercent']
-                         for t in trades if t['pnlPercent'] < 0]))
+        gross_profit = sum([t["pnlPercent"] for t in trades if t["pnlPercent"] > 0])
+        gross_loss = abs(sum([t["pnlPercent"] for t in trades if t["pnlPercent"] < 0]))
         profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else 0
 
         # Sharpe ratio (simplified)
-        returns = [trades[i]['pnlPercent'] / 100 for i in range(len(trades))]
+        returns = [trades[i]["pnlPercent"] / 100 for i in range(len(trades))]
         if returns:
             avg_return = np.mean(returns)
             std_return = np.std(returns)
-            sharpe = (avg_return / std_return *
-                      np.sqrt(252/hold_days)) if std_return > 0 else 0
+            sharpe = (avg_return / std_return * np.sqrt(252 / hold_days)) if std_return > 0 else 0
         else:
             sharpe = 0
 
-        avg_hold = np.mean([t['holdDays'] for t in trades]) if trades else 0
+        avg_hold = np.mean([t["holdDays"] for t in trades]) if trades else 0
 
         result = {
-            'totalReturn': round(total_return, 2),
-            'winRate': round(win_rate, 2),
-            'totalTrades': len(trades),
-            'maxDrawdown': round(max_dd, 2),
-            'profitFactor': round(profit_factor, 2),
-            'sharpeRatio': round(sharpe, 2),
-            'avgHoldDays': round(avg_hold, 1),
-            'equityCurve': equity_curve[-100:],  # Last 100 points
-            'trades': trades[-20:]  # Last 20 trades
+            "totalReturn": round(total_return, 2),
+            "winRate": round(win_rate, 2),
+            "totalTrades": len(trades),
+            "maxDrawdown": round(max_dd, 2),
+            "profitFactor": round(profit_factor, 2),
+            "sharpeRatio": round(sharpe, 2),
+            "avgHoldDays": round(avg_hold, 1),
+            "equityCurve": equity_curve[-100:],  # Last 100 points
+            "trades": trades[-20:],  # Last 20 trades
         }
 
         return jsonify(result)
@@ -2349,49 +2909,58 @@ def get_multi_timeframe():
         if not user_id:
             return jsonify({"error": "Not logged in"}), 401
 
-        from utils import database as db
         import yfinance as yf
 
+        from utils import database as db
+
         # Get first holding as example ticker (or allow passing ticker param)
-        ticker = request.args.get('ticker')
+        ticker = request.args.get("ticker")
         if not ticker:
             holdings = db.get_shadow_positions(user_id, is_active=True)
             if not holdings:
                 return jsonify({"error": "No holdings found"}), 400
-            ticker = holdings[0].get('ticker')
+            ticker = holdings[0].get("ticker")
 
         stock = yf.Ticker(ticker)
 
         # Weekly data
-        weekly = stock.history(period='6mo', interval='1wk')
+        weekly = stock.history(period="6mo", interval="1wk")
         if weekly.empty or len(weekly) < 2:
             return jsonify({"error": f"Insufficient weekly data for {ticker}"}), 400
-        weekly_sma20 = weekly['Close'].rolling(min(20, len(weekly))).mean().iloc[-1]
-        weekly_sma50 = weekly['Close'].rolling(min(50, len(weekly))).mean().iloc[-1]
-        weekly_rsi = calculate_rsi(weekly['Close']).iloc[-1]
-        weekly_trend = 'bullish' if weekly['Close'].iloc[-1] > weekly_sma20 else 'bearish'
+        weekly_sma20 = weekly["Close"].rolling(min(20, len(weekly))).mean().iloc[-1]
+        weekly_sma50 = weekly["Close"].rolling(min(50, len(weekly))).mean().iloc[-1]
+        weekly_rsi = calculate_rsi(weekly["Close"]).iloc[-1]
+        weekly_trend = "bullish" if weekly["Close"].iloc[-1] > weekly_sma20 else "bearish"
 
         # Daily data
-        daily = stock.history(period='3mo', interval='1d')
+        daily = stock.history(period="3mo", interval="1d")
         if daily.empty or len(daily) < 2:
             return jsonify({"error": f"Insufficient daily data for {ticker}"}), 400
-        daily_support = daily['Low'].rolling(min(20, len(daily))).min().iloc[-1]
-        daily_resistance = daily['High'].rolling(min(20, len(daily))).max().iloc[-1]
-        macd = calculate_macd(daily['Close'])
-        daily_trend = 'bullish' if daily['Close'].iloc[-1] > daily['Close'].rolling(
-            min(20, len(daily))).mean().iloc[-1] else 'bearish'
+        daily_support = daily["Low"].rolling(min(20, len(daily))).min().iloc[-1]
+        daily_resistance = daily["High"].rolling(min(20, len(daily))).max().iloc[-1]
+        macd = calculate_macd(daily["Close"])
+        daily_trend = (
+            "bullish"
+            if daily["Close"].iloc[-1] > daily["Close"].rolling(min(20, len(daily))).mean().iloc[-1]
+            else "bearish"
+        )
 
         # 4-hour data (approximated from hourly)
-        hourly = stock.history(period='1mo', interval='1h')
-        four_hour = hourly.resample('4h').agg(
-            {'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+        hourly = stock.history(period="1mo", interval="1h")
+        four_hour = (
+            hourly.resample("4h")
+            .agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"})
+            .dropna()
+        )
         if len(four_hour) >= 2:
             lookback = min(5, len(four_hour) - 1)
-            momentum = ((four_hour['Close'].iloc[-1] -
-                        four_hour['Close'].iloc[-lookback]) / four_hour['Close'].iloc[-lookback]) * 100
+            momentum = (
+                (four_hour["Close"].iloc[-1] - four_hour["Close"].iloc[-lookback])
+                / four_hour["Close"].iloc[-lookback]
+            ) * 100
         else:
             momentum = 0.0
-        four_hour_trend = 'bullish' if momentum > 0 else 'bearish'
+        four_hour_trend = "bullish" if momentum > 0 else "bearish"
         stoch_rsi = (weekly_rsi - 30) / (70 - 30) * 100  # Simplified
 
         # Helper function to safely round and handle NaN
@@ -2402,35 +2971,39 @@ def get_multi_timeframe():
 
         trading_style = get_trading_style()
         STYLE_LABELS = {
-            "day_trading":   "Day Trading",
+            "day_trading": "Day Trading",
             "swing_trading": "Swing Trading",
-            "long_term":     "Long-Term Investing",
+            "long_term": "Long-Term Investing",
         }
 
         result = {
-            'trading_style': trading_style,
-            'trading_style_label': STYLE_LABELS.get(trading_style, "Swing Trading"),
-            'weekly': {
-                'trend': weekly_trend,
-                'sma20': safe_round(weekly_sma20, 2),
-                'sma50': safe_round(weekly_sma50, 2),
-                'rsi': safe_round(weekly_rsi, 1),
-                'signal': 'Buy on pullbacks' if weekly_trend == 'bullish' else 'Short rallies'
+            "trading_style": trading_style,
+            "trading_style_label": STYLE_LABELS.get(trading_style, "Swing Trading"),
+            "weekly": {
+                "trend": weekly_trend,
+                "sma20": safe_round(weekly_sma20, 2),
+                "sma50": safe_round(weekly_sma50, 2),
+                "rsi": safe_round(weekly_rsi, 1),
+                "signal": "Buy on pullbacks" if weekly_trend == "bullish" else "Short rallies",
             },
-            'daily': {
-                'trend': daily_trend,
-                'support': safe_round(daily_support, 2),
-                'resistance': safe_round(daily_resistance, 2),
-                'macd': safe_round(macd, 2),
-                'entryZone': f"${safe_round(daily_support, 2):.2f} - ${safe_round(daily_support * 1.02, 2):.2f}" if daily_trend == 'bullish' else f"${safe_round(daily_resistance * 0.98, 2):.2f} - ${safe_round(daily_resistance, 2):.2f}"
+            "daily": {
+                "trend": daily_trend,
+                "support": safe_round(daily_support, 2),
+                "resistance": safe_round(daily_resistance, 2),
+                "macd": safe_round(macd, 2),
+                "entryZone": f"${safe_round(daily_support, 2):.2f} - ${safe_round(daily_support * 1.02, 2):.2f}"
+                if daily_trend == "bullish"
+                else f"${safe_round(daily_resistance * 0.98, 2):.2f} - ${safe_round(daily_resistance, 2):.2f}",
             },
-            'fourHour': {
-                'trend': four_hour_trend,
-                'momentum': safe_round(momentum, 2),
-                'volume': 'Above average' if four_hour['Volume'].iloc[-1] > four_hour['Volume'].mean() else 'Below average',
-                'stochRsi': safe_round(stoch_rsi, 0),
-                'timing': 'Enter now' if abs(momentum) < 2 else 'Wait for consolidation'
-            }
+            "fourHour": {
+                "trend": four_hour_trend,
+                "momentum": safe_round(momentum, 2),
+                "volume": "Above average"
+                if four_hour["Volume"].iloc[-1] > four_hour["Volume"].mean()
+                else "Below average",
+                "stochRsi": safe_round(stoch_rsi, 0),
+                "timing": "Enter now" if abs(momentum) < 2 else "Wait for consolidation",
+            },
         }
 
         return jsonify(result)
@@ -2448,26 +3021,27 @@ def get_volatility_surface():
         if not user_id:
             return jsonify({"error": "Not logged in"}), 401
 
-        from utils import database as db
-        import yfinance as yf
         import numpy as np
+        import yfinance as yf
+
+        from utils import database as db
 
         # Get ticker
-        ticker = request.args.get('ticker')
+        ticker = request.args.get("ticker")
         if not ticker:
             holdings = db.get_shadow_positions(user_id, is_active=True)
             if not holdings:
                 return jsonify({"error": "No holdings found"}), 400
-            ticker = holdings[0].get('ticker')
+            ticker = holdings[0].get("ticker")
 
         stock = yf.Ticker(ticker)
-        hist = stock.history(period='1y')
+        hist = stock.history(period="1y")
 
         if hist.empty or len(hist) < 5:
             return jsonify({"error": f"Insufficient data for {ticker}"}), 400
 
         # Calculate historical volatility
-        returns = hist['Close'].pct_change().dropna()
+        returns = hist["Close"].pct_change().dropna()
         hist_vol_30 = returns.tail(30).std() * np.sqrt(252) * 100
         hist_vol_90 = returns.tail(90).std() * np.sqrt(252) * 100
 
@@ -2476,74 +3050,72 @@ def get_volatility_surface():
 
         # Volatility percentile
         rolling_vol = returns.rolling(30).std() * np.sqrt(252) * 100
-        vol_percentile = (rolling_vol < hist_vol_30).sum() / \
-            len(rolling_vol) * 100
+        vol_percentile = (rolling_vol < hist_vol_30).sum() / len(rolling_vol) * 100
 
         # Determine regime
         if hist_vol_30 > hist_vol_90 * 1.3:
-            regime = 'high'
+            regime = "high"
         elif hist_vol_30 < hist_vol_90 * 0.7:
-            regime = 'low'
+            regime = "low"
         else:
-            regime = 'normal'
+            regime = "normal"
 
         # Expected moves (1 std dev)
-        current_price = hist['Close'].iloc[-1]
-        expected_daily_move = current_price * \
-            (hist_vol_30 / 100) / np.sqrt(252)
+        current_price = hist["Close"].iloc[-1]
+        expected_daily_move = current_price * (hist_vol_30 / 100) / np.sqrt(252)
         expected_weekly_move = expected_daily_move * np.sqrt(5)
 
         # Position sizing recommendations
-        if regime == 'high':
-            position_sizing = 'Reduce to 50-70% normal size'
-            stop_loss_strategy = 'Use 1.5x ATR stops'
-            optimal_entry = 'After vol spike subsides'
+        if regime == "high":
+            position_sizing = "Reduce to 50-70% normal size"
+            stop_loss_strategy = "Use 1.5x ATR stops"
+            optimal_entry = "After vol spike subsides"
             stop_width = 8.0
-        elif regime == 'low':
-            position_sizing = 'Normal size'
-            stop_loss_strategy = 'Use 1x ATR stops'
-            optimal_entry = 'Standard pullback entries'
+        elif regime == "low":
+            position_sizing = "Normal size"
+            stop_loss_strategy = "Use 1x ATR stops"
+            optimal_entry = "Standard pullback entries"
             stop_width = 3.0
         else:
-            position_sizing = 'Normal size'
-            stop_loss_strategy = 'Use 1.2x ATR stops'
-            optimal_entry = 'Follow typical patterns'
+            position_sizing = "Normal size"
+            stop_loss_strategy = "Use 1.2x ATR stops"
+            optimal_entry = "Follow typical patterns"
             stop_width = 5.0
 
         # Term structure (mock data)
         term_structure = [
-            {'days': 7, 'iv': hist_vol_30 * 0.95},
-            {'days': 14, 'iv': hist_vol_30 * 1.0},
-            {'days': 30, 'iv': hist_vol_30 * 1.05},
-            {'days': 60, 'iv': hist_vol_30 * 1.10},
-            {'days': 90, 'iv': hist_vol_90}
+            {"days": 7, "iv": hist_vol_30 * 0.95},
+            {"days": 14, "iv": hist_vol_30 * 1.0},
+            {"days": 30, "iv": hist_vol_30 * 1.05},
+            {"days": 60, "iv": hist_vol_30 * 1.10},
+            {"days": 90, "iv": hist_vol_90},
         ]
 
         # Vol smile (mock data)
         vol_smile = [
-            {'strike': current_price * 0.90, 'iv': implied_vol * 1.15},
-            {'strike': current_price * 0.95, 'iv': implied_vol * 1.08},
-            {'strike': current_price * 1.00, 'iv': implied_vol},
-            {'strike': current_price * 1.05, 'iv': implied_vol * 1.05},
-            {'strike': current_price * 1.10, 'iv': implied_vol * 1.10}
+            {"strike": current_price * 0.90, "iv": implied_vol * 1.15},
+            {"strike": current_price * 0.95, "iv": implied_vol * 1.08},
+            {"strike": current_price * 1.00, "iv": implied_vol},
+            {"strike": current_price * 1.05, "iv": implied_vol * 1.05},
+            {"strike": current_price * 1.10, "iv": implied_vol * 1.10},
         ]
 
         result = {
-            'historicalVol30': round(hist_vol_30, 1),
-            'historicalVol90': round(hist_vol_90, 1),
-            'impliedVol': round(implied_vol, 1),
-            'volPercentile': round(vol_percentile, 0),
-            'regime': regime,
-            'expectedDailyMove': round(expected_daily_move, 2),
-            'expectedDailyMovePercent': round((expected_daily_move / current_price) * 100, 1),
-            'expectedWeeklyMove': round(expected_weekly_move, 2),
-            'expectedWeeklyMovePercent': round((expected_weekly_move / current_price) * 100, 1),
-            'optimalEntry': optimal_entry,
-            'stopLossWidth': stop_width,
-            'positionSizing': position_sizing,
-            'stopLossStrategy': stop_loss_strategy,
-            'termStructure': term_structure,
-            'volSmile': vol_smile
+            "historicalVol30": round(hist_vol_30, 1),
+            "historicalVol90": round(hist_vol_90, 1),
+            "impliedVol": round(implied_vol, 1),
+            "volPercentile": round(vol_percentile, 0),
+            "regime": regime,
+            "expectedDailyMove": round(expected_daily_move, 2),
+            "expectedDailyMovePercent": round((expected_daily_move / current_price) * 100, 1),
+            "expectedWeeklyMove": round(expected_weekly_move, 2),
+            "expectedWeeklyMovePercent": round((expected_weekly_move / current_price) * 100, 1),
+            "optimalEntry": optimal_entry,
+            "stopLossWidth": stop_width,
+            "positionSizing": position_sizing,
+            "stopLossStrategy": stop_loss_strategy,
+            "termStructure": term_structure,
+            "volSmile": vol_smile,
         }
 
         return jsonify(result)
@@ -2572,29 +3144,29 @@ def get_portfolio_rebalance():
         # Transform Alpaca positions to match expected format
         holdings = []
         for pos in positions:
-            holdings.append({
-                'ticker': pos.get('ticker'),
-                'shares': pos.get('shares', 0),
-                'current_value': pos.get('market_value', 0)
-            })
+            holdings.append(
+                {
+                    "ticker": pos.get("ticker"),
+                    "shares": pos.get("shares", 0),
+                    "current_value": pos.get("market_value", 0),
+                }
+            )
 
-        total_value = sum([h.get('current_value', 0) for h in holdings])
+        total_value = sum([h.get("current_value", 0) for h in holdings])
 
         # Handle zero total value
         if total_value == 0:
-            logger.warning(
-                "Portfolio total value is zero - cannot calculate rebalancing")
+            logger.warning("Portfolio total value is zero - cannot calculate rebalancing")
             return jsonify({"error": "Portfolio has no value. Add positions first."}), 400
 
         # Trading-style-aware drift thresholds
         trading_style = get_trading_style()
         DRIFT_THRESHOLDS = {
-            "day_trading":   {"min": 3, "moderate": 8,  "high": 12},
+            "day_trading": {"min": 3, "moderate": 8, "high": 12},
             "swing_trading": {"min": 5, "moderate": 10, "high": 15},
-            "long_term":     {"min": 8, "moderate": 15, "high": 25},
+            "long_term": {"min": 8, "moderate": 15, "high": 25},
         }
-        thresholds = DRIFT_THRESHOLDS.get(
-            trading_style, DRIFT_THRESHOLDS["swing_trading"])
+        thresholds = DRIFT_THRESHOLDS.get(trading_style, DRIFT_THRESHOLDS["swing_trading"])
         min_drift = thresholds["min"]
         moderate_thresh = thresholds["moderate"]
         high_thresh = thresholds["high"]
@@ -2602,10 +3174,9 @@ def get_portfolio_rebalance():
         # Calculate current allocations
         analyzed_holdings = []
         for h in holdings:
-            ticker = h.get('ticker')
-            value = h.get('current_value', 0)
-            current_percent = (value / total_value) * \
-                100 if total_value > 0 else 0
+            ticker = h.get("ticker")
+            value = h.get("current_value", 0)
+            current_percent = (value / total_value) * 100 if total_value > 0 else 0
 
             # Target is equal weight for simplicity (or could be from user preferences)
             target_percent = 100 / len(holdings)
@@ -2619,68 +3190,73 @@ def get_portfolio_rebalance():
             else:
                 action = f"BUY {ticker} ${abs(drift * total_value / 100):.0f}"
 
-            analyzed_holdings.append({
-                'ticker': ticker,
-                'value': value,
-                'currentPercent': round(current_percent, 1),
-                'targetPercent': round(target_percent, 1),
-                'drift': round(drift, 1),
-                'action': action
-            })
+            analyzed_holdings.append(
+                {
+                    "ticker": ticker,
+                    "value": value,
+                    "currentPercent": round(current_percent, 1),
+                    "targetPercent": round(target_percent, 1),
+                    "drift": round(drift, 1),
+                    "action": action,
+                }
+            )
 
         # AI Recommendations (thresholds vary by trading style)
         recommendations = []
 
         # High drift warning
-        high_drift = [h for h in analyzed_holdings if abs(
-            h['drift']) > high_thresh]
+        high_drift = [h for h in analyzed_holdings if abs(h["drift"]) > high_thresh]
         if high_drift:
-            recommendations.append({
-                'priority': 'high',
-                'title': 'Significant Drift Detected',
-                'description': f"{len(high_drift)} position(s) drifted >{high_thresh}% from target. Rebalancing recommended to maintain diversification.",
-                'trades': [h['action'] for h in high_drift if h['action']]
-            })
+            recommendations.append(
+                {
+                    "priority": "high",
+                    "title": "Significant Drift Detected",
+                    "description": f"{len(high_drift)} position(s) drifted >{high_thresh}% from target. Rebalancing recommended to maintain diversification.",
+                    "trades": [h["action"] for h in high_drift if h["action"]],
+                }
+            )
 
         # Moderate drift
         moderate_drift = [
-            h for h in analyzed_holdings if moderate_thresh < abs(h['drift']) <= high_thresh]
+            h for h in analyzed_holdings if moderate_thresh < abs(h["drift"]) <= high_thresh
+        ]
         if moderate_drift:
-            recommendations.append({
-                'priority': 'medium',
-                'title': 'Moderate Drift',
-                'description': f"{len(moderate_drift)} position(s) need adjustment. Consider rebalancing this month.",
-                'trades': [h['action'] for h in moderate_drift if h['action']]
-            })
+            recommendations.append(
+                {
+                    "priority": "medium",
+                    "title": "Moderate Drift",
+                    "description": f"{len(moderate_drift)} position(s) need adjustment. Consider rebalancing this month.",
+                    "trades": [h["action"] for h in moderate_drift if h["action"]],
+                }
+            )
 
         # Well balanced
         if len(high_drift) == 0 and len(moderate_drift) == 0:
-            recommendations.append({
-                'priority': 'low',
-                'title': 'Portfolio Well-Balanced',
-                'description': f'All positions within {min_drift}% of target. No action needed.',
-                'trades': None
-            })
+            recommendations.append(
+                {
+                    "priority": "low",
+                    "title": "Portfolio Well-Balanced",
+                    "description": f"All positions within {min_drift}% of target. No action needed.",
+                    "trades": None,
+                }
+            )
 
         # Scenarios
         conservative_trades = len(
-            [h for h in analyzed_holdings if abs(h['drift']) > moderate_thresh])
-        aggressive_trades = len(
-            [h for h in analyzed_holdings if abs(h['drift']) > high_thresh])
+            [h for h in analyzed_holdings if abs(h["drift"]) > moderate_thresh]
+        )
+        aggressive_trades = len([h for h in analyzed_holdings if abs(h["drift"]) > high_thresh])
 
         result = {
-            'holdings': analyzed_holdings,
-            'recommendations': recommendations,
-            'scenarios': {
-                'conservative': {
-                    'trades': conservative_trades,
-                    'cost': conservative_trades * 1  # $1 per trade estimate
+            "holdings": analyzed_holdings,
+            "recommendations": recommendations,
+            "scenarios": {
+                "conservative": {
+                    "trades": conservative_trades,
+                    "cost": conservative_trades * 1,  # $1 per trade estimate
                 },
-                'aggressive': {
-                    'trades': aggressive_trades,
-                    'cost': aggressive_trades * 1
-                }
-            }
+                "aggressive": {"trades": aggressive_trades, "cost": aggressive_trades * 1},
+            },
         }
 
         return jsonify(result)
@@ -2713,7 +3289,7 @@ def execute_portfolio_rebalance():
         if not positions:
             return jsonify({"error": "No positions to rebalance"}), 400
 
-        total_value = sum(float(p.get('market_value', 0)) for p in positions)
+        total_value = sum(float(p.get("market_value", 0)) for p in positions)
         if total_value == 0:
             return jsonify({"error": "Portfolio has no value"}), 400
 
@@ -2722,9 +3298,9 @@ def execute_portfolio_rebalance():
         errors = []
 
         for pos in positions:
-            ticker = pos.get('ticker')
-            current_value = float(pos.get('market_value', 0))
-            shares = float(pos.get('shares', 0))
+            ticker = pos.get("ticker")
+            current_value = float(pos.get("market_value", 0))
+            shares = float(pos.get("shares", 0))
             if shares == 0:
                 continue
 
@@ -2742,33 +3318,25 @@ def execute_portfolio_rebalance():
                 qty = round(sell_value / current_price, 2)
                 if qty > 0 and qty <= shares:
                     result = trading_service.sell(ticker, qty)
-                    if result.get('success'):
-                        submitted.append(
-                            f"SELL {qty} {ticker} (${sell_value:.0f})")
+                    if result.get("success"):
+                        submitted.append(f"SELL {qty} {ticker} (${sell_value:.0f})")
                     else:
-                        errors.append(
-                            f"{ticker}: {result.get('error', 'sell failed')}")
+                        errors.append(f"{ticker}: {result.get('error', 'sell failed')}")
             else:
                 # Underweight: buy more
                 buy_value = abs(drift_value)
                 qty = round(buy_value / current_price, 2)
                 if qty > 0:
                     result = trading_service.buy(ticker, qty)
-                    if result.get('success'):
-                        submitted.append(
-                            f"BUY {qty} {ticker} (${buy_value:.0f})")
+                    if result.get("success"):
+                        submitted.append(f"BUY {qty} {ticker} (${buy_value:.0f})")
                     else:
-                        errors.append(
-                            f"{ticker}: {result.get('error', 'buy failed')}")
+                        errors.append(f"{ticker}: {result.get('error', 'buy failed')}")
 
         if not submitted and not errors:
             return jsonify({"message": "No trades needed - portfolio is balanced"}), 200
 
-        return jsonify({
-            "submitted": submitted,
-            "errors": errors,
-            "scenario": scenario
-        })
+        return jsonify({"submitted": submitted, "errors": errors, "scenario": scenario})
 
     except Exception as e:
         logger.error(f"Portfolio rebalance execute failed: {e}")
@@ -2778,6 +3346,7 @@ def execute_portfolio_rebalance():
 # ---------------------------------------------------------------------------
 # Macro Intelligence Dashboard
 # ---------------------------------------------------------------------------
+
 
 @api_bp.route("/macro-intel/scan")
 def macro_intel_scan():
@@ -2807,15 +3376,13 @@ def macro_intel_scan():
         try:
             profile = db.get_user_profile(g.user.id)
             if profile:
-                risk_profile = profile.get(
-                    "risk_profile", "moderate") or "moderate"
+                risk_profile = profile.get("risk_profile", "moderate") or "moderate"
         except Exception:
             pass
         try:
             sim = db.get_simulation_settings(g.user.id)
             if sim:
-                trading_style = sim.get(
-                    "trading_style", "swing_trading") or "swing_trading"
+                trading_style = sim.get("trading_style", "swing_trading") or "swing_trading"
         except Exception:
             pass
 
@@ -2838,14 +3405,16 @@ def macro_intel_scan():
                 avg_price = float(p.get("average_entry_price", 0) or 0)
                 # Skip if already in Alpaca list (avoid duplicates in 'both' mode)
                 if ticker and ticker not in alpaca_tickers:
-                    sentinel_positions.append({
-                        "ticker": ticker,
-                        "shares": qty,
-                        "avg_price": avg_price,
-                        "market_value": qty * avg_price,
-                        "unrealized_pl": 0.0,
-                        "source": "sentinel",
-                    })
+                    sentinel_positions.append(
+                        {
+                            "ticker": ticker,
+                            "shares": qty,
+                            "avg_price": avg_price,
+                            "market_value": qty * avg_price,
+                            "unrealized_pl": 0.0,
+                            "source": "sentinel",
+                        }
+                    )
         except Exception as e:
             logger.warning(f"Sentinel positions fetch failed: {e}")
 
@@ -2859,8 +3428,9 @@ def macro_intel_scan():
     sentinel_tickers = [p["ticker"] for p in sentinel_positions]
     if sentinel_tickers:
         try:
-            import yfinance as yf
             import pandas as pd
+            import yfinance as yf
+
             raw_yf = yf.download(
                 tickers=" ".join(sentinel_tickers),
                 period="5d",
@@ -2872,11 +3442,13 @@ def macro_intel_scan():
             close_col = "Close"
             if raw_yf is not None and not raw_yf.empty:
                 if isinstance(raw_yf.columns, pd.MultiIndex):
-                    closes = raw_yf[close_col] if close_col in raw_yf.columns.get_level_values(
-                        0) else pd.DataFrame()
+                    closes = (
+                        raw_yf[close_col]
+                        if close_col in raw_yf.columns.get_level_values(0)
+                        else pd.DataFrame()
+                    )
                 elif close_col in raw_yf.columns:
-                    closes = raw_yf[[close_col]].rename(
-                        columns={close_col: sentinel_tickers[0]})
+                    closes = raw_yf[[close_col]].rename(columns={close_col: sentinel_tickers[0]})
                 else:
                     closes = pd.DataFrame()
 
@@ -2888,12 +3460,15 @@ def macro_intel_scan():
                         continue
                     price_now = float(series.iloc[-1])
                     price_prev = float(series.iloc[-2])
-                    chg_pct = round((price_now - price_prev) /
-                                    price_prev * 100, 2) if price_prev else 0.0
-                    live_prices[tk] = {"current": round(
-                        price_now, 4), "change_pct": chg_pct}
-                    pct_5d = (price_now - float(series.iloc[0])) / float(
-                        series.iloc[0]) * 100 if float(series.iloc[0]) else 0
+                    chg_pct = (
+                        round((price_now - price_prev) / price_prev * 100, 2) if price_prev else 0.0
+                    )
+                    live_prices[tk] = {"current": round(price_now, 4), "change_pct": chg_pct}
+                    pct_5d = (
+                        (price_now - float(series.iloc[0])) / float(series.iloc[0]) * 100
+                        if float(series.iloc[0])
+                        else 0
+                    )
                     oracle_scores[tk] = int(min(100, max(0, 50 + pct_5d * 5)))
         except Exception as e:
             logger.warning(f"Sentinel live price fetch failed: {e}")
@@ -2904,8 +3479,7 @@ def macro_intel_scan():
         if tk in live_prices:
             price = live_prices[tk]["current"]
             p["market_value"] = round(p["shares"] * price, 2)
-            p["unrealized_pl"] = round(
-                p["shares"] * (price - p["avg_price"]), 2)
+            p["unrealized_pl"] = round(p["shares"] * (price - p["avg_price"]), 2)
 
     positions = alpaca_positions + sentinel_positions
 
@@ -2918,14 +3492,14 @@ def macro_intel_scan():
     )
 
     # ── Enrich suggestion tickers with live prices + oracle scores ────────
-    suggestion_tickers = [s["ticker"]
-                          for s in data.get("trade_suggestions", [])]
+    suggestion_tickers = [s["ticker"] for s in data.get("trade_suggestions", [])]
     extra_tickers = [t for t in suggestion_tickers if t not in live_prices]
 
     if extra_tickers:
         try:
-            import yfinance as yf
             import pandas as pd
+            import yfinance as yf
+
             raw_yf2 = yf.download(
                 tickers=" ".join(extra_tickers),
                 period="5d",
@@ -2937,11 +3511,13 @@ def macro_intel_scan():
             close_col = "Close"
             if raw_yf2 is not None and not raw_yf2.empty:
                 if isinstance(raw_yf2.columns, pd.MultiIndex):
-                    closes2 = raw_yf2[close_col] if close_col in raw_yf2.columns.get_level_values(
-                        0) else pd.DataFrame()
+                    closes2 = (
+                        raw_yf2[close_col]
+                        if close_col in raw_yf2.columns.get_level_values(0)
+                        else pd.DataFrame()
+                    )
                 elif close_col in raw_yf2.columns:
-                    closes2 = raw_yf2[[close_col]].rename(
-                        columns={close_col: extra_tickers[0]})
+                    closes2 = raw_yf2[[close_col]].rename(columns={close_col: extra_tickers[0]})
                 else:
                     closes2 = pd.DataFrame()
 
@@ -2953,12 +3529,15 @@ def macro_intel_scan():
                         continue
                     price_now = float(series.iloc[-1])
                     price_prev = float(series.iloc[-2])
-                    chg_pct = round((price_now - price_prev) /
-                                    price_prev * 100, 2) if price_prev else 0.0
-                    live_prices[tk] = {"current": round(
-                        price_now, 4), "change_pct": chg_pct}
-                    pct_5d = (price_now - float(series.iloc[0])) / float(
-                        series.iloc[0]) * 100 if float(series.iloc[0]) else 0
+                    chg_pct = (
+                        round((price_now - price_prev) / price_prev * 100, 2) if price_prev else 0.0
+                    )
+                    live_prices[tk] = {"current": round(price_now, 4), "change_pct": chg_pct}
+                    pct_5d = (
+                        (price_now - float(series.iloc[0])) / float(series.iloc[0]) * 100
+                        if float(series.iloc[0])
+                        else 0
+                    )
                     oracle_scores[tk] = int(min(100, max(0, 50 + pct_5d * 5)))
         except Exception as e:
             logger.warning(f"Suggestion price fetch failed: {e}")
@@ -2973,16 +3552,14 @@ def macro_intel_scan():
             s["oracle_score"] = oracle_scores[tk]
         # Compute approx share count if we have price
         if "current_price" in s and s["current_price"] > 0:
-            s["approx_shares"] = round(
-                s["dollar_amount"] / s["current_price"], 2)
+            s["approx_shares"] = round(s["dollar_amount"] / s["current_price"], 2)
 
     # Rebuild positions for response (sentinel now has live values)
     positions = alpaca_positions + sentinel_positions
     # Re-run impact with corrected sentinel values (lightweight, no Gemini re-call)
     if sentinel_positions and live_prices:
         classified = data.get("events", [])
-        data["portfolio_impact"] = service.get_portfolio_impact(classified, positions)[
-            :10]
+        data["portfolio_impact"] = service.get_portfolio_impact(classified, positions)[:10]
 
     data["source_mode"] = source
     data["alpaca_positions"] = len(alpaca_positions)
@@ -2996,6 +3573,7 @@ def macro_intel_scan():
 def macro_intel_refresh():
     """Force-bust the event cache and re-run the full scan."""
     from flask_app.services.macro_intel_service import _event_cache
+
     _event_cache["data"] = None
     _event_cache["expires"] = 0.0
     return macro_intel_scan()
@@ -3005,7 +3583,7 @@ def macro_intel_refresh():
 @csrf.exempt
 def trigger_email_job():
     """Manually trigger an email job for the CURRENT user with step-by-step diagnostics."""
-    if not hasattr(g, 'user') or not g.user:
+    if not hasattr(g, "user") or not g.user:
         return jsonify({"error": "Unauthorized"}), 401
 
     data = request.get_json()
@@ -3032,7 +3610,9 @@ def trigger_email_job():
 
         # 2: User profile
         profile = db.get_user_profile(user_id)
-        if not step("user_profile", bool(profile), "found" if profile else "NOT FOUND in user_profiles"):
+        if not step(
+            "user_profile", bool(profile), "found" if profile else "NOT FOUND in user_profiles"
+        ):
             return jsonify({**diag, "email_sent": False})
 
         user_email = profile.get("email", "")
@@ -3040,13 +3620,21 @@ def trigger_email_job():
 
         # 3: Decrypt API keys
         config = db.get_user_api_keys(user_id, decrypt=True)
-        step("api_keys", bool(
-            config), f"keys: {list(config.keys())}" if config else "EMPTY — profile exists but no encrypted keys or decryption failed")
+        step(
+            "api_keys",
+            bool(config),
+            f"keys: {list(config.keys())}"
+            if config
+            else "EMPTY — profile exists but no encrypted keys or decryption failed",
+        )
 
         # 4: Gmail credentials
-        has_gmail = bool(config.get("GMAIL_ADDRESS")
-                         and config.get("GMAIL_APP_PASSWORD"))
-        if not step("gmail", has_gmail, f"addr={'set' if config.get('GMAIL_ADDRESS') else 'MISSING'}, pwd={'set' if config.get('GMAIL_APP_PASSWORD') else 'MISSING'}"):
+        has_gmail = bool(config.get("GMAIL_ADDRESS") and config.get("GMAIL_APP_PASSWORD"))
+        if not step(
+            "gmail",
+            has_gmail,
+            f"addr={'set' if config.get('GMAIL_ADDRESS') else 'MISSING'}, pwd={'set' if config.get('GMAIL_APP_PASSWORD') else 'MISSING'}",
+        ):
             return jsonify({**diag, "email_sent": False})
 
         # 5: Gemini key (required for intelligence / close / preview)
@@ -3061,45 +3649,61 @@ def trigger_email_job():
 
         # 7: Holdings & simulation context
         holdings = db.get_shadow_positions(user_id, is_active=True)
-        holding_tickers = [p.get("ticker")
-                           for p in holdings if p.get("ticker")]
+        holding_tickers = [p.get("ticker") for p in holdings if p.get("ticker")]
         sim = db.get_simulation_settings(user_id) or {}
         risk_profile = sim.get("risk_profile", "moderate")
         available_cash = sim.get("current_cash", 0)
         trading_style = sim.get("trading_style", "swing_trading")
-        step("context", True,
-             f"{len(holding_tickers)} holdings, risk={risk_profile}, style={trading_style}, cash=${available_cash:,.0f}")
+        step(
+            "context",
+            True,
+            f"{len(holding_tickers)} holdings, risk={risk_profile}, style={trading_style}, cash=${available_cash:,.0f}",
+        )
 
         # 8: Run the targeted job
         sent = False
         if job in ("intelligence", "close", "preview"):
             from flask_app.services.market_intelligence_service import MarketIntelligenceService
+
             svc = MarketIntelligenceService(config)
-            step("gemini_client", bool(svc.gemini_service.client),
-                 "ready" if svc.gemini_service.client else "FAILED to init")
+            step(
+                "gemini_client",
+                bool(svc.gemini_service.client),
+                "ready" if svc.gemini_service.client else "FAILED to init",
+            )
 
             if job == "intelligence":
                 sent = svc.generate_market_intelligence(
-                    user_id=user_id, user_email=user_email,
-                    user_holdings=holding_tickers, risk_profile=risk_profile,
-                    available_cash=available_cash, trading_style=trading_style
+                    user_id=user_id,
+                    user_email=user_email,
+                    user_holdings=holding_tickers,
+                    risk_profile=risk_profile,
+                    available_cash=available_cash,
+                    trading_style=trading_style,
                 )
             elif job == "close":
                 sent = svc.generate_market_close_summary(
-                    user_id=user_id, user_email=user_email,
-                    user_holdings=holding_tickers, risk_profile=risk_profile,
-                    available_cash=available_cash, trading_style=trading_style
+                    user_id=user_id,
+                    user_email=user_email,
+                    user_holdings=holding_tickers,
+                    risk_profile=risk_profile,
+                    available_cash=available_cash,
+                    trading_style=trading_style,
                 )
             else:  # preview
                 sent = svc.generate_market_preview(
-                    user_id=user_id, user_email=user_email,
-                    user_holdings=holding_tickers, risk_profile=risk_profile,
-                    available_cash=available_cash, trading_style=trading_style
+                    user_id=user_id,
+                    user_email=user_email,
+                    user_holdings=holding_tickers,
+                    risk_profile=risk_profile,
+                    available_cash=available_cash,
+                    trading_style=trading_style,
                 )
 
         elif job == "digest":
             from flask_app.services.notifications_service import send_daily_digest
             from flask_app.services.stock_service import StockService
+
             stock_svc = StockService(config)
 
             holdings_data = []
@@ -3115,12 +3719,17 @@ def trigger_email_job():
                 price = quote.get("current", entry) if quote else entry
                 mv = qty * price
                 cb = qty * entry
-                holdings_data.append({
-                    "ticker": ticker, "shares": qty, "price": price,
-                    "market_value": mv, "cost_basis": cb,
-                    "pnl": mv - cb,
-                    "pnl_pct": ((price - entry) / entry * 100) if entry > 0 else 0
-                })
+                holdings_data.append(
+                    {
+                        "ticker": ticker,
+                        "shares": qty,
+                        "price": price,
+                        "market_value": mv,
+                        "cost_basis": cb,
+                        "pnl": mv - cb,
+                        "pnl_pct": ((price - entry) / entry * 100) if entry > 0 else 0,
+                    }
+                )
                 total_value += mv
                 total_cost += cb
 
@@ -3130,7 +3739,9 @@ def trigger_email_job():
                 "portfolio_value": total_value,
                 "cash": cash,
                 "days_pnl": total_value - total_cost,
-                "days_pnl_percent": ((total_value - total_cost) / total_cost * 100) if total_cost > 0 else 0
+                "days_pnl_percent": ((total_value - total_cost) / total_cost * 100)
+                if total_cost > 0
+                else 0,
             }
             market_status = stock_svc.get_market_status()
             top_opps = db.get_scan_results(user_id, limit=5)
@@ -3142,20 +3753,19 @@ def trigger_email_job():
                 top_opportunities=top_opps,
                 market_status=market_status,
                 sender_email=config.get("GMAIL_ADDRESS"),
-                holdings=holdings_data
+                holdings=holdings_data,
             )
-            sent = result.get("success", False) if isinstance(
-                result, dict) else bool(result)
+            sent = result.get("success", False) if isinstance(result, dict) else bool(result)
             if not sent and isinstance(result, dict):
                 step("digest_error", False, result.get("error", "unknown"))
 
-        step("email_result", sent,
-             f"{'SENT' if sent else 'NOT sent'} to {user_email}")
+        step("email_result", sent, f"{'SENT' if sent else 'NOT sent'} to {user_email}")
         logger.info(f"Trigger {job} for {user_id}: sent={sent}, diag={diag}")
         return jsonify({**diag, "email_sent": sent})
 
     except Exception as e:
         import traceback
+
         step("exception", False, traceback.format_exc())
         logger.error(f"Manual trigger of {job} failed: {e}", exc_info=True)
         return jsonify({**diag, "email_sent": False, "error": str(e)}), 500
@@ -3164,7 +3774,7 @@ def trigger_email_job():
 # Helper functions
 def calculate_rsi(series, period=14):
     """Calculate RSI indicator."""
-    import pandas as pd
+
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()

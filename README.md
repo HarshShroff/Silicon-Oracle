@@ -10,6 +10,8 @@
 > A professional trading platform combining real-time market data, AI-powered analysis, and paper trading in a sleek, modern interface. Built with Flask, powered by Gemini AI, and deployed for free on Render.
 > A personal full-stack financial engineering project demonstrating Cloud Architecture, Python, and Generative AI.
 
+**[Live Demo →](https://silicon-oracle.onrender.com/demo)** — Try it without an account.
+
 **DISCLAIMER:** This is an educational project for portfolio demonstration purposes. Not financial advice. See [DISCLAIMER.md](DISCLAIMER.md) for full details.
 
 ---
@@ -111,13 +113,13 @@
      ```
      DATABASE_URL=<your-supabase-connection-string>
      ```
-   - Wait 5-10 minutes 
+   - Wait 5-10 minutes
 
-5. **Done!** Visit your URL and sign up 
+5. **Done!** Visit your URL and sign up
 
  **Important:** Without Supabase, your data will be lost on every deploy/restart!
 
-[ Detailed Deployment Guide](DEPLOYMENT.md) | [ Quick Start](QUICKSTART.md)
+[ Detailed Deployment Guide](DEPLOYMENT.md)
 
 ---
 
@@ -199,9 +201,8 @@
 
 5. **Set up secrets (optional)**
    ```bash
-   mkdir -p .streamlit
-   cp .streamlit/secrets.toml.example .streamlit/secrets.toml
-   # Edit .streamlit/secrets.toml with your keys
+   cp .env.example .env
+   # Edit .env with your keys
    ```
 
 6. **Run the app**
@@ -220,34 +221,34 @@
 
 ```
 
-             Frontend (Jinja2)               
-    
-    Analysis  Portfolio    Watchlist     
-     Page       Page         Page        
-    
+             Frontend (Jinja2)
 
-                  
+    Analysis  Portfolio    Watchlist
+     Page       Page         Page
 
-          Flask Backend (Python)             
-   
-    Routes (main, api, auth, sentinel)     
-   
-   
-    Services Layer                         
-    • StockService (market data)           
-    • OracleService (AI scoring)           
-    • TradingService (Alpaca)              
-    • PortfolioService (tracking)          
-    • AlertEngine (notifications)          
-   
 
-                    
 
-           External Services                 
-  • Finnhub API (market data)                
-  • Alpaca API (paper trading)               
-  • Gemini API (AI analysis)                 
-  • News APIs (sentiment)                    
+
+          Flask Backend (Python)
+
+    Routes (main, api, auth, sentinel)
+
+
+    Services Layer
+    • StockService (market data)
+    • OracleService (AI scoring)
+    • TradingService (Alpaca)
+    • PortfolioService (tracking)
+    • AlertEngine (notifications)
+
+
+
+
+           External Services
+  • Finnhub API (market data)
+  • Alpaca API (paper trading)
+  • Gemini API (AI analysis)
+  • News APIs (sentiment)
 
 ```
 
@@ -263,11 +264,15 @@ Silicon-Oracle/
     templates/         # Jinja2 HTML templates
     static/            # CSS, JS, images
     models/            # Data models
+ flask_app/agent/       # Agent orchestration module
+    runtime.py        # AgentRuntime — tool-call loop
+    execution_registry.py  # Tool & command registry
+    permissions.py    # Permission-gated tool blocking
+    session_store.py  # JSON-persisted session store
  utils/                 # Utility modules
     database.py       # Database operations
     encryption.py     # API key encryption
-    alpaca.py         # Trading integration
-    gemini.py         # AI integration
+    ticker_utils.py   # Ticker validation helpers
  run_flask.py          # Application entry point
  requirements.txt      # Python dependencies
  render.yaml           # Render deployment config
@@ -288,9 +293,10 @@ Silicon-Oracle/
 
 ### Frontend
 - **Jinja2** - Templating
-- **Tailwind CSS** - Styling
-- **Alpine.js** - Interactivity
-- **Chart.js** - Visualizations
+- **Tailwind CSS** - Styling (TradingView-inspired dark palette)
+- **Alpine.js** - Reactive interactivity
+- **Lightweight Charts v4** - TradingView-style financial charts
+- **Chart.js** - Sector heatmaps & supplementary charts
 
 ### APIs & Services
 - **Finnhub** - Market data
@@ -378,7 +384,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Full Docs (pages, APIs, architecture)**: [DOCS.md](DOCS.md)
 - **Deployment Guide**: [DEPLOYMENT.md](DEPLOYMENT.md)
-- **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
 - **Issues**: [GitHub Issues](https://github.com/HarshShroff/Silicon-Oracle/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/HarshShroff/Silicon-Oracle/discussions)
 
@@ -386,7 +391,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ##  Roadmap
 
-### Current Version (v2.1)
+### Current Version (v3.0)
 -  Real-time stock analysis
 -  AI-powered Oracle scoring (15-factor system)
 -  Trading Profile (Day / Swing / Long-Term) — AI adapts everywhere
@@ -398,18 +403,21 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 -  Portfolio Sentinel monitoring with shadow positions
 -  Portfolio rebalancer with style-aware thresholds
 -  Backtesting engine with style-matched defaults
+-  Agent orchestration module with permission-gated tool loops
+-  TradingView-style UI with Lightweight Charts v4
+-  Public live demo page (no account required)
 -  Manual email-job trigger endpoint for testing
--  Responsive design
+-  Responsive design (mobile + desktop)
 
-### Coming Soon (v2.1)
+### Coming Soon (v3.1)
 - [ ] Options trading analysis
-- [ ] Crypto support
-- [ ] Advanced charting (TradingView integration)
+- [ ] Crypto portfolio support
+- [ ] Multi-agent workflows
 - [ ] Portfolio backtesting
 - [ ] Mobile app (React Native)
 - [ ] Social features (share trades, strategies)
 
-### Future (v3.0)
+### Future (v4.0)
 - [ ] Custom indicators and strategies
 - [ ] Machine learning models
 - [ ] Automated trading bots

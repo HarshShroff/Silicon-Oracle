@@ -56,7 +56,7 @@
 
         <!-- Quick picks -->
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-          <span style="font-size:10px;color:#475569;align-self:center;">Quick:</span>
+          <span style="font-size:10px;color:#787B86;align-self:center;">Quick:</span>
           <template x-for="name in ['AI/Tech','Energy','Dividend','ETFs']" :key="name">
             <button @click="addPreset(name)"
                     class="text-[10px] px-2 py-0.5 rounded border border-oracle-border text-oracle-border-strong hover:border-oracle-primary hover:text-oracle-primary font-mono transition-colors"
@@ -82,8 +82,8 @@
         </div>
 
         <!-- Progress bar -->
-        <div x-show="scanning" style="margin-top:10px;height:3px;background:#1a1a2e;border-radius:2px;overflow:hidden;">
-          <div style="height:100%;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;transition:width 0.3s;"
+        <div x-show="scanning" style="margin-top:10px;height:3px;background:#1C1C1C;border-radius:2px;overflow:hidden;">
+          <div style="height:100%;background:linear-gradient(90deg,#00C853,#F0C060);border-radius:2px;transition:width 0.3s;"
                :style="'width:' + progressPercent + '%'"></div>
         </div>
       </div>
@@ -109,7 +109,7 @@
     <div x-show="topPicks.length > 0">
       <div class="rh-section">
         <div class="rh-section-header">
-          <span class="rh-section-title">⬡ Top Oracle Picks</span>
+          <span class="rh-section-title">Top Oracle Picks</span>
         </div>
         <template x-for="result in topPicks" :key="result.ticker"
                   x-init="if (!result.aiInterpretation && !result.interpretationLocked && !result.interpretationLoading) { setTimeout(() => getAiInterpretation(result), 300); }">
@@ -122,7 +122,7 @@
                   <span class="badge" :class="getVerdictBadgeClass(result.verdict)" x-text="result.verdict" style="font-size:9px;padding:1px 5px;"></span>
                 </div>
                 <div class="rh-row-name" x-text="result.company?.name || result.company || ''"></div>
-                <div x-show="result.aiInterpretation" style="font-size:11px;color:#64748b;line-height:1.5;margin-top:5px;max-width:400px;" x-text="result.aiInterpretation"></div>
+                <div x-show="result.aiInterpretation" style="font-size:11px;color:#787B86;line-height:1.5;margin-top:5px;max-width:400px;" x-text="result.aiInterpretation"></div>
                 <div x-show="result.interpretationLoading" style="display:flex;gap:3px;margin-top:5px;align-items:center;">
                   <span class="w-1 h-1 bg-oracle-primary rounded-full animate-bounce" style="display:inline-block;width:4px;height:4px;"></span>
                   <span class="w-1 h-1 bg-oracle-primary rounded-full animate-bounce" style="display:inline-block;width:4px;height:4px;animation-delay:0.1s;"></span>
@@ -133,7 +133,7 @@
                 <div class="rh-row-price" x-text="'$' + result.price.toFixed(2)"></div>
                 <div class="rh-row-chg" :class="result.change >= 0 ? 'pos' : 'neg'"
                      x-text="(result.change >= 0 ? '+' : '') + result.change.toFixed(2) + '%'"></div>
-                <div style="font-size:11px;color:#a78bfa;font-family:'JetBrains Mono',monospace;margin-top:3px;"
+                <div style="font-size:11px;color:#00C853;font-family:'JetBrains Mono',monospace;margin-top:3px;"
                      x-text="result.oracle_score.toFixed(1) + '/12'"></div>
               </div>
             </a>

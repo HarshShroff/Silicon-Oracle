@@ -6,226 +6,323 @@
 {% endblock %}
 
 {% block content %}
-<div x-data="dashboard()" x-init="init()" class="max-w-7xl mx-auto px-6 animate-fade-in py-12">
+<div x-data="dashboard()" x-init="init()" class="max-w-7xl mx-auto px-4 sm:px-6 animate-fade-in py-8 lg:py-10">
 
-    <div class="flex flex-col lg:flex-row gap-16 lg:items-start">
+  <div class="flex flex-col lg:flex-row gap-10 lg:gap-14 lg:items-start">
 
-        <!-- ── MAIN FEED: PERFORMANCE & INTELLIGENCE ── -->
-        <div class="flex-1 min-w-0">
+    <!-- ── MAIN FEED ─────────────────────────────── -->
+    <div class="flex-1 min-w-0">
 
-            <!-- Performance Spotlight -->
-            <div class="mb-16">
-                <div class="flex items-center gap-3 mb-4">
-                    <span class="text-[10px] font-black uppercase tracking-[0.3em] text-text-4">Institutional Portfolio</span>
-                    <span class="w-1.5 h-1.5 rounded-full bg-gain animate-pulse"></span>
-                </div>
-                <div class="flex flex-col md:flex-row md:items-baseline gap-6 mb-10">
-                    <template x-if="portfolioHasData">
-                        <div class="flex flex-col md:flex-row md:items-baseline gap-6">
-                            <h1 class="text-6xl font-black tracking-tighter" x-text="formatCurrency(portfolioValue)"></h1>
-                            <div class="flex items-center gap-3 text-lg font-black" :class="(portfolioTrend || 0) >= 0 ? 'text-gain rh-green-glow' : 'text-loss rh-red-glow'">
-                                <span x-text="((portfolioTrend || 0) >= 0 ? '+' : '') + formatCurrency(portfolioChange * Math.sign(portfolioTrend || 1))"></span>
-                                <span x-text="'(' + (portfolioTrend || 0).toFixed(2) + '%)'"></span>
-                                <span class="text-text-4 font-bold ml-2 uppercase text-[10px] tracking-widest">Total Performance</span>
-                            </div>
-                        </div>
-                    </template>
-                    <template x-if="!portfolioHasData">
-                        <div class="flex flex-col gap-3">
-                            <h1 class="text-6xl font-black tracking-tighter text-text-4">—</h1>
-                            <div class="flex items-center gap-4">
-                                <span class="text-text-4 text-sm font-bold uppercase tracking-widest">No positions tracked</span>
-                                <a href="/portfolio" class="text-[11px] font-black uppercase tracking-widest text-gain rh-green-glow border border-gain/30 px-4 py-1.5 rounded-full hover:bg-gain/10 transition-all">Add Holdings →</a>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Central Performance Curve -->
-                <div class="relative w-full mb-12 border-b border-[#18181A]" id="mainCurve" style="height: 400px;">
-                    <div x-show="chartLoading" class="absolute inset-0 flex items-center justify-center bg-black/60 z-20 backdrop-blur-sm">
-                        <div class="w-10 h-10 border-4 border-gain border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                </div>
-
-                <!-- Time Range Controls -->
-                <div class="flex items-center gap-10 overflow-x-auto whitespace-nowrap scrollbar-hide pb-2">
-                    <template x-for="p in ['1D', '1W', '1M', '3M', '1Y', 'ALL']" :key="p">
-                        <button @click="setPeriod(p)"
-                                class="text-[11px] font-black tracking-[0.2em] uppercase transition-all pb-1 border-b-2"
-                                :class="chartPeriod === p ? 'border-gain text-gain rh-green-glow' : 'border-transparent text-text-4 hover:text-white'"
-                                x-text="p"></button>
-                    </template>
-                </div>
-            </div>
-
-            <!-- Deployed Capital (hidden when no portfolio data) -->
-            <div x-show="portfolioHasData" @click="window.location.href='/portfolio'"
-                 class="group py-8 px-10 border border-[#18181A] rounded-2xl mb-16 cursor-pointer bg-black hover:bg-gain/5 transition-all flex items-center justify-between shadow-2xl relative overflow-hidden">
-                <div class="absolute inset-0 bg-gain/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <div class="flex items-center gap-6 relative z-10">
-                    <div class="w-12 h-12 bg-[#050505] border border-[#18181A] rounded-full flex items-center justify-center group-hover:bg-black transition-colors">
-                        <svg class="w-5 h-5 text-text-4 group-hover:text-gain" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    </div>
-                    <div>
-                        <span class="text-[10px] font-black uppercase tracking-[0.2em] text-text-4 block mb-1">Deployed Capital</span>
-                        <span class="text-xl font-black font-mono tracking-tighter" x-text="formatCurrency(buyingPower)">$0.00</span>
-                    </div>
-                </div>
-                <svg class="w-5 h-5 text-text-4 group-hover:text-white transition-all transform group-hover:translate-x-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
-            </div>
-
-            <!-- ── AI ANALYSIS SECTIONS ──────────────── -->
-            <div class="space-y-24">
-
-                <!-- Oracle Convolution Card (Spotlight) -->
-                <section>
-                    <div class="flex items-center justify-between mb-10 pb-4 border-b border-[#18181A]">
-                        <h2 class="text-xl font-bold tracking-tight">Oracle Conviction Card</h2>
-                        <a href="/ai-guidance" class="text-[10px] font-black uppercase text-gain tracking-widest rh-green-glow">Execute Global Scan</a>
-                    </div>
-
-                    <template x-if="spotlight.ticker">
-                        <div @click="window.location.href='/analysis/'+spotlight.ticker"
-                             class="bg-black border border-[#18181A] rounded-2xl p-10 flex flex-col md:flex-row gap-12 hover:border-gain transition-all cursor-pointer shadow-3xl group relative overflow-hidden">
-                            <div class="absolute -top-10 -right-10 w-40 h-40 bg-gain/5 rounded-full blur-[80px]"></div>
-
-                            <div class="flex-1">
-                                <div class="flex items-center gap-6 mb-4">
-                                    <span class="text-4xl font-black tracking-tighter group-hover:text-gain transition-colors" x-text="spotlight.ticker"></span>
-                                    <span class="px-3 py-1 bg-gain text-black text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg" x-text="spotlight.verdict"></span>
-                                </div>
-                                <div class="text-xs font-bold text-text-4 uppercase tracking-[0.2em] mb-10" x-text="spotlight.name"></div>
-
-                                <div class="grid grid-cols-2 gap-12">
-                                    <div>
-                                        <div class="text-[10px] font-black uppercase text-text-4 tracking-widest mb-2">Oracle Synergy Score</div>
-                                        <div class="text-4xl font-black tracking-tight" :class="spotlight.score >= 80 ? 'text-gain rh-green-glow' : 'text-text-1'" x-text="(spotlight.score || 0).toFixed(0)"></div>
-                                    </div>
-                                    <div>
-                                        <div class="text-[10px] font-black uppercase text-text-4 tracking-widest mb-2">Confidence Alignment</div>
-                                        <div class="text-4xl font-black tracking-tight text-text-1" x-text="Math.round(spotlight.confidence || 0) + '%'"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="w-full md:w-80 space-y-6 flex flex-col justify-center">
-                                <template x-for="f in (spotlight.factors || []).slice(0, 3)" :key="f.name">
-                                    <div>
-                                        <div class="flex justify-between text-[10px] font-black uppercase tracking-widest mb-2 text-text-1">
-                                            <span x-text="f.name"></span>
-                                            <span :class="f.signal === 'BULLISH' ? 'text-gain' : 'text-loss'" x-text="f.signal"></span>
-                                        </div>
-                                        <div class="h-1 bg-[#0A0A0A] rounded-full overflow-hidden">
-                                            <div class="h-full transition-all duration-1000 ease-out fill-duration"
-                                                 :class="f.signal === 'BULLISH' ? 'bg-gain' : 'bg-loss'"
-                                                 :style="'width: ' + ((f.points/f.max_points)*100) + '%'"></div>
-                                        </div>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                    </template>
-                </section>
-
-                <!-- Oracle Intel Feed -->
-                <section>
-                    <div class="flex items-center gap-3 mb-10 pb-4 border-b border-[#18181A]">
-                        <h2 class="text-xl font-bold tracking-tight">Intelligence Stream</h2>
-                        <div class="w-2 h-2 rounded-full bg-gain animate-pulse shadow-[0_0_10px_rgba(0,200,5,0.5)]"></div>
-                    </div>
-                    <div class="divide-y divide-[#0A0A0A] bg-black border border-[#18181A] rounded-2xl overflow-hidden shadow-2xl">
-                        <template x-for="n in news.items" :key="n.id">
-                            <div @click="window.open(n.url, '_blank')"
-                                 class="px-8 py-8 flex justify-between gap-12 group cursor-pointer hover:bg-white/[0.02] transition-colors">
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex items-center gap-4 mb-3">
-                                        <span class="text-[10px] font-black uppercase text-gain tracking-widest rh-green-glow" x-text="n.ticker"></span>
-                                        <span class="text-[10px] font-bold text-text-4 uppercase tracking-widest" x-text="n.time"></span>
-                                    </div>
-                                    <h3 class="text-xl font-black leading-tight tracking-tight group-hover:text-gain transition-colors" x-text="n.headline"></h3>
-                                </div>
-                                <div class="w-24 h-24 bg-[#050505] border border-[#18181A] rounded-xl shrink-0 flex items-center justify-center group-hover:border-gain transition-all rotate-3 group-hover:rotate-0 overflow-hidden shadow-xl">
-                                    <div class="text-[8px] font-black uppercase tracking-widest text-text-4">Media Core</div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </section>
-
-            </div>
+      <!-- Performance Spotlight -->
+      <div class="mb-10">
+        <!-- Eyebrow -->
+        <div class="flex items-center gap-3 mb-5">
+          <span class="text-[9px] font-black uppercase tracking-[0.35em]" style="color:#787B86;">Portfolio Performance</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-gain animate-pulse-dot"></span>
         </div>
 
-        <!-- ── RIGHT SIDEBAR: REAL-TIME TRACKER ────── -->
-        <aside class="w-full lg:w-96 shrink-0 lg:sticky lg:top-32">
-            <div class="space-y-12">
-
-                <!-- Watchlist / Active Holdings -->
-                <section>
-                    <div class="flex items-center justify-between mb-6 px-4">
-                        <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-text-3">Nexus Monitor</h3>
-                        <button @click="loadWatchlist()" class="text-text-4 hover:text-gain transition-colors">
-                            <svg class="w-4 h-4" :class="wl.loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        </button>
-                    </div>
-
-                    <div class="bg-black border border-[#18181A] rounded-2xl overflow-hidden shadow-3xl">
-                        <div x-show="wl.loading" class="p-8 space-y-10">
-                            <template x-for="i in 5" :key="i">
-                                <div class="flex justify-between items-center"><div class="h-4 w-12 bg-[#050505] animate-pulse rounded"></div><div class="h-4 w-24 bg-[#050505] animate-pulse rounded"></div></div>
-                            </template>
-                        </div>
-
-                        <div x-show="!wl.loading">
-                            <template x-for="row in wl.rows" :key="row.ticker">
-                                <div @click="window.location.href='/analysis/'+row.ticker"
-                                     class="flex items-center justify-between px-8 py-6 hover:bg-white/[0.03] border-b border-[#0A0A0A] last:border-0 cursor-pointer group transition-all duration-300">
-                                    <div class="min-w-0">
-                                        <div class="text-sm font-black tracking-tight group-hover:text-gain transition-colors" x-text="row.ticker"></div>
-                                        <div class="text-[9px] text-text-4 font-black uppercase tracking-widest mt-1 truncate w-24" x-text="row.name"></div>
-                                    </div>
-
-                                    <!-- Sidebar Mini Curve -->
-                                    <div class="px-6 flex-1 h-4 scale-y-125 opacity-40 group-hover:opacity-100 transition-opacity">
-                                        <svg viewBox="0 0 100 20" class="w-full h-full">
-                                            <path d="M0 10 Q 25 5, 50 15 T 100 10" fill="none" :stroke="row.change >= 0 ? '#00C805' : '#FF5000'" stroke-width="3" stroke-linecap="round" />
-                                        </svg>
-                                    </div>
-
-                                    <div class="text-right">
-                                        <div class="text-sm font-black font-mono tracking-tighter" x-text="formatCurrency(row.price)"></div>
-                                        <div class="text-[10px] font-black tracking-tight mt-1" :class="row.change >= 0 ? 'text-gain rh-green-glow' : 'text-loss rh-red-glow'"
-                                             x-text="(row.change >= 0 ? '+' : '') + (row.change || 0).toFixed(2) + '%'"></div>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Collections -->
-                <section>
-                    <div class="flex items-center justify-between mb-6 px-4">
-                        <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-text-3">Market Collections</h3>
-                    </div>
-                    <div class="grid grid-cols-1 gap-4">
-                        <template x-for="l in collections" :key="l.name">
-                            <div @click="window.location.href='/watchlist?list='+l.name"
-                                 class="px-8 py-5 rounded-xl border border-[#18181A] bg-black hover:border-gain transition-all flex items-center justify-between cursor-pointer group shadow-xl">
-                                <div class="flex items-center gap-4">
-                                    <div class="w-2 h-2 rounded-full" :class="l.active ? 'bg-gain animate-pulse' : 'bg-text-4'"></div>
-                                    <span class="text-[11px] font-black uppercase tracking-[0.1em] text-text-1 group-hover:text-gain transition-colors" x-text="l.name"></span>
-                                </div>
-                                <svg class="text-text-4 group-hover:text-white transition-all transform group-hover:translate-x-1" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3"><path d="M9 18l6-6-6-6"/></svg>
-                            </div>
-                        </template>
-                    </div>
-                </section>
-
+        <!-- Value + Change -->
+        <div class="flex flex-col sm:flex-row sm:items-baseline gap-4 mb-8">
+          <template x-if="portfolioHasData">
+            <div class="flex flex-col sm:flex-row sm:items-baseline gap-4">
+              <h1 class="font-black tracking-tighter leading-none" style="font-size:clamp(2.5rem,6vw,3.75rem);color:#D1D4DC;" x-text="formatCurrency(portfolioValue)"></h1>
+              <div class="flex flex-wrap items-center gap-2 font-mono text-base font-bold"
+                   :class="(portfolioTrend || 0) >= 0 ? 'text-gain rh-green-glow' : 'text-loss rh-red-glow'">
+                <span x-text="((portfolioTrend || 0) >= 0 ? '+' : '') + formatCurrency(portfolioChange * Math.sign(portfolioTrend || 1))"></span>
+                <span x-text="'(' + (portfolioTrend || 0).toFixed(2) + '%)'"></span>
+                <span class="text-[9px] font-black uppercase tracking-[0.2em]" style="color:#787B86;">Total Return</span>
+              </div>
             </div>
-        </aside>
+          </template>
+          <template x-if="!portfolioHasData">
+            <div class="flex flex-col gap-3">
+              <h1 class="font-black tracking-tighter" style="font-size:clamp(2.5rem,6vw,3.75rem);color:#787B86;">—</h1>
+              <div class="flex flex-wrap items-center gap-4">
+                <span class="text-sm font-bold uppercase tracking-widest" style="color:#787B86;">No positions tracked</span>
+                <a href="/portfolio"
+                   class="text-[10px] font-black uppercase tracking-widest text-gain border px-3 py-1.5 rounded-full transition-all"
+                   style="border-color:rgba(0,200,83,0.3);"
+                   onmouseover="this.style.background='rgba(0,200,83,0.08)'"
+                   onmouseout="this.style.background='transparent'">Add Holdings →</a>
+              </div>
+            </div>
+          </template>
+        </div>
 
+        <!-- Performance Chart -->
+        <div class="relative w-full rounded-xl overflow-hidden mb-6" style="height:320px;border-bottom:1px solid #2A2E39;">
+          <div x-show="typeof chartLoading !== 'undefined' && chartLoading"
+               class="absolute inset-0 flex items-center justify-center z-20"
+               style="background:rgba(2,3,2,0.7);backdrop-filter:blur(4px);">
+            <div class="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style="border-color:rgba(0,200,83,0.3);border-top-color:#00C853;"></div>
+          </div>
+          <div id="mainCurve" class="w-full h-full"></div>
+        </div>
+
+        <!-- Time Range Controls -->
+        <div class="flex items-center gap-6 sm:gap-8 overflow-x-auto whitespace-nowrap scrollbar-hide pb-1">
+          <template x-for="p in ['1D', '1W', '1M', '3M', '1Y', 'ALL']" :key="p">
+            <button @click="setPeriod(p)"
+                    class="text-[10px] font-black tracking-[0.2em] uppercase transition-all pb-1.5 border-b-2 cursor-pointer min-h-[32px]"
+                    :class="chartPeriod === p
+                      ? 'border-gain text-gain rh-green-glow'
+                      : 'border-transparent hover:text-text-2'"
+                    style="background:none;font-family:'Space Grotesk',sans-serif;"
+                    :style="chartPeriod !== p ? 'color:#787B86' : ''"
+                    x-text="p"></button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Deployed Capital row -->
+      <div x-show="portfolioHasData"
+           @click="window.location.href='/portfolio'"
+           class="group rounded-2xl mb-10 cursor-pointer flex items-center justify-between relative overflow-hidden transition-all duration-200"
+           style="padding:20px 24px;background:#131722;border:1px solid #2A2E39;"
+           onmouseover="this.style.borderColor='#2A2E39';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.3)'"
+           onmouseout="this.style.borderColor='#2A2E39';this.style.boxShadow='none'">
+        <div class="flex items-center gap-5 relative z-10">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
+               style="background:#1C1C1C;border:1px solid #2A2E39;">
+            <svg class="w-4 h-4 transition-colors" style="color:#787B86;" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <div>
+            <span class="text-[9px] font-black uppercase tracking-[0.25em] block mb-1" style="color:#787B86;">Deployed Capital</span>
+            <span class="text-lg font-black font-mono tracking-tighter" style="color:#D1D4DC;" x-text="formatCurrency(buyingPower)"></span>
+          </div>
+        </div>
+        <svg class="w-4 h-4 transition-all" style="color:#787B86;" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+        </svg>
+      </div>
+
+      <!-- ── AI ANALYSIS SECTIONS ──────────────── -->
+      <div class="space-y-14">
+
+        <!-- Oracle Conviction Card -->
+        <section aria-labelledby="conviction-heading">
+          <div class="flex items-center justify-between mb-8 pb-4" style="border-bottom:1px solid #2A2E39;">
+            <h2 id="conviction-heading" class="text-lg font-bold tracking-tight" style="color:#D1D4DC;">Oracle Conviction Card</h2>
+            <a href="/ai-guidance"
+               class="text-[9px] font-black uppercase tracking-[0.2em] text-gain rh-green-glow transition-colors"
+               onmouseover="this.style.color='#36c96a'"
+               onmouseout="this.style.color='#00C853'">Execute Global Scan →</a>
+          </div>
+
+          <template x-if="spotlight.ticker">
+            <div @click="window.location.href='/analysis/'+spotlight.ticker"
+                 class="rounded-2xl cursor-pointer flex flex-col md:flex-row gap-8 transition-all duration-200 relative overflow-hidden group"
+                 style="background:#131722;border:1px solid #2A2E39;padding:28px;"
+                 onmouseover="this.style.borderColor='#00C853'"
+                 onmouseout="this.style.borderColor='#2A2E39'">
+
+              <!-- Ambient glow -->
+              <div class="absolute -top-8 -right-8 w-48 h-48 rounded-full pointer-events-none" style="background:radial-gradient(circle,rgba(0,200,83,0.06),transparent 60%);"></div>
+
+              <!-- Left: Identity + scores -->
+              <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-center gap-4 mb-3">
+                  <span class="font-black tracking-tighter transition-colors" style="font-size:2rem;color:#D1D4DC;"
+                        x-text="spotlight.ticker"
+                        :style="'color: #D1D4DC'"></span>
+                  <span class="badge badge-buy text-[9px] px-3 py-1 font-black uppercase tracking-wider" x-text="spotlight.verdict"
+                        :class="spotlight.verdict === 'BUY' ? 'badge-buy' : spotlight.verdict === 'SELL' ? 'badge-sell' : 'badge-hold'"></span>
+                </div>
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] mb-8 truncate" style="color:#787B86;" x-text="spotlight.name"></div>
+
+                <div class="grid grid-cols-2 gap-8">
+                  <div>
+                    <div class="text-[9px] font-black uppercase tracking-[0.2em] mb-2" style="color:#787B86;">Synergy Score</div>
+                    <div class="font-black tracking-tight leading-none" style="font-size:2.25rem;"
+                         :class="spotlight.score >= 80 ? 'text-gain rh-green-glow' : 'text-text-1'"
+                         x-text="(spotlight.score || 0).toFixed(0)"></div>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-black uppercase tracking-[0.2em] mb-2" style="color:#787B86;">Confidence</div>
+                    <div class="font-black tracking-tight leading-none text-text-1" style="font-size:2.25rem;"
+                         x-text="Math.round(spotlight.confidence || 0) + '%'"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: Factor bars -->
+              <div class="w-full md:w-72 flex flex-col justify-center gap-5">
+                <template x-for="f in (spotlight.factors || []).slice(0, 3)" :key="f.name">
+                  <div>
+                    <div class="flex justify-between text-[9px] font-black uppercase tracking-[0.15em] mb-2" style="color:#D1D4DC;">
+                      <span x-text="f.name"></span>
+                      <span :class="f.signal === 'BULLISH' ? 'text-gain' : 'text-loss'" x-text="f.signal"></span>
+                    </div>
+                    <div class="h-[3px] rounded-full overflow-hidden" style="background:#1C1C1C;">
+                      <div class="h-full rounded-full transition-all fill-duration"
+                           :class="f.signal === 'BULLISH' ? 'bg-gain' : 'bg-loss'"
+                           :style="'width: ' + ((f.points / f.max_points) * 100) + '%'"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <!-- Empty state -->
+          <template x-if="!spotlight.ticker">
+            <div class="rounded-2xl flex items-center justify-center" style="background:#131722;border:1px solid #2A2E39;padding:40px;min-height:160px;">
+              <div class="text-center">
+                <div class="text-sm font-semibold mb-2" style="color:#787B86;">No conviction data yet</div>
+                <a href="/scanner" class="text-xs font-bold text-gain" style="text-decoration:none;">Run a scan to populate →</a>
+              </div>
+            </div>
+          </template>
+        </section>
+
+        <!-- Intelligence Stream -->
+        <section aria-labelledby="intel-heading">
+          <div class="flex items-center gap-3 mb-8 pb-4" style="border-bottom:1px solid #2A2E39;">
+            <h2 id="intel-heading" class="text-lg font-bold tracking-tight" style="color:#D1D4DC;">Intelligence Stream</h2>
+            <span class="w-2 h-2 rounded-full bg-gain animate-pulse-dot" style="box-shadow:0 0 10px rgba(0,200,83,0.5);" aria-hidden="true"></span>
+          </div>
+
+          <div class="rounded-2xl overflow-hidden" style="background:#131722;border:1px solid #2A2E39;">
+            <template x-for="n in news.items" :key="n.id">
+              <div @click="window.open(n.url, '_blank')"
+                   class="flex justify-between gap-6 sm:gap-10 cursor-pointer transition-colors"
+                   style="padding:20px 24px;border-bottom:1px solid #0B0C0F;"
+                   onmouseover="this.style.background='rgba(255,255,255,0.015)'"
+                   onmouseout="this.style.background='transparent'">
+                <div class="flex-1 min-w-0">
+                  <div class="flex flex-wrap items-center gap-3 mb-2.5">
+                    <span class="text-[9px] font-black uppercase tracking-[0.2em] text-gain rh-green-glow" x-text="n.ticker"></span>
+                    <span class="text-[9px] font-bold uppercase tracking-widest" style="color:#787B86;" x-text="n.time"></span>
+                  </div>
+                  <h3 class="font-bold leading-snug text-sm sm:text-base transition-colors" style="color:#D1D4DC;"
+                      x-text="n.headline"></h3>
+                </div>
+                <!-- News thumbnail placeholder -->
+                <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex-shrink-0 flex items-center justify-center transition-all"
+                     style="background:#1C1C1C;border:1px solid #2A2E39;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#787B86" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                    <path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l6 6v8a2 2 0 01-2 2z"/>
+                    <polyline points="17 1 17 7 23 7"/>
+                  </svg>
+                </div>
+              </div>
+            </template>
+
+            <!-- Empty state -->
+            <template x-if="news.items.length === 0">
+              <div class="flex items-center justify-center" style="padding:40px;">
+                <div class="text-center">
+                  <div class="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-3" style="border-color:rgba(0,200,83,0.2);border-top-color:#00C853;"></div>
+                  <p class="text-xs" style="color:#787B86;">Loading intelligence feed…</p>
+                </div>
+              </div>
+            </template>
+          </div>
+        </section>
+
+      </div>
     </div>
+
+    <!-- ── RIGHT SIDEBAR ──────────────────────────── -->
+    <aside class="w-full lg:w-80 xl:w-88 shrink-0 lg:sticky lg:top-4 space-y-8" aria-label="Market monitor">
+
+      <!-- Nexus Monitor -->
+      <section aria-labelledby="nexus-heading">
+        <div class="flex items-center justify-between mb-4 px-1">
+          <h3 id="nexus-heading" class="text-[9px] font-black uppercase tracking-[0.3em]" style="color:#787B86;">Nexus Monitor</h3>
+          <button @click="loadWatchlist()"
+                  class="btn-icon"
+                  aria-label="Refresh watchlist">
+            <svg class="w-3.5 h-3.5" :class="wl.loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="rounded-2xl overflow-hidden" style="background:#131722;border:1px solid #2A2E39;">
+          <!-- Skeleton -->
+          <div x-show="wl.loading" class="space-y-0">
+            <template x-for="i in 5" :key="i">
+              <div class="flex justify-between items-center" style="padding:16px 20px;border-bottom:1px solid #0B0C0F;">
+                <div class="skeleton" style="height:13px;width:48px;border-radius:3px;"></div>
+                <div class="skeleton" style="height:13px;width:72px;border-radius:3px;"></div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Rows -->
+          <div x-show="!wl.loading">
+            <template x-for="row in wl.rows" :key="row.ticker">
+              <div @click="window.location.href='/analysis/'+row.ticker"
+                   class="flex items-center justify-between cursor-pointer transition-colors group"
+                   style="padding:14px 20px;border-bottom:1px solid #0B0C0F;"
+                   onmouseover="this.style.background='rgba(255,255,255,0.02)'"
+                   onmouseout="this.style.background='transparent'">
+                <div class="min-w-0">
+                  <div class="text-sm font-bold tracking-tight transition-colors" style="color:#D1D4DC;" x-text="row.ticker"></div>
+                  <div class="text-[10px] font-medium uppercase tracking-wider mt-0.5 truncate" style="max-width:80px;color:#787B86;" x-text="row.name"></div>
+                </div>
+
+                <!-- Mini sparkline -->
+                <div class="flex-1 px-4 h-5 opacity-30 group-hover:opacity-80 transition-opacity" aria-hidden="true">
+                  <svg viewBox="0 0 100 20" class="w-full h-full">
+                    <path d="M0 10 Q 25 5, 50 15 T 100 10" fill="none"
+                          :stroke="row.change >= 0 ? '#00C853' : '#f87171'"
+                          stroke-width="2.5" stroke-linecap="round"/>
+                  </svg>
+                </div>
+
+                <div class="text-right flex-shrink-0">
+                  <div class="text-sm font-bold font-mono tracking-tight" style="color:#D1D4DC;" x-text="formatCurrency(row.price)"></div>
+                  <div class="text-[10px] font-bold font-mono mt-0.5"
+                       :class="row.change >= 0 ? 'text-gain' : 'text-loss'"
+                       x-text="(row.change >= 0 ? '+' : '') + (row.change || 0).toFixed(2) + '%'"></div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Empty state -->
+            <template x-if="wl.rows.length === 0 && !wl.loading">
+              <div class="text-center" style="padding:32px 20px;">
+                <p class="text-xs" style="color:#787B86;">No positions in monitor</p>
+              </div>
+            </template>
+          </div>
+        </div>
+      </section>
+
+      <!-- Market Collections -->
+      <section aria-labelledby="collections-heading" x-show="collections.length > 0">
+        <div class="flex items-center justify-between mb-4 px-1">
+          <h3 id="collections-heading" class="text-[9px] font-black uppercase tracking-[0.3em]" style="color:#787B86;">Market Collections</h3>
+        </div>
+        <div class="space-y-2">
+          <template x-for="l in collections" :key="l.name">
+            <div @click="window.location.href='/watchlist?list='+l.name"
+                 class="flex items-center justify-between rounded-xl cursor-pointer transition-all group"
+                 style="padding:12px 16px;background:#131722;border:1px solid #2A2E39;"
+                 onmouseover="this.style.borderColor='#2A2E39'"
+                 onmouseout="this.style.borderColor='#2A2E39'">
+              <div class="flex items-center gap-3">
+                <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-text-4"
+                      aria-hidden="true"></span>
+                <span class="text-xs font-bold uppercase tracking-[0.1em] transition-colors"
+                      style="color:#8fa48c;"
+                      x-text="l.name"></span>
+              </div>
+              <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" style="color:#787B86;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+          </template>
+        </div>
+      </section>
+
+    </aside>
+
+  </div>
 </div>
 
 <script>
@@ -250,47 +347,11 @@ function dashboard() {
                 setTimeout(() => this.init(), 100);
                 return;
             }
-            this.initChart();
             await this.loadAccount();
             await this.loadTrendData('1M');
             this.loadWatchlist();
             this.loadCollections();
             this.loadNews();
-        },
-
-        initChart() {
-            const container = document.getElementById('mainCurve');
-            if (!container) { console.error('Chart container not found'); return; }
-
-            // Ensure container has proper positioning for chart containment
-            container.style.position = 'relative';
-            container.style.display = 'block';
-
-            const width = container.clientWidth;
-            const height = container.clientHeight;
-            console.log('Initializing chart with dimensions:', { width, height, containerRect: container.getBoundingClientRect() });
-
-            this.chart = LightweightCharts.createChart(container, {
-                width: width,
-                height: height,
-                layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#71717A', fontSize: 11, fontFamily: 'Inter' },
-                grid: { vertLines: { visible: false }, horzLines: { color: '#0A0A0A' } },
-                rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.15, bottom: 0.05 } },
-                timeScale: { borderVisible: false },
-                crosshair: { horzLine: { visible: false }, vertLine: { labelVisible: false, color: '#18181A' } },
-                handleScroll: false, handleScale: false
-            });
-            this.mainSeries = this.chart.addAreaSeries({
-                lineWidth: 4,
-                priceLineVisible: false,
-                lastValueVisible: false,
-                crosshairMarkerVisible: true
-            });
-            window.addEventListener('resize', () => {
-                if (this.chart && container) {
-                    this.chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
-                }
-            });
         },
 
         // ── ACCOUNT: shadow portfolio only ───────────────────────────────────
@@ -309,81 +370,140 @@ function dashboard() {
             } catch(e) { console.error('Account load error', e); }
         },
 
-        // ── CHART: SPY benchmark (Alpaca history only if enabled+connected) ──
+        // ── CHART: Sentinel portfolio history (same as /simulation page) ──
         async loadTrendData(period) {
             this.chartPeriod = period;
             this.chartLoading = true;
-            let plot = [];
-
-            // Try Alpaca portfolio history only when explicitly enabled
-            if (_alpacaEnabled) {
-                try {
-                    const alpacaPeriod = { '1Y': '1A', 'ALL': 'all' }[period] || period;
-                    const tf = period === '1D' ? '5Min' : '1D';
-                    const hist = await fetch(`/api/trading/history?period=${alpacaPeriod}&timeframe=${tf}`)
-                        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-                        .catch(e => { console.error('History fetch error', e); return []; });
-                    if (Array.isArray(hist) && hist.length > 1) {
-                        plot = hist
-                            .map(d => {
-                                const dt = new Date(d.timestamp);
-                                const dateStr = dt.toISOString().split('T')[0];
-                                return { time: dateStr, value: parseFloat(d.equity) || 0 };
-                            })
-                            .filter(d => d.time && d.value > 0 && !isNaN(d.value));
-                    }
-                } catch(e) { /* fall through */ }
-            }
-
-            // SPY benchmark fallback
-            if (plot.length <= 1) {
-                try {
-                    const spyMap = { '1D': '1d', '1W': '5d', '1M': '1mo', '3M': '3mo', '1Y': '1y', 'ALL': '5y' };
-                    const r = await fetch(`/api/stock/SPY/chart?period=${spyMap[period] || '1mo'}&interval=1d`)
-                        .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
-                        .catch(e => { console.error('SPY chart fetch error', e); return []; });
-                    if (Array.isArray(r) && r.length > 0) {
-                        console.log('SPY data sample:', r[0], r[r.length - 1]);
-                    }
-                    plot = (Array.isArray(r) ? r : [])
-                        .map(d => {
-                            // Extract date in YYYY-MM-DD format
-                            const fullDate = d.Date || d.Datetime || '';
-                            const dateStr = fullDate.split(' ')[0] || fullDate.split('T')[0] || '';
-                            const val = parseFloat(d.Close || 0);
-                            return { time: dateStr, value: val };
-                        })
-                        .filter(d => d.time && d.value > 0 && !isNaN(d.value));
-                    console.log('Processed SPY plot:', plot.length, 'points', plot[0], plot[plot.length - 1]);
-                } catch(e) { console.error('SPY chart error', e); }
-            }
-
             try {
-                if (plot.length > 0 && this.chart && this.mainSeries) {
-                    // Remove duplicate dates (keep last value for each date)
-                    const deduped = {};
-                    plot.forEach(p => { deduped[p.time] = p.value; });
-                    const dedupedPlot = Object.entries(deduped).map(([time, value]) => ({ time, value }));
-
-                    if (dedupedPlot.length > 0) {
-                        this.mainSeries.setData(dedupedPlot);
-                        setTimeout(() => {
-                            if (this.chart) this.chart.timeScale().fitContent();
-                        }, 0);
-                        const isUp = dedupedPlot[dedupedPlot.length - 1].value >= dedupedPlot[0].value;
-                        const color = isUp ? '#00C805' : '#FF5000';
-                        this.mainSeries.applyOptions({
-                            lineColor: color,
-                            topColor: isUp ? 'rgba(0,200,5,0.25)' : 'rgba(255,80,0,0.25)',
-                            bottomColor: 'rgba(0,0,0,0)'
-                        });
-                        console.log('Chart rendered with', dedupedPlot.length, 'points');
-                    }
+                const periodMap = { '1D': '1D', '1W': '5D', '1M': '1M', '3M': '3M', '1Y': '1Y', 'ALL': '1Y' };
+                const sentinelPeriod = periodMap[period] || '1M';
+                const res = await fetch(`/sentinel/history?period=${sentinelPeriod}`);
+                const history = await res.json();
+                if (history && !history.error && history.length > 0) {
+                    this.$nextTick(() => this.renderChart(history));
                 } else {
-                    console.warn('Chart render skipped: plot length =', plot.length, 'chart =', !!this.chart, 'series =', !!this.mainSeries);
+                    this.renderChartFallback(sentinelPeriod);
                 }
-            } catch(e) { console.error('Chart render error', e); }
-            finally { this.chartLoading = false; }
+            } catch(e) {
+                console.error('Sentinel history error:', e);
+            } finally {
+                this.chartLoading = false;
+            }
+        },
+
+        renderChart(data) {
+            const container = document.getElementById('mainCurve');
+            if (!container) return;
+            if (container.offsetWidth === 0 || container.offsetHeight === 0) {
+                setTimeout(() => this.renderChart(data), 100);
+                return;
+            }
+            if (!data || data.length === 0) return;
+
+            if (this.chart) {
+                try { this.chart.remove(); } catch(e) {}
+                this.chart = null;
+            }
+
+            const plotData = [...data].reverse();
+            const isPositive = plotData[plotData.length - 1].total_value >= plotData[0].total_value;
+            const lineColor   = isPositive ? '#00C853' : '#f87171';
+            const topColor    = isPositive ? 'rgba(0,200,83,0.25)' : 'rgba(248,113,113,0.25)';
+            const bottomColor = isPositive ? 'rgba(0,200,83,0)' : 'rgba(248,113,113,0)';
+
+            this.chart = LightweightCharts.createChart(container, {
+                width: container.clientWidth,
+                height: container.clientHeight,
+                layout: {
+                    background: { type: 'solid', color: 'transparent' },
+                    textColor: '#787B86',
+                    fontSize: 11,
+                },
+                grid: {
+                    vertLines: { color: 'rgba(64,67,59,0.3)' },
+                    horzLines: { color: 'rgba(64,67,59,0.3)' },
+                },
+                rightPriceScale: { borderVisible: false },
+                timeScale: {
+                    borderVisible: false,
+                    timeVisible: (this.chartPeriod === '1D'),
+                    fixLeftEdge: true,
+                    fixRightEdge: true,
+                },
+                crosshair: { mode: 0 },
+                handleScroll: false,
+                handleScale: false,
+            });
+
+            const areaSeries = this.chart.addAreaSeries({
+                lineColor,
+                topColor,
+                bottomColor,
+                lineWidth: 2,
+                priceLineVisible: false,
+                lastValueVisible: false,
+            });
+
+            // Convert sentinel history timestamps to LightweightCharts time (unix seconds)
+            const lwData = plotData
+                .map(d => ({ time: Math.floor(new Date(d.timestamp).getTime() / 1000), value: d.total_value }))
+                .sort((a, b) => a.time - b.time);
+
+            areaSeries.setData(lwData);
+            this.chart.timeScale().fitContent();
+
+            window.addEventListener('resize', () => {
+                if (this.chart && container) {
+                    this.chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+                }
+            });
+        },
+
+        async renderChartFallback(period) {
+            // No sentinel history — fall back to SPY chart as benchmark
+            const container = document.getElementById('mainCurve');
+            if (!container) return;
+            if (this.chart) {
+                try { this.chart.remove(); } catch(e) {}
+                this.chart = null;
+            }
+            const periodApiMap = { '1D': '1d', '5D': '5d', '1M': '1mo', '3M': '3mo', '1Y': '1y' };
+            const apiPeriod = periodApiMap[period] || '1mo';
+            try {
+                const r = await fetch(`/api/stock/SPY/chart?period=${apiPeriod}&interval=1d`);
+                const raw = await r.json();
+                const plot = (Array.isArray(raw) ? raw : [])
+                    .map(d => {
+                        const fullDate = d.Date || d.Datetime || '';
+                        return { time: fullDate.split(' ')[0], value: parseFloat(d.Close || 0) };
+                    })
+                    .filter(d => d.time && d.value > 0);
+                if (plot.length === 0) return;
+
+                this.chart = LightweightCharts.createChart(container, {
+                    width: container.clientWidth,
+                    height: container.clientHeight,
+                    layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#787B86', fontSize: 11 },
+                    grid: { vertLines: { color: 'rgba(64,67,59,0.3)' }, horzLines: { color: 'rgba(64,67,59,0.3)' } },
+                    rightPriceScale: { borderVisible: false },
+                    timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
+                    crosshair: { mode: 0 },
+                    handleScroll: false, handleScale: false,
+                });
+                const series = this.chart.addAreaSeries({
+                    lineColor: '#787B86',
+                    topColor: 'rgba(105,124,104,0.18)',
+                    bottomColor: 'rgba(105,124,104,0)',
+                    lineWidth: 2,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                });
+                // Dedupe
+                const deduped = {};
+                plot.forEach(p => { deduped[p.time] = p.value; });
+                series.setData(Object.entries(deduped).map(([time, value]) => ({ time, value })));
+                this.chart.timeScale().fitContent();
+            } catch(e) { console.error('SPY fallback error:', e); }
         },
 
         setPeriod(p) { this.loadTrendData(p); },

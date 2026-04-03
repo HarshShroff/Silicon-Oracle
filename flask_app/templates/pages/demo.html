@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Demo — Silicon Oracle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: #101010;
+      color: #D1D4DC;
+      min-height: 100vh;
+      overflow: auto !important;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2A2E39; border-radius: 2px; }
+    .card { background: #131722; border: 1px solid #2A2E39; border-radius: 12px; transition: border-color 0.15s; }
+    .card:hover { border-color: #4A5060; }
+    .card-selected { border-color: #00C853 !important; }
+    .pos { color: #00C853; }
+    .neg { color: #FF5252; }
+    .muted { color: #787B86; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .badge-buy  { background: rgba(0,200,83,0.12); color: #00C853; border: 1px solid rgba(0,200,83,0.25); padding: 2px 9px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+    .badge-hold { background: rgba(240,192,96,0.12); color: #F0C060; border: 1px solid rgba(240,192,96,0.25); padding: 2px 9px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+    .badge-sell { background: rgba(255,82,82,0.10); color: #FF5252; border: 1px solid rgba(255,82,82,0.20); padding: 2px 9px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+    .btn-primary { background: #00C853; color: #101010; font-weight: 700; padding: 10px 22px; border-radius: 8px; border: none; cursor: pointer; font-family: 'Space Grotesk', sans-serif; font-size: 13px; display: inline-flex; align-items: center; gap: 8px; transition: background 0.15s, box-shadow 0.15s; text-decoration: none; }
+    .btn-primary:hover { background: #26d468; box-shadow: 0 0 20px rgba(0,200,83,0.35); }
+    .btn-ghost { background: transparent; color: #D1D4DC; border: 1px solid #2A2E39; padding: 10px 22px; border-radius: 8px; cursor: pointer; font-family: 'Space Grotesk', sans-serif; font-size: 13px; display: inline-flex; align-items: center; gap: 8px; transition: all 0.15s; text-decoration: none; font-weight: 500; }
+    .btn-ghost:hover { border-color: #787B86; color: #FFFFFF; }
+    .skeleton { background: linear-gradient(90deg, #1E222D 25%, #2A2E39 50%, #1E222D 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 4px; }
+    @keyframes shimmer { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeIn 0.4s ease-out; }
+    .eyebrow { font-size: 10px; font-weight: 700; color: #B2B5BE; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+    .period-btn { background: none; border: 1px solid #2A2E39; color: #787B86; padding: 3px 9px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: 'JetBrains Mono', monospace; transition: all 0.15s; }
+    .period-btn:hover { border-color: #787B86; color: #D1D4DC; }
+    .period-btn.active { color: #00C853; border-color: #00C853; }
+    .chart-type-btn { background: none; border: 1px solid #2A2E39; color: #787B86; padding: 3px 9px; border-radius: 5px; font-size: 10px; font-weight: 600; cursor: pointer; font-family: 'JetBrains Mono', monospace; transition: all 0.15s; }
+    .chart-type-btn.active { color: #F0C060; border-color: #F0C060; }
+    .tech-bar { height: 4px; border-radius: 2px; background: #2A2E39; overflow: hidden; margin-top: 4px; }
+    .tech-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+    .search-input { background: #1E222D; border: 1px solid #2A2E39; border-radius: 8px; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 7px 12px; outline: none; width: 100%; transition: border-color 0.15s; max-width: 100%; }
+    .search-input:focus { border-color: #00C853; }
+    .search-input::placeholder { color: #434651; }
+    .card { background: #131722; border: 1px solid #2A2E39; border-radius: 12px; transition: border-color 0.15s; overflow: hidden; }
+    .card:hover { border-color: #4A5060; }
+    .card > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    /* Hide TradingView attribution */
+    .tv-lightweight-charts a, a[href*="tradingview"], a[href*="lightweight-charts"] { display: none !important; }
+    [x-cloak] { display: none !important; }
+    @media (max-width: 1024px) {
+      .chart-oracle-grid { grid-template-columns: 1fr 280px !important; }
+      .feature-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+    @media (max-width: 768px) {
+      .chart-oracle-grid { grid-template-columns: 1fr !important; }
+      .chart-oracle-grid > div:first-child { order: 1; }
+      .chart-oracle-grid > div:last-child { order: 2; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      .demo-header { flex-wrap: wrap !important; height: auto !important; padding: 12px 16px !important; gap: 10px !important; }
+      .demo-header .header-top { flex-wrap: wrap !important; width: 100%; gap: 8px !important; justify-content: space-between; }
+      .demo-header .header-top > div:first-child { flex-wrap: wrap !important; gap: 6px !important; }
+      .demo-header .search-form { width: 100% !important; margin-left: 0 !important; margin-top: 8px; order: 3; }
+      .demo-header .search-input { width: 100% !important; }
+      .demo-header .nav-buttons { margin-left: auto; gap: 6px !important; }
+      .tech-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+    @media (max-width: 600px) {
+      .feature-grid { grid-template-columns: 1fr !important; }
+    }
+    @media (max-width: 480px) {
+      .macro-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      .quote-grid { grid-template-columns: repeat(3, 1fr) !important; min-width: 0; }
+      .quote-grid > div { min-width: 0; }
+      .feature-grid { grid-template-columns: 1fr !important; }
+      .hero h1 { font-size: 22px !important; }
+      .hero p { font-size: 13px !important; }
+      .hero { padding: 20px 12px !important; }
+      .period-btn, .chart-type-btn { padding: 2px 6px !important; font-size: 10px !important; }
+      #demoChart { height: 240px !important; min-height: 200px; }
+      .chart-controls { flex-wrap: wrap !important; gap: 4px !important; }
+      .live-quotes-eyebrow { font-size: 9px !important; }
+      .eyebrow { font-size: 9px !important; }
+      main { padding: 16px 12px 70px !important; }
+      .card { border-radius: 8px !important; }
+      .btn-primary, .btn-ghost { padding: 8px 14px !important; font-size: 12px !important; }
+      .cta-section { padding: 24px 16px !important; }
+      .cta-section h2 { font-size: 18px !important; }
+      .demo-header { padding: 10px 12px !important; gap: 8px !important; }
+      .demo-header .nav-buttons { width: 100%; justify-content: center; margin-top: 8px; }
+      .demo-header .nav-buttons a { flex: 1; max-width: 140px; justify-content: center; }
+      .feature-grid > div { padding: 12px !important; }
+      .right-col > .card { padding: 12px !important; }
+      .chart-oracle-grid { gap: 12px !important; }
+      .quote-grid .card { padding: 10px 8px !important; }
+      .quote-grid .card .mono:first-child { font-size: 11px !important; }
+      .quote-grid .card .mono:last-child { font-size: 12px !important; }
+      .card:not(.quote-grid .card):not(.right-col > .card):not(.feature-grid > div) { padding: 10px 12px !important; }
+    }
+  </style>
+</head>
+<body x-data="demoApp()" x-init="init()">
+
+  <!-- ── Sticky top bar ── -->
+  <header class="demo-header" style="background:#131722;border-bottom:1px solid #2A2E39;height:52px;display:flex;align-items:center;padding:0 20px;gap:14px;position:sticky;top:0;z-index:40;">
+    <div class="header-top" style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:30px;height:30px;background:linear-gradient(135deg,#00C853,#F0C060);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#101010" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <span style="font-size:13px;font-weight:600;color:#D1D4DC;white-space:nowrap;">Silicon Oracle</span>
+        <span style="background:rgba(240,192,96,0.12);color:#F0C060;border:1px solid rgba(240,192,96,0.3);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:0.5px;white-space:nowrap;">LIVE DEMO</span>
+      </div>
+      <!-- Ticker search in header -->
+      <div class="search-wrap" x-data="demoSearch()" style="display:flex;align-items:center;gap:6px;margin-left:12px;flex:1;max-width:260px;position:relative;">
+        <input type="text" x-model="query" @input.debounce.150ms="search()" @keydown.enter="selectTop()" @keydown.escape="open = false" placeholder="Search ticker… NVDA, AMD, COIN" class="search-input" style="width:100%;">
+        <div x-show="open && results.length > 0" x-cloak style="position:absolute;top:100%;left:0;right:0;background:#1E222D;border:1px solid #2A2E39;border-radius:8px;overflow:hidden;z-index:50;max-height:200px;overflow-y:auto;">
+          <template x-for="r in results" :key="r.ticker">
+            <div @click="goTo(r.ticker)" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #2A2E39;display:flex;justify-content:space-between;align-items:center;" onmouseover="this.style.background='#2A2E39'" onmouseout="this.style.background='transparent'">
+              <span class="mono" style="font-size:12px;font-weight:600;color:#FFFFFF;" x-text="r.ticker"></span>
+              <span class="mono muted" style="font-size:11px;" x-text="r.name"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+      <!-- Market status -->
+      <div class="mkt-badge" :class="isMarketOpen ? 'open' : 'closed'" style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:12px;background:#1E222D;border:1px solid #2A2E39;">
+        <div class="mkt-dot" :class="isMarketOpen ? 'open' : 'closed'" style="width:6px;height:6px;border-radius:50%;" :style="isMarketOpen ? 'background:#00C853' : 'background:#FF5252'"></div>
+        <span class="mono" style="font-size:10px;font-weight:600;letter-spacing:0.5px;" :style="isMarketOpen ? 'color:#00C853' : 'color:#FF5252'" x-text="isMarketOpen ? 'OPEN' : 'CLOSED'"></span>
+      </div>
+    </div>
+    <div class="nav-buttons" style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+      <a href="{{ url_for('auth.login') }}" class="btn-ghost" style="padding:6px 14px;font-size:12px;">Sign In</a>
+      <a href="{{ url_for('auth.signup') }}" class="btn-primary" style="padding:6px 14px;font-size:12px;">Get Started Free</a>
+    </div>
+  </header>
+
+  <main style="max-width:1100px;margin:0 auto;padding:28px 20px 80px;">
+
+    <!-- ── Hero ── -->
+    <div style="text-align:center;margin-bottom:36px;" class="animate-in hero">
+      <div style="display:inline-block;background:rgba(0,200,83,0.08);border:1px solid rgba(0,200,83,0.2);border-radius:20px;padding:4px 14px;font-size:11px;color:#00C853;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;">Live Market Data — No Account Needed</div>
+      <h1 style="font-size:clamp(26px,5vw,46px);font-weight:700;color:#FFFFFF;line-height:1.15;margin:0 0 10px;letter-spacing:-1px;">AI-Powered Market Intelligence</h1>
+      <p style="font-size:15px;color:#787B86;max-width:500px;margin:0 auto 24px;line-height:1.6;">Real-time quotes, Oracle conviction scores, chart analysis, and live macro data.</p>
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;" class="hero-buttons">
+      </div>
+    </div>
+
+    <!-- ── 1. Macro Strip ── -->
+    <div style="margin-bottom:28px;">
+      <p class="eyebrow">Global Pulse</p>
+      <div class="macro-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;">
+        <!-- Skeleton while loading -->
+        <template x-if="macro.length === 0">
+          <div style="display:contents;">
+            <div class="card skeleton" style="height:72px;"></div>
+            <div class="card skeleton" style="height:72px;"></div>
+            <div class="card skeleton" style="height:72px;"></div>
+            <div class="card skeleton" style="height:72px;"></div>
+            <div class="card skeleton" style="height:72px;"></div>
+            <div class="card skeleton" style="height:72px;"></div>
+          </div>
+        </template>
+        <template x-for="m in macro" :key="m.label">
+          <div class="card" style="padding:12px 14px;">
+            <div class="eyebrow" style="margin-bottom:4px;font-size:9px;" x-text="m.label"></div>
+            <div class="mono" style="font-size:15px;font-weight:600;color:#FFFFFF;"
+                 x-text="typeof m.display === 'number' ? '$' + m.display.toLocaleString('en-US',{maximumFractionDigits:0}) : m.display"></div>
+            <div class="mono" style="font-size:10px;margin-top:2px;" :class="m.change_pct >= 0 ? 'pos' : 'neg'"
+                 x-text="(m.change_pct >= 0 ? '+' : '') + m.change_pct.toFixed(2) + '%'"></div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ── 2. Live Quotes ── -->
+    <div style="margin-bottom:28px;">
+      <p class="eyebrow live-quotes-eyebrow">Live Quotes — click to explore</p>
+      <div class="quote-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;min-width:0;">
+        <template x-for="q in quotes" :key="q.ticker">
+          <div class="card" style="padding:12px 14px;cursor:pointer;min-width:0;"
+               :class="selectedTicker === q.ticker ? 'card-selected' : ''"
+               @click="selectTicker(q.ticker)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <span class="mono" style="font-size:12px;font-weight:600;color:#FFFFFF;" x-text="q.ticker"></span>
+              <span class="mono" style="font-size:10px;font-weight:600;" :class="q.change_pct >= 0 ? 'pos' : 'neg'"
+                    x-text="(q.change_pct >= 0 ? '+' : '') + q.change_pct.toFixed(2) + '%'"></span>
+            </div>
+            <div class="mono" style="font-size:15px;font-weight:600;color:#D1D4DC;"
+                 x-text="'$' + q.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})"></div>
+          </div>
+        </template>
+        <template x-if="quotes.length === 0">
+          <div style="display:contents;">
+            <div class="card skeleton" style="height:62px;"></div>
+            <div class="card skeleton" style="height:62px;"></div>
+            <div class="card skeleton" style="height:62px;"></div>
+            <div class="card skeleton" style="height:62px;"></div>
+            <div class="card skeleton" style="height:62px;"></div>
+            <div class="card skeleton" style="height:62px;"></div>
+            <div class="card skeleton" style="height:62px;"></div>
+            <div class="card skeleton" style="height:62px;"></div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ── 3+4+6+7. Chart + Oracle + Technicals + News ── -->
+    <div class="chart-oracle-grid" style="display:grid;grid-template-columns:1fr 320px;gap:16px;margin-bottom:28px;align-items:stretch;">
+      <!-- Left: Chart + News -->
+      <div class="chart-col" style="display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;">
+
+        <!-- Chart card -->
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="padding:12px 16px;border-bottom:1px solid #2A2E39;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="mono" style="font-size:15px;font-weight:600;color:#FFFFFF;" x-text="selectedTicker"></span>
+              <template x-if="selectedQuote">
+                <span class="mono" style="font-size:13px;font-weight:500;" :class="selectedQuote.change_pct >= 0 ? 'pos' : 'neg'"
+                      x-text="(selectedQuote.change_pct >= 0 ? '+' : '') + selectedQuote.change_pct.toFixed(2) + '%'"></span>
+              </template>
+              <template x-if="selectedQuote">
+                <span class="mono muted" style="font-size:12px;" x-text="'$' + selectedQuote.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})"></span>
+              </template>
+              <template x-if="selectedQuote">
+                <span class="mono" style="font-size:13px;font-weight:500;" :class="selectedQuote.change_pct >= 0 ? 'pos' : 'neg'"
+                      x-text="(selectedQuote.change_pct >= 0 ? '+' : '') + selectedQuote.change_pct.toFixed(2) + '%'"></span>
+              </template>
+            </div>
+            <div class="chart-controls" style="display:flex;align-items:center;gap:6px;">
+              <!-- 6. Chart type toggle -->
+              <button class="chart-type-btn" :class="chartType === 'area' ? 'active' : ''" @click="setChartType('area')">Area</button>
+              <button class="chart-type-btn" :class="chartType === 'candle' ? 'active' : ''" @click="setChartType('candle')">Candle</button>
+              <div style="width:1px;height:14px;background:#2A2E39;margin:0 2px;"></div>
+              <!-- Period buttons -->
+              <button class="period-btn" :class="chartPeriod === '1mo' ? 'active' : ''" @click="changePeriod('1mo')">1mo</button>
+              <button class="period-btn" :class="chartPeriod === '3mo' ? 'active' : ''" @click="changePeriod('3mo')">3mo</button>
+              <button class="period-btn" :class="chartPeriod === '6mo' ? 'active' : ''" @click="changePeriod('6mo')">6mo</button>
+              <button class="period-btn" :class="chartPeriod === '1y'  ? 'active' : ''" @click="changePeriod('1y')">1y</button>
+            </div>
+          </div>
+          <div id="demoChart" style="height:280px;width:100%;"></div>
+        </div>
+
+        <!-- 5. News feed -->
+        <div class="card" style="padding:14px 16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <p class="eyebrow" style="margin-bottom:0;" x-text="selectedTicker + ' — Latest News'"></p>
+            <span class="muted mono" style="font-size:9px;">via Yahoo Finance</span>
+          </div>
+          <div x-show="newsLoading" style="display:flex;flex-direction:column;gap:8px;">
+            <template x-for="i in 8"><div class="skeleton" style="height:42px;border-radius:6px;"></div></template>
+          </div>
+          <div x-show="!newsLoading && news.length > 0" style="display:flex;flex-direction:column;gap:1px;">
+            <template x-for="(n, i) in news" :key="i">
+              <a :href="n.url || '#'" target="_blank" rel="noopener"
+                 style="display:flex;flex-direction:column;padding:10px 0;border-bottom:1px solid #1E222D;text-decoration:none;transition:background 0.1s;"
+                 onmouseover="this.style.paddingLeft='4px'" onmouseout="this.style.paddingLeft='0'">
+                <span style="font-size:12px;font-weight:500;color:#D1D4DC;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;" x-text="n.title"></span>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+                  <span class="muted mono" style="font-size:10px;" x-text="n.source"></span>
+                  <span x-show="n.time" class="muted mono" style="font-size:10px;" x-text="n.time"></span>
+                </div>
+              </a>
+            </template>
+          </div>
+          <div x-show="!newsLoading && news.length === 0" class="muted" style="font-size:12px;padding:8px 0;">No recent news found.</div>
+        </div>
+
+      </div><!-- /left col -->
+
+      <!-- Right: Oracle + Technicals -->
+      <div class="right-col" style="display:flex;flex-direction:column;gap:16px;min-height:0;">
+        <!-- Oracle Conviction -->
+        <div class="card" style="padding:0;overflow:hidden;flex:1;">
+          <div style="padding:12px 16px;border-bottom:1px solid #2A2E39;">
+            <p class="eyebrow" style="margin-bottom:0;">Oracle Conviction</p>
+          </div>
+
+          <!-- Loading -->
+          <div x-show="oracleLoading" style="padding:32px 16px;text-align:center;">
+            <div class="skeleton" style="height:100px;width:100px;border-radius:50%;margin:0 auto 16px;"></div>
+            <div class="skeleton" style="height:12px;width:70%;margin:0 auto 8px;"></div>
+            <div class="skeleton" style="height:12px;width:50%;margin:0 auto;"></div>
+          </div>
+
+          <!-- Result -->
+          <div x-show="!oracleLoading && oracle" style="padding:20px 16px;">
+            <!-- Score ring -->
+            <div style="text-align:center;margin-bottom:16px;">
+              <div style="position:relative;display:inline-block;">
+                <svg width="100" height="100" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#2A2E39" stroke-width="8"/>
+                  <circle cx="50" cy="50" r="40" fill="none"
+                    :stroke="oracle && oracle.score >= 60 ? '#00C853' : oracle && oracle.score >= 40 ? '#F0C060' : '#FF5252'"
+                    stroke-width="8" stroke-linecap="round"
+                    :stroke-dasharray="`${(oracle ? oracle.score : 0) * 2.51} 251`"
+                    stroke-dashoffset="62.75"
+                    transform="rotate(-90 50 50)" style="transition:stroke-dasharray 0.8s ease;"/>
+                </svg>
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
+                  <div class="mono" style="font-size:22px;font-weight:700;line-height:1;"
+                       :style="oracle && oracle.score >= 60 ? 'color:#00C853' : oracle && oracle.score >= 40 ? 'color:#F0C060' : 'color:#FF5252'"
+                       x-text="oracle ? oracle.score : '--'"></div>
+                  <div class="muted mono" style="font-size:9px;">/100</div>
+                </div>
+              </div>
+              <div style="margin-top:10px;">
+                <template x-if="oracle">
+                  <span :class="oracle.verdict.includes('BUY') ? 'badge-buy' : oracle.verdict === 'HOLD' ? 'badge-hold' : 'badge-sell'"
+                        x-text="oracle.verdict"></span>
+                </template>
+              </div>
+            </div>
+
+            <!-- Score bar -->
+            <div style="height:3px;background:#2A2E39;border-radius:2px;overflow:hidden;margin-bottom:16px;">
+              <div :style="'width:' + (oracle ? oracle.score : 0) + '%;background:' + (oracle && oracle.score >= 60 ? '#00C853' : oracle && oracle.score >= 40 ? '#F0C060' : '#FF5252') + ';height:100%;border-radius:2px;transition:width 0.8s ease;'"></div>
+            </div>
+
+            <!-- Factor breakdown (all factors) -->
+            <template x-if="oracle && oracle.factors">
+              <div>
+                <div class="eyebrow" style="margin-bottom:8px;font-size:9px;">Factor Breakdown</div>
+                <template x-for="f in oracle.factors" :key="f.name">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #1E222D;">
+                    <div style="display:flex;align-items:center;gap:7px;">
+                      <span style="width:5px;height:5px;border-radius:50%;flex-shrink:0;"
+                            :style="'background:' + (f.signal === 'BULLISH' ? '#00C853' : f.signal === 'BEARISH' ? '#FF5252' : '#F0C060')"></span>
+                      <span style="font-size:11px;color:#B2B5BE;" x-text="f.name"></span>
+                    </div>
+                    <span class="mono" style="font-size:11px;font-weight:700;"
+                          :style="f.signal === 'BULLISH' ? 'color:#00C853' : f.signal === 'BEARISH' ? 'color:#FF5252' : 'color:#F0C060'"
+                          x-text="f.signal"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+
+          <div style="padding:12px 16px;border-top:1px solid #2A2E39;text-align:center;">
+            <p style="font-size:11px;color:#787B86;margin:0 0 6px;">Full AI deep-dive requires your Gemini key</p>
+            <a href="{{ url_for('auth.signup') }}" style="font-size:12px;font-weight:600;color:#00C853;text-decoration:none;">Get started free →</a>
+          </div>
+        </div>
+
+        <!-- Technical Indicators (below Oracle) -->
+        <div class="card" style="padding:14px 16px;">
+          <p class="eyebrow" style="margin-bottom:12px;">Technical Indicators</p>
+          <div x-show="techLoading" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;" class="tech-grid">
+            <template x-for="i in 4"><div class="skeleton" style="height:52px;border-radius:6px;"></div></template>
+          </div>
+          <div x-show="!techLoading && tech" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;" class="tech-grid">
+            <!-- RSI -->
+            <div style="padding:10px 12px;background:#1C1C1C;border-radius:8px;border:1px solid #2A2E39;">
+              <div class="eyebrow" style="font-size:9px;margin-bottom:6px;">RSI 14</div>
+              <div class="mono" style="font-size:18px;font-weight:600;line-height:1;"
+                   :style="tech && tech.rsi < 30 ? 'color:#00C853' : tech && tech.rsi > 70 ? 'color:#FF5252' : 'color:#D1D4DC'"
+                   x-text="tech ? tech.rsi : '--'"></div>
+              <div class="tech-bar" style="margin-top:6px;">
+                <div class="tech-bar-fill" :style="'width:' + (tech ? tech.rsi : 0) + '%;background:' + (tech && tech.rsi < 30 ? '#00C853' : tech && tech.rsi > 70 ? '#FF5252' : '#787B86')"></div>
+              </div>
+              <div class="muted mono" style="font-size:9px;margin-top:4px;" x-text="tech && tech.rsi < 30 ? 'Oversold' : tech && tech.rsi > 70 ? 'Overbought' : 'Neutral'"></div>
+            </div>
+            <!-- Volatility -->
+            <div style="padding:10px 12px;background:#1C1C1C;border-radius:8px;border:1px solid #2A2E39;">
+              <div class="eyebrow" style="font-size:9px;margin-bottom:6px;">Vol 30D</div>
+              <div class="mono" style="font-size:18px;font-weight:600;line-height:1;color:#D1D4DC;" x-text="tech ? tech.volatility + '%' : '--'"></div>
+              <div class="tech-bar" style="margin-top:6px;">
+                <div class="tech-bar-fill" :style="'width:' + Math.min(tech ? tech.volatility : 0, 100) + '%;background:#F0C060'"></div>
+              </div>
+              <div class="muted mono" style="font-size:9px;margin-top:4px;" x-text="tech && tech.volatility > 40 ? 'High' : tech && tech.volatility > 20 ? 'Moderate' : 'Low'"></div>
+            </div>
+            <!-- Momentum -->
+            <div style="padding:10px 12px;background:#1C1C1C;border-radius:8px;border:1px solid #2A2E39;">
+              <div class="eyebrow" style="font-size:9px;margin-bottom:6px;">5D Mom</div>
+              <div class="mono" style="font-size:18px;font-weight:600;line-height:1;" :class="tech && tech.momentum5 >= 0 ? 'pos' : 'neg'"
+                   x-text="tech ? (tech.momentum5 >= 0 ? '+' : '') + tech.momentum5 + '%' : '--'"></div>
+              <div class="tech-bar" style="margin-top:6px;">
+                <div class="tech-bar-fill" :style="'width:' + Math.min(Math.abs(tech ? tech.momentum5 : 0) * 5, 100) + '%;background:' + (tech && tech.momentum5 >= 0 ? '#00C853' : '#FF5252')"></div>
+              </div>
+              <div class="muted mono" style="font-size:9px;margin-top:4px;" x-text="tech && tech.momentum5 >= 0 ? 'Bullish' : 'Bearish'"></div>
+            </div>
+            <!-- Trend / SMA -->
+            <div style="padding:10px 12px;background:#1C1C1C;border-radius:8px;border:1px solid #2A2E39;">
+              <div class="eyebrow" style="font-size:9px;margin-bottom:6px;">Trend</div>
+              <div class="mono" style="font-size:14px;font-weight:600;line-height:1;margin-top:2px;"
+                   :style="tech && tech.above_sma50 ? 'color:#00C853' : 'color:#FF5252'"
+                   x-text="tech && tech.above_sma50 ? 'Above SMA50' : 'Below SMA50'"></div>
+              <div class="muted mono" style="font-size:9px;margin-top:8px;" x-text="tech && tech.golden_cross ? 'Golden Cross' : 'Death Cross'"></div>
+              <div class="mono" style="font-size:9px;margin-top:2px;" :style="tech && tech.macd >= 0 ? 'color:#00C853' : 'color:#FF5252'"
+                   x-text="tech ? 'MACD ' + (tech.macd >= 0 ? '+' : '') + tech.macd : ''"></div>
+            </div>
+          </div>
+          <div x-show="!techLoading && !tech" class="muted" style="font-size:12px;padding:8px 0;">No data available for this ticker.</div>
+        </div>
+      </div>
+
+    </div><!-- /chart-oracle-grid -->
+
+    <!-- ── Feature showcase ── -->
+    <div style="margin-bottom:36px;">
+      <p class="eyebrow" style="text-align:center;">What you get with a free account</p>
+      <div class="feature-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:720px;margin:0 auto;">
+        <div class="card" style="padding:16px;display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:32px;height:32px;background:rgba(0,200,83,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00C853" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <div>
+            <p style="font-size:13px;font-weight:600;color:#FFFFFF;margin:0 0 3px;">AI Stock Analysis</p>
+            <p style="font-size:11px;color:#787B86;margin:0;line-height:1.4;">Gemini-powered deep dives on any ticker</p>
+          </div>
+        </div>
+        <div class="card" style="padding:16px;display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:32px;height:32px;background:rgba(240,192,96,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F0C060" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          </div>
+          <div>
+            <p style="font-size:13px;font-weight:600;color:#FFFFFF;margin:0 0 3px;">Macro Intelligence</p>
+            <p style="font-size:11px;color:#787B86;margin:0;line-height:1.4;">Fed, VIX, global markets at a glance</p>
+          </div>
+        </div>
+        <div class="card" style="padding:16px;display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:32px;height:32px;background:rgba(0,200,83,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00C853" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+          </div>
+          <div>
+            <p style="font-size:13px;font-weight:600;color:#FFFFFF;margin:0 0 3px;">Shadow Portfolio</p>
+            <p style="font-size:11px;color:#787B86;margin:0;line-height:1.4;">Track P&L without connecting your broker</p>
+          </div>
+        </div>
+        <div class="card" style="padding:16px;display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:32px;height:32px;background:rgba(240,192,96,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F0C060" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <div>
+            <p style="font-size:13px;font-weight:600;color:#FFFFFF;margin:0 0 3px;">Market Scanner</p>
+            <p style="font-size:11px;color:#787B86;margin:0;line-height:1.4;">Scan watchlists with Oracle conviction scores</p>
+          </div>
+        </div>
+        <div class="card" style="padding:16px;display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:32px;height:32px;background:rgba(0,200,83,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00C853" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          </div>
+          <div>
+            <p style="font-size:13px;font-weight:600;color:#FFFFFF;margin:0 0 3px;">Price Alerts</p>
+            <p style="font-size:11px;color:#787B86;margin:0;line-height:1.4;">Email alerts on price moves &amp; signals</p>
+          </div>
+        </div>
+        <div class="card" style="padding:16px;display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:32px;height:32px;background:rgba(240,192,96,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F0C060" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          </div>
+          <div>
+            <p style="font-size:13px;font-weight:600;color:#FFFFFF;margin:0 0 3px;">Alpaca Paper Trading</p>
+            <p style="font-size:11px;color:#787B86;margin:0;line-height:1.4;">Connect Alpaca for live &amp; paper trades</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CTA ── -->
+    <div class="cta-section" style="text-align:center;padding:36px 32px;background:#131722;border:1px solid #2A2E39;border-radius:16px;">
+      <h2 style="font-size:22px;font-weight:600;color:#FFFFFF;margin:0 0 8px;">Ready to go beyond the demo?</h2>
+      <p style="font-size:13px;color:#787B86;margin:0 0 20px;">Create a free account. Bring your own API keys — Gemini, Alpaca, Finnhub. Your data stays yours.</p>
+      <a href="{{ url_for('auth.signup') }}" class="btn-primary" style="font-size:14px;padding:12px 28px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Create Free Account
+      </a>
+      <p style="margin-top:12px;font-size:11px;color:#787B86;">No subscription. No usage fees. Just bring your own API keys.</p>
+    </div>
+
+  </main>
+
+  <footer style="text-align:center;padding:20px;border-top:1px solid #2A2E39;color:#787B86;font-size:11px;font-family:'JetBrains Mono',monospace;">
+    Silicon Oracle v3.0 — Live data via yfinance &amp; Yahoo Finance
+  </footer>
+
+  <script>
+  function demoApp() {
+    return {
+      quotes: [],
+      macro: [],
+      news: [],
+      tech: null,
+      selectedTicker: 'AAPL',
+      chartPeriod: '3mo',
+      chartType: 'candle',
+      oracle: null,
+      oracleLoading: false,
+      newsLoading: false,
+      techLoading: false,
+      chart: null,
+      areaSeries: null,
+      candleSeries: null,
+      isMarketOpen: false,
+
+      get selectedQuote() {
+        return this.quotes.find(q => q.ticker === this.selectedTicker) || null;
+      },
+
+      async init() {
+        await Promise.all([this.loadQuotes(), this.loadMacro(), this.loadMarketStatus()]);
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        this.initChart();
+        await Promise.all([this.loadChart(), this.loadOracle(), this.loadNews(), this.loadTech()]);
+        this.startUpdateIntervals();
+      },
+
+      startUpdateIntervals() {
+        setInterval(() => { this.loadQuotes(); this.loadMacro(); this.loadMarketStatus(); }, 60000);
+      },
+
+      async loadMarketStatus() {
+        try {
+          const r = await fetch('/api/market/status');
+          const d = await r.json();
+          this.isMarketOpen = d.is_open || false;
+        } catch(e) { this.isMarketOpen = false; }
+      },
+
+      async loadQuotes() {
+        try {
+          const r = await fetch('/api/demo/quotes');
+          this.quotes = await r.json();
+        } catch(e) {}
+      },
+
+      async loadMacro() {
+        try {
+          const r = await fetch('/api/demo/macro');
+          this.macro = await r.json();
+        } catch(e) {}
+      },
+
+      async loadNews() {
+        this.newsLoading = true;
+        this.news = [];
+        try {
+          const r = await fetch(`/api/demo/news/${this.selectedTicker}`);
+          this.news = await r.json();
+        } catch(e) {}
+        this.newsLoading = false;
+      },
+
+      async loadTech() {
+        this.techLoading = true;
+        this.tech = null;
+        try {
+          const r = await fetch(`/api/demo/technicals/${this.selectedTicker}`);
+          const d = await r.json();
+          this.tech = Object.keys(d).length ? d : null;
+        } catch(e) {}
+        this.techLoading = false;
+      },
+
+      initChart() {
+        const el = document.getElementById('demoChart');
+        if (!el || this.chart) return;
+        const w = el.getBoundingClientRect().width || el.offsetWidth || 640;
+        const h = window.innerWidth <= 480 ? 240 : window.innerWidth <= 768 ? 260 : 280;
+        this.chart = LightweightCharts.createChart(el, {
+          width: w,
+          height: h,
+          layout: { background: { color: '#131722' }, textColor: '#787B86' },
+          grid: { vertLines: { color: '#1C1C1C' }, horzLines: { color: '#1C1C1C' } },
+          crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+          rightPriceScale: { borderColor: '#2A2E39' },
+          timeScale: { borderColor: '#2A2E39', timeVisible: false },
+          handleScale: { axisPressedMouseMove: false },
+        });
+        this.areaSeries = this.chart.addAreaSeries({
+          lineColor: '#00C853', topColor: 'rgba(0,200,83,0.18)',
+          bottomColor: 'rgba(0,200,83,0.01)', lineWidth: 2, priceLineVisible: false,
+        });
+        this.candleSeries = this.chart.addCandlestickSeries({
+          upColor: '#00C853', downColor: '#FF5252',
+          borderUpColor: '#00C853', borderDownColor: '#FF5252',
+          wickUpColor: '#00C853', wickDownColor: '#FF5252',
+        });
+        const chart = this.chart;
+        const areaSeries = this.areaSeries;
+        const candleSeries = this.candleSeries;
+        new ResizeObserver(() => {
+          if (chart) {
+            const newWidth = el.getBoundingClientRect().width || el.offsetWidth;
+            const newHeight = window.innerWidth <= 480 ? 240 : window.innerWidth <= 768 ? 260 : 280;
+            chart.applyOptions({ width: newWidth, height: newHeight });
+          }
+        }).observe(el);
+      },
+
+      async loadChart() {
+        const isCandle = this.chartType === 'candle';
+        try {
+          const r = await fetch(`/api/demo/chart/${this.selectedTicker}?period=${this.chartPeriod}&candle=${isCandle}`);
+          const data = await r.json();
+          if (!Array.isArray(data) || !data.length) return;
+
+          if (!this.chart || !this.areaSeries || !this.candleSeries) {
+            this.initChart();
+          }
+
+          if (isCandle) {
+            try { this.areaSeries.setData([]); } catch(e) {}
+            try { this.areaSeries.applyOptions({ visible: false }); } catch(e) {}
+            try { this.candleSeries.applyOptions({ visible: true }); } catch(e) {}
+            try { this.candleSeries.setData(data); } catch(e) {}
+          } else {
+            try { this.candleSeries.setData([]); } catch(e) {}
+            try { this.candleSeries.applyOptions({ visible: false }); } catch(e) {}
+            try { this.areaSeries.applyOptions({ visible: true }); } catch(e) {}
+            try { this.areaSeries.setData(data); } catch(e) {}
+          }
+          this.chart.timeScale().fitContent();
+        } catch(e) { console.error('loadChart error', e); }
+      },
+
+      async setChartType(type) {
+        if (this.chartType === type) return;
+        this.chartType = type;
+        await this.loadChart();
+      },
+
+      async loadOracle() {
+        this.oracleLoading = true;
+        this.oracle = null;
+        try {
+          const r = await fetch(`/api/demo/oracle/${this.selectedTicker}`);
+          this.oracle = await r.json();
+        } catch(e) {}
+        this.oracleLoading = false;
+      },
+
+      async selectTicker(ticker) {
+        this.selectedTicker = ticker;
+        await Promise.all([this.loadChart(), this.loadOracle(), this.loadNews(), this.loadTech()]);
+      },
+
+      async changePeriod(period) {
+        if (this.chartPeriod === period) return;
+        this.chartPeriod = period;
+        if (!this.chart) { this.initChart(); }
+        await this.loadChart();
+      },
+    };
+  }
+
+  function demoSearch() {
+    return {
+      query: '',
+      results: [],
+      open: false,
+
+      async search() {
+        const q = this.query.trim();
+        if (q.length < 1) { this.results = []; this.open = false; return; }
+        try {
+          const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+          const d = await r.json();
+          this.results = d.results || [];
+          this.open = this.results.length > 0;
+        } catch(e) { this.results = []; this.open = false; }
+      },
+
+      async selectTop() {
+        if (this.results.length > 0) {
+          this.goTo(this.results[0].ticker);
+        } else {
+          const t = this.query.trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, '').slice(0, 10);
+          if (t) this.goTo(t);
+        }
+      },
+
+      goTo(ticker) {
+        this.open = false;
+        this.query = '';
+        window.location.href = `/analysis/${ticker}`;
+      },
+    };
+  }
+  </script>
+</body>
+</html>

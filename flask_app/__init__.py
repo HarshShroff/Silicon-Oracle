@@ -3,11 +3,13 @@ Silicon Oracle - Flask Application Factory
 AI-Powered Stock Analysis & Paper Trading Platform
 """
 
-from flask_app.extensions import cache, csrf, limiter
 import os
 import sys
-from flask import Flask, g, session, request, redirect, url_for, flash
+
+from flask import Flask, flash, g, redirect, request, session, url_for
 from werkzeug.datastructures import ImmutableMultiDict
+
+from flask_app.extensions import cache, csrf, limiter
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,6 +28,7 @@ def create_app(config_name=None):
 
     # Load configuration
     from flask_app.config import config
+
     app.config.from_object(config[config_name])
 
     # Initialize extensions with app
@@ -34,9 +37,9 @@ def create_app(config_name=None):
     limiter.init_app(app)
 
     # Register blueprints
-    from flask_app.routes.main import main_bp
     from flask_app.routes.api import api_bp
     from flask_app.routes.auth import auth_bp
+    from flask_app.routes.main import main_bp
     from flask_app.routes.sentinel import sentinel_bp
     from flask_app.routes.sentinel_ui import sentinel_ui_bp
 
@@ -46,6 +49,14 @@ def create_app(config_name=None):
     app.register_blueprint(sentinel_bp, url_prefix="/sentinel")
     app.register_blueprint(sentinel_ui_bp)
 
+    # Register agent blueprint
+    try:
+        from flask_app.agent.routes import agent_bp
+
+        app.register_blueprint(agent_bp)
+    except Exception as e:
+        app.logger.warning(f"Agent module initialization skipped: {e}")
+
     # Exempt API routes from CSRF
     csrf.exempt(api_bp)
     csrf.exempt(sentinel_bp)
@@ -53,7 +64,8 @@ def create_app(config_name=None):
 
     # Initialize Scheduler
     try:
-        from flask_app.scheduler import scheduler, init_scheduler
+        from flask_app.scheduler import init_scheduler, scheduler
+
         if not scheduler.running:
             scheduler.init_app(app)
             init_scheduler(app)
@@ -64,6 +76,7 @@ def create_app(config_name=None):
     # Run DB migrations (adds missing columns — idempotent)
     try:
         from utils.database import run_migrations
+
         run_migrations()
     except Exception as e:
         app.logger.warning(f"DB migrations skipped: {e}")
@@ -74,6 +87,7 @@ def create_app(config_name=None):
 
     # User profile cache to reduce database queries and tolerate failures
     from datetime import datetime
+
     app._user_profile_cache = {}
     _cache_timeout = 300  # 5 minutes
 
@@ -84,12 +98,13 @@ def create_app(config_name=None):
         Now with caching and graceful error handling to prevent session loss
         due to transient database failures (common on Render free tier).
         """
-        from utils import database as db
-        from flask_app.models import User
         import logging
 
+        from flask_app.models import User
+        from utils import database as db
+
         logger = logging.getLogger(__name__)
-        user_id = session.get('user_id')
+        user_id = session.get("user_id")
         g.user = None
 
         if user_id:
@@ -99,9 +114,9 @@ def create_app(config_name=None):
             cached_data = _upc.get(cache_key)
 
             # Use cache if fresh
-            if cached_data and (datetime.now() - cached_data['timestamp']).seconds < _cache_timeout:
-                profile = cached_data['profile']
-                user_api_keys = cached_data['api_keys']
+            if cached_data and (datetime.now() - cached_data["timestamp"]).seconds < _cache_timeout:
+                profile = cached_data["profile"]
+                user_api_keys = cached_data["api_keys"]
                 logger.debug(f"User {user_id} loaded from cache")
             else:
                 # Fetch from database
@@ -112,33 +127,32 @@ def create_app(config_name=None):
 
                     # Cache successful fetch
                     _upc[cache_key] = {
-                        'profile': profile,
-                        'api_keys': user_api_keys,
-                        'timestamp': datetime.now()
+                        "profile": profile,
+                        "api_keys": user_api_keys,
+                        "timestamp": datetime.now(),
                     }
                     logger.debug(f"User {user_id} loaded from database")
                 else:
                     # Database query failed - check if we have session email as fallback
-                    user_email = session.get('user_email')
+                    user_email = session.get("user_email")
 
                     if user_email:
                         # User was authenticated in this session before
                         # Use minimal fallback to avoid session loss due to database hiccup
-                        logger.warning(f"Database failed for user {user_id}, using session fallback")
+                        logger.warning(
+                            f"Database failed for user {user_id}, using session fallback"
+                        )
 
                         # Create minimal user object from session
-                        display_name = user_email.split('@')[0]
+                        display_name = user_email.split("@")[0]
                         g.user = User(
-                            id=user_id,
-                            username=display_name,
-                            email=user_email,
-                            password=None
+                            id=user_id, username=display_name, email=user_email, password=None
                         )
                         g.user.is_authenticated = True
-                        g.user.finnhub_api_key = ''
-                        g.user.alpaca_api_key = ''
-                        g.user.alpaca_secret_key = ''
-                        g.user.gemini_api_key = ''
+                        g.user.finnhub_api_key = ""
+                        g.user.alpaca_api_key = ""
+                        g.user.alpaca_secret_key = ""
+                        g.user.gemini_api_key = ""
                         g.user._is_fallback = True  # Don't enforce key check on fallback
                         return  # Skip rest, using fallback
                     else:
@@ -149,19 +163,18 @@ def create_app(config_name=None):
 
             # Build user object from profile data
             if profile:
-                display_name = profile.get('username') or profile.get(
-                    'email', 'User').split('@')[0]
+                display_name = profile.get("username") or profile.get("email", "User").split("@")[0]
                 g.user = User(
-                    id=profile['id'],
+                    id=profile["id"],
                     username=display_name,
-                    email=profile.get('email'),
-                    password=None
+                    email=profile.get("email"),
+                    password=None,
                 )
 
-                g.user.finnhub_api_key = user_api_keys.get('FINNHUB_API_KEY', '')
-                g.user.alpaca_api_key = user_api_keys.get('ALPACA_API_KEY', '')
-                g.user.alpaca_secret_key = user_api_keys.get('ALPACA_SECRET_KEY', '')
-                g.user.gemini_api_key = user_api_keys.get('GEMINI_API_KEY', '')
+                g.user.finnhub_api_key = user_api_keys.get("FINNHUB_API_KEY", "")
+                g.user.alpaca_api_key = user_api_keys.get("ALPACA_API_KEY", "")
+                g.user.alpaca_secret_key = user_api_keys.get("ALPACA_SECRET_KEY", "")
+                g.user.gemini_api_key = user_api_keys.get("GEMINI_API_KEY", "")
                 g.user.is_authenticated = True
 
                 # Debug logging
@@ -171,23 +184,22 @@ def create_app(config_name=None):
                 app.logger.debug(f"  Gemini: {'SET' if g.user.gemini_api_key else 'MISSING'}")
 
                 # Store email in session for fallback
-                if not session.get('user_email'):
-                    session['user_email'] = profile.get('email')
+                if not session.get("user_email"):
+                    session["user_email"] = profile.get("email")
 
     @app.before_request
     def normalize_ticker_params():
         """2. Clean up input parameters."""
-        if request.view_args and 'ticker' in request.view_args:
-            ticker = request.view_args['ticker']
-            if '.' in ticker:
-                request.view_args['ticker'] = ticker.replace('.', '-')
+        if request.view_args and "ticker" in request.view_args:
+            ticker = request.view_args["ticker"]
+            if "." in ticker:
+                request.view_args["ticker"] = ticker.replace(".", "-")
 
         if request.args:
             new_args = {}
             for key, value in request.args.items():
-                if key == 'ticker' or key.endswith('_ticker'):
-                    new_args[key] = value.replace(
-                        '.', '-') if '.' in value else value
+                if key == "ticker" or key.endswith("_ticker"):
+                    new_args[key] = value.replace(".", "-") if "." in value else value
                 else:
                     new_args[key] = value
             request.args = ImmutableMultiDict(new_args)
@@ -196,74 +208,78 @@ def create_app(config_name=None):
     def check_api_keys():
         """3. Enforce API key requirements after identity is known."""
         if request.endpoint and (
-            request.endpoint.startswith('auth.') or
-            request.endpoint.startswith('static') or
-            request.endpoint.startswith('api.') or
-            request.endpoint.startswith('sentinel_ui.') or
-            request.endpoint.startswith('sentinel.') or
-            request.endpoint == 'main.settings' or
-            request.path.startswith('/api/') or
-            request.path.startswith('/sentinel/')
+            request.endpoint.startswith("auth.")
+            or request.endpoint.startswith("static")
+            or request.endpoint.startswith("api.")
+            or request.endpoint.startswith("sentinel_ui.")
+            or request.endpoint.startswith("sentinel.")
+            or request.endpoint == "main.settings"
+            or request.path.startswith("/api/")
+            or request.path.startswith("/sentinel/")
         ):
             return
 
-        if hasattr(g, 'user') and g.user and g.user.is_authenticated:
+        if hasattr(g, "user") and g.user and g.user.is_authenticated:
             # Skip key enforcement when using session fallback (DB temporarily unavailable)
-            if getattr(g.user, '_is_fallback', False):
+            if getattr(g.user, "_is_fallback", False):
                 return
 
             user_keys = g.user.get_api_keys()
-            has_finnhub = bool(user_keys.get('FINNHUB_API_KEY'))
+            has_finnhub = bool(user_keys.get("FINNHUB_API_KEY"))
 
             # Debug logging
             app.logger.debug(f"API Key Check for {request.endpoint}:")
             app.logger.debug(f"  User: {g.user.email}")
             app.logger.debug(f"  Finnhub key present: {has_finnhub}")
-            app.logger.debug(f"  Finnhub key value: {user_keys.get('FINNHUB_API_KEY', 'NOT_SET')[:10]}...")
+            app.logger.debug(
+                f"  Finnhub key value: {user_keys.get('FINNHUB_API_KEY', 'NOT_SET')[:10]}..."
+            )
 
             if not has_finnhub:
-                session['redirect_after_setup'] = request.url
+                session["redirect_after_setup"] = request.url
                 flash(
-                    '⚠️ Please add your Finnhub API key to continue. It\'s required for market data.', 'warning')
-                return redirect(url_for('main.settings'))
+                    "⚠️ Please add your Finnhub API key to continue. It's required for market data.",
+                    "warning",
+                )
+                return redirect(url_for("main.settings"))
 
-            has_alpaca = bool(user_keys.get('ALPACA_API_KEY'))
-            has_gemini = bool(user_keys.get('GEMINI_API_KEY'))
+            has_alpaca = bool(user_keys.get("ALPACA_API_KEY"))
+            has_gemini = bool(user_keys.get("GEMINI_API_KEY"))
 
-            if not has_alpaca and request.endpoint in ['main.portfolio', 'main.trade']:
-                flash(
-                    'ℹ️ Add Alpaca API keys in Settings to enable live trading.', 'info')
+            if not has_alpaca and request.endpoint in ["main.portfolio", "main.trade"]:
+                flash("ℹ️ Add Alpaca API keys in Settings to enable live trading.", "info")
 
-            if not has_gemini and request.endpoint == 'main.analysis':
-                flash('ℹ️ Add Gemini API key in Settings to enable AI analysis.', 'info')
+            if not has_gemini and request.endpoint == "main.analysis":
+                flash("ℹ️ Add Gemini API key in Settings to enable AI analysis.", "info")
 
     # Context processors
     @app.context_processor
     def inject_globals():
-        user = g.user if hasattr(g, 'user') and g.user else None
+        user = g.user if hasattr(g, "user") and g.user else None
 
         # Resolve alpaca_enabled: session is source of truth (instant after toggle),
         # DB is fallback (works once column exists), default False (hidden until keys added).
         alpaca_enabled = False
         if user and user.is_authenticated:
-            if 'alpaca_enabled' in session:
-                alpaca_enabled = bool(session['alpaca_enabled'])
+            if "alpaca_enabled" in session:
+                alpaca_enabled = bool(session["alpaca_enabled"])
             else:
                 try:
                     from utils import database as db
+
                     sim = db.get_simulation_settings(user.id) or {}
                     val = sim.get("alpaca_enabled", None)
                     if val is not None:
                         alpaca_enabled = bool(val)
-                        session['alpaca_enabled'] = alpaca_enabled
+                        session["alpaca_enabled"] = alpaca_enabled
                 except Exception:
                     pass
 
         return {
-            'app_name': 'Silicon Oracle',
-            'app_version': '2.0',
-            'current_user': user,
-            'alpaca_enabled': alpaca_enabled,
+            "app_name": "Silicon Oracle",
+            "app_version": "2.0",
+            "current_user": user,
+            "alpaca_enabled": alpaca_enabled,
         }
 
     # Error handlers

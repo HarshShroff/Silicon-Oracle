@@ -12,8 +12,7 @@ def load_streamlit_secrets():
     """Load API keys from .streamlit/secrets.toml if available."""
     secrets = {}
     secrets_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)
-                        ), ".streamlit", "secrets.toml"
+        os.path.dirname(os.path.dirname(__file__)), ".streamlit", "secrets.toml"
     )
 
     if os.path.exists(secrets_path):
@@ -93,6 +92,7 @@ def fix_database_url(db_url: str) -> str:
             # We'll decode first (if it's already encoded) then re-encode to ensure consistency
             try:
                 from urllib.parse import unquote
+
                 # Try to detect if it's already encoded by checking for %
                 # If decoding changes it, it was encoded; if not, it wasn't
                 decoded_pass = unquote(parsed.password)
@@ -102,23 +102,25 @@ def fix_database_url(db_url: str) -> str:
 
                 # Reconstruct the URL with properly encoded password
                 netloc = parsed.netloc
-                if '@' in netloc:
+                if "@" in netloc:
                     # Split user info from host
-                    userinfo, host = netloc.rsplit('@', 1)
-                    if ':' in userinfo:
-                        username, _ = userinfo.split(':', 1)
+                    userinfo, host = netloc.rsplit("@", 1)
+                    if ":" in userinfo:
+                        username, _ = userinfo.split(":", 1)
                         # Reconstruct with encoded password
                         netloc = f"{username}:{encoded_pass}@{host}"
 
                     # Reconstruct the full URL
-                    db_url = urlunparse((
-                        parsed.scheme,
-                        netloc,
-                        parsed.path,
-                        parsed.params,
-                        parsed.query,
-                        parsed.fragment
-                    ))
+                    db_url = urlunparse(
+                        (
+                            parsed.scheme,
+                            netloc,
+                            parsed.path,
+                            parsed.params,
+                            parsed.query,
+                            parsed.fragment,
+                        )
+                    )
             except Exception:
                 # If any error occurs during encoding, return original
                 pass
@@ -134,21 +136,17 @@ class Config:
     """Base configuration."""
 
     # Flask
-    SECRET_KEY = os.environ.get(
-        "SECRET_KEY", "silicon-oracle-dev-key-change-in-production"
-    )
+    SECRET_KEY = os.environ.get("SECRET_KEY", "silicon-oracle-dev-key-change-in-production")
 
     # API Keys (BYOK - Bring Your Own Keys)
     ALPACA_API_KEY = get_secret("ALPACA_API_KEY", "alpaca.api_key", "")
-    ALPACA_SECRET_KEY = get_secret(
-        "ALPACA_SECRET_KEY", "alpaca.secret_key", "")
+    ALPACA_SECRET_KEY = get_secret("ALPACA_SECRET_KEY", "alpaca.secret_key", "")
     FINNHUB_API_KEY = get_secret("FINNHUB_API_KEY", "finnhub.api_key", "")
     GEMINI_API_KEY = get_secret("GEMINI_API_KEY", "gemini.api_key", "")
 
     # Supabase (optional)
     SUPABASE_URL = get_secret("SUPABASE_URL", "supabase.url", "")
-    SUPABASE_ANON_KEY = get_secret(
-        "SUPABASE_ANON_KEY", "supabase.anon_key", "")
+    SUPABASE_ANON_KEY = get_secret("SUPABASE_ANON_KEY", "supabase.anon_key", "")
 
     # Database - Priority order:
     # 1. DATABASE_URL env var (can be Supabase PostgreSQL connection string)
@@ -199,6 +197,12 @@ class DevelopmentConfig(Config):
 
     DEBUG = True
     TESTING = False
+
+    # Secure cookie settings (even in dev, use reasonable defaults)
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    # Only set secure=True in production to avoid cookie rejection on localhost
+    SESSION_COOKIE_SECURE = os.environ.get("FLASK_ENV", "").lower() == "production"
 
 
 class ProductionConfig(Config):

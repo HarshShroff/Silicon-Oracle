@@ -75,3 +75,9 @@ backup*/
 
 # Streamlit (old app - Flask is the main app now)
 # pages/
+
+# Stray directories
+Oracle/
+
+# Worktrees
+.worktrees/

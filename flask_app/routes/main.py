@@ -23,17 +23,20 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not g.user or not g.user.is_authenticated:
-            return redirect(url_for('auth.login', next=request.url))
+            return redirect(url_for("auth.login", next=request.url))
         return f(*args, **kwargs)
+
     return decorated_function
 
 
 def get_alpaca_enabled():
     """Read alpaca_enabled flag from session (source of truth) or DB."""
     from flask import session as _sess
-    if 'alpaca_enabled' in _sess:
-        return bool(_sess['alpaca_enabled'])
+
+    if "alpaca_enabled" in _sess:
+        return bool(_sess["alpaca_enabled"])
     from utils import database as db
+
     sim = db.get_simulation_settings(g.user.id) or {}
     val = sim.get("alpaca_enabled", None)
     return bool(val) if val is not None else True
@@ -69,6 +72,7 @@ def get_config():
 def get_shadow_portfolio(user_id, config):
     """Compute shadow portfolio positions + metrics for display when Alpaca is disabled."""
     from utils import database as db
+
     try:
         holdings = db.get_shadow_positions(user_id, is_active=True) or []
         if not holdings:
@@ -91,15 +95,19 @@ def get_shadow_portfolio(user_id, config):
             cost_basis = avg_price * shares
             total_value += pos_value
             total_cost += cost_basis
-            positions.append({
-                "ticker": ticker,
-                "shares": shares,
-                "avg_price": avg_price,
-                "current_price": current_price,
-                "market_value": pos_value,
-                "unrealized_pl": pos_value - cost_basis,
-                "unrealized_plpc": ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0,
-            })
+            positions.append(
+                {
+                    "ticker": ticker,
+                    "shares": shares,
+                    "avg_price": avg_price,
+                    "current_price": current_price,
+                    "market_value": pos_value,
+                    "unrealized_pl": pos_value - cost_basis,
+                    "unrealized_plpc": ((current_price - avg_price) / avg_price * 100)
+                    if avg_price > 0
+                    else 0,
+                }
+            )
         total_pl = total_value - total_cost
         metrics = {
             "total_value": round(total_value, 2),
@@ -117,6 +125,13 @@ def get_shadow_portfolio(user_id, config):
 def health():
     """Health check endpoint for monitoring."""
     return {"status": "ok", "service": "silicon-oracle"}, 200
+
+
+@main_bp.route("/demo")
+@limiter.exempt
+def demo():
+    """Public demo page — no login required. Uses live yfinance data, no user API keys."""
+    return render_template("pages/demo.html")
 
 
 @main_bp.route("/")
@@ -144,6 +159,7 @@ def analysis(ticker="NVDA"):
     try:
         stock_service = StockService(config)
         from flask_app.services.enhanced_oracle_service import EnhancedOracleService
+
         oracle_service = EnhancedOracleService(config)
 
         # Get complete data
@@ -254,15 +270,8 @@ def trade(ticker="NVDA"):
 
     quote = stock_service.get_realtime_quote(ticker)
     account = trading_service.get_account() if trading_service.is_connected() else None
-    position = (
-        trading_service.get_position(
-            ticker) if trading_service.is_connected() else None
-    )
-    orders = (
-        trading_service.get_orders(status="open")
-        if trading_service.is_connected()
-        else []
-    )
+    position = trading_service.get_position(ticker) if trading_service.is_connected() else None
+    orders = trading_service.get_orders(status="open") if trading_service.is_connected() else []
 
     return render_template(
         "pages/trade.html",
@@ -287,7 +296,7 @@ def ai_guidance():
 @login_required
 def watchlist():
     """Redirect to merged Scan & Watch page, watchlists tab."""
-    return redirect(url_for('main.scanner') + '?tab=watchlists')
+    return redirect(url_for("main.scanner") + "?tab=watchlists")
 
 
 @main_bp.route("/settings", methods=["GET", "POST"])
@@ -319,6 +328,7 @@ def settings():
             if success:
                 # Bust user profile cache so next request re-fetches fresh keys
                 from flask import current_app
+
                 current_app._user_profile_cache.pop(f"user_{user_id}", None)
                 flash("API keys saved successfully!", "success")
                 return jsonify({"success": True})
@@ -337,8 +347,7 @@ def settings():
             # Only update password if provided and not a masked placeholder
             gmail_password = request.form.get("gmail_password", "").strip()
             if gmail_password and not gmail_password.startswith("***"):
-                email_data["gmail_app_password_encrypted"] = encrypt_value(
-                    gmail_password)
+                email_data["gmail_app_password_encrypted"] = encrypt_value(gmail_password)
 
             # Save notification preferences to simulation_settings
             # Align with frontend keys: alert_price, alert_positions, alert_daily_digest
@@ -357,9 +366,10 @@ def settings():
 
         elif "save_alpaca_toggle" in request.form:
             from flask import session as flask_session
+
             enabled = request.form.get("alpaca_enabled") == "1"
             # Write to session immediately — works without any DB column
-            flask_session['alpaca_enabled'] = enabled
+            flask_session["alpaca_enabled"] = enabled
             flask_session.modified = True
             # Best-effort DB save (works once migration adds the column)
             db.update_simulation_settings(user_id, {"alpaca_enabled": enabled})
@@ -412,8 +422,7 @@ def settings():
                         "message": "Connected successfully",
                     }
                 else:
-                    results["Finnhub"] = {
-                        "success": False, "error": "Invalid API key"}
+                    results["Finnhub"] = {"success": False, "error": "Invalid API key"}
             except Exception as e:
                 results["Finnhub"] = {"success": False, "error": str(e)}
 
@@ -443,16 +452,19 @@ def settings():
 
     # Mask gmail password like other API keys (show last 4 chars only)
     raw_gmail_pwd = user_keys.get("GMAIL_APP_PASSWORD", "")
-    gmail_password_masked = ("***" + raw_gmail_pwd[-4:]) if raw_gmail_pwd and len(raw_gmail_pwd) > 4 else ""
+    gmail_password_masked = (
+        ("***" + raw_gmail_pwd[-4:]) if raw_gmail_pwd and len(raw_gmail_pwd) > 4 else ""
+    )
 
     # Sync session with DB value on settings page load so both stay consistent
     from flask import session as flask_session
+
     db_alpaca_enabled = sim_settings.get("alpaca_enabled", None)
     if db_alpaca_enabled is not None:
         alpaca_enabled = bool(db_alpaca_enabled)
-        flask_session['alpaca_enabled'] = alpaca_enabled
-    elif 'alpaca_enabled' in flask_session:
-        alpaca_enabled = bool(flask_session['alpaca_enabled'])
+        flask_session["alpaca_enabled"] = alpaca_enabled
+    elif "alpaca_enabled" in flask_session:
+        alpaca_enabled = bool(flask_session["alpaca_enabled"])
     else:
         alpaca_enabled = True
 
@@ -477,10 +489,12 @@ def settings():
 def macro():
     """Macro Intelligence Dashboard — geopolitical events, portfolio impact, trade suggestions."""
     from flask import session as flask_session
-    if 'alpaca_enabled' in flask_session:
-        alpaca_enabled = bool(flask_session['alpaca_enabled'])
+
+    if "alpaca_enabled" in flask_session:
+        alpaca_enabled = bool(flask_session["alpaca_enabled"])
     else:
         from utils import database as db
+
         sim = db.get_simulation_settings(g.user.id) or {}
         val = sim.get("alpaca_enabled", None)
         alpaca_enabled = bool(val) if val is not None else True
@@ -526,11 +540,7 @@ def data_summary():
         "trades": len(trades),
         "positions": len(positions),
         "scan_results": len(
-            [
-                r
-                for w in session.get("user_watchlists", {}).values()
-                for r in w.get("results", [])
-            ]
+            [r for w in session.get("user_watchlists", {}).values() for r in w.get("results", [])]
         ),
     }
 

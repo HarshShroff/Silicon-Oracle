@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Silicon Oracle{% endblock %}</title>
 
-  <!-- Fonts -->
+  <!-- Fonts — display=swap prevents FOIT -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
 
   <!-- Styles -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
@@ -27,45 +27,58 @@
 
 <div class="app-shell" x-data="appShell()" x-init="init()">
 
-  <!-- ─── SIDEBAR (desktop) ─────────────────── -->
-  <aside class="sidebar">
+  <!-- ─── SIDEBAR (desktop only) ───────────────────── -->
+  <aside class="sidebar" role="navigation" aria-label="Main navigation">
 
-    <a href="{{ url_for('main.index') }}" class="sidebar-logo" title="Silicon Oracle">⬡</a>
+    <!-- Logo -->
+    <a href="{{ url_for('main.index') }}" class="sidebar-logo" aria-label="Silicon Oracle home">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+    </a>
 
     <!-- Command Center -->
     <a href="{{ url_for('main.index') }}"
-       class="nav-item {% if request.endpoint == 'main.index' or request.endpoint == 'main.command_center' %}active{% endif %}"
-       data-tip="Command Center">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+       class="nav-item {% if request.endpoint in ['main.index','main.command_center'] %}active{% endif %}"
+       data-tip="Command Center"
+       aria-label="Command Center">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="14" width="7" height="7" rx="1.5"/>
       </svg>
     </a>
 
     <!-- Analysis -->
     <a href="{{ url_for('main.analysis') }}"
        class="nav-item {% if request.endpoint == 'main.analysis' %}active{% endif %}"
-       data-tip="Analysis">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+       data-tip="Analysis"
+       aria-label="Analysis">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
       </svg>
     </a>
 
-    <!-- Scan + Watchlist (merged) -->
+    <!-- Scan & Watch -->
     <a href="{{ url_for('main.scanner') }}"
        class="nav-item {% if request.endpoint in ['main.scanner','main.watchlist','main.ai_guidance'] %}active{% endif %}"
-       data-tip="Scan & Watch">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+       data-tip="Scan & Watch"
+       aria-label="Scan & Watch">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        <line x1="11" y1="8" x2="11" y2="14"/>
+        <line x1="8" y1="11" x2="14" y2="11"/>
       </svg>
     </a>
 
     <!-- Macro Intel -->
     <a href="{{ url_for('main.macro') }}"
        class="nav-item {% if request.endpoint == 'main.macro' %}active{% endif %}"
-       data-tip="Macro Intel">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+       data-tip="Macro Intel"
+       aria-label="Macro Intelligence">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="10"/>
         <line x1="2" y1="12" x2="22" y2="12"/>
         <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
@@ -75,10 +88,10 @@
     <!-- Sentinel -->
     <a href="{{ url_for('sentinel_ui.simulation') }}"
        class="nav-item {% if 'sentinel' in (request.endpoint or '') %}active{% endif %}"
-       data-tip="Sentinel">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-        <path d="M13.73 21a2 2 0 01-3.46 0"/>
+       data-tip="Sentinel"
+       aria-label="Sentinel backtesting">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
       </svg>
     </a>
 
@@ -86,19 +99,20 @@
     <!-- Portfolio (Alpaca-gated) -->
     <a href="{{ url_for('main.portfolio') }}"
        class="nav-item {% if request.endpoint == 'main.portfolio' %}active{% endif %}"
-       data-tip="Portfolio">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+       data-tip="Portfolio"
+       aria-label="Portfolio">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="2" y="7" width="20" height="14" rx="2"/>
         <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
-        <line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
       </svg>
     </a>
 
     <!-- Trade (Alpaca-gated) -->
     <a href="{{ url_for('main.trade') }}"
        class="nav-item {% if request.endpoint == 'main.trade' %}active{% endif %}"
-       data-tip="Trade">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+       data-tip="Trade"
+       aria-label="Trade">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <line x1="12" y1="1" x2="12" y2="23"/>
         <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
       </svg>
@@ -106,21 +120,26 @@
     {% endif %}
 
     <div class="nav-spacer"></div>
-    <div class="nav-divider"></div>
+    <div class="nav-divider" role="separator"></div>
 
     <!-- Settings -->
     <a href="{{ url_for('main.settings') }}"
        class="nav-item {% if request.endpoint == 'main.settings' %}active{% endif %}"
-       data-tip="Settings">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+       data-tip="Settings"
+       aria-label="Settings">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="3"/>
         <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
       </svg>
     </a>
 
     <!-- Avatar -->
-    <a href="{{ url_for('main.settings') }}" class="nav-item" style="margin-top:4px;" data-tip="{{ current_user.username if current_user else 'Account' }}">
-      <div style="width:28px;height:28px;background:linear-gradient(135deg,#4c1d95,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;">
+    <a href="{{ url_for('main.settings') }}"
+       class="nav-item"
+       style="margin-top:4px;"
+       data-tip="{{ current_user.username if current_user else 'Account' }}"
+       aria-label="Account settings for {{ current_user.username if current_user else 'user' }}">
+      <div style="width:28px;height:28px;background:linear-gradient(135deg,#00C853,#f0c060);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#101010;letter-spacing:-0.5px;">
         {{ (current_user.username[0] | upper) if current_user else 'U' }}
       </div>
     </a>
@@ -131,47 +150,68 @@
   <div class="main-wrap">
 
     <!-- ─── TOPBAR ─────────────────────────── -->
-    <header class="topbar">
+    <header class="topbar" role="banner">
       <span class="topbar-title">{% block page_title %}Silicon Oracle{% endblock %}</span>
-      <div class="topbar-sep"></div>
+      <div class="topbar-sep" aria-hidden="true"></div>
 
       <!-- Ticker tape -->
-      <div class="ticker-tape" id="ticker-tape">
-        <div class="tape-item skeleton" style="width:80px;height:16px;border-radius:3px;"></div>
-        <div class="tape-item skeleton" style="width:80px;height:16px;border-radius:3px;"></div>
-        <div class="tape-item skeleton" style="width:80px;height:16px;border-radius:3px;"></div>
-        <div class="tape-item skeleton" style="width:80px;height:16px;border-radius:3px;"></div>
-        <div class="tape-item skeleton" style="width:80px;height:16px;border-radius:3px;"></div>
+      <div class="ticker-tape" id="ticker-tape" role="marquee" aria-label="Live market ticker">
+        <!-- Skeleton placeholders while loading -->
+        <div class="tape-item" style="gap:6px;">
+          <div class="skeleton" style="width:32px;height:11px;border-radius:2px;"></div>
+          <div class="skeleton" style="width:44px;height:11px;border-radius:2px;"></div>
+        </div>
+        <div class="tape-item" style="gap:6px;">
+          <div class="skeleton" style="width:32px;height:11px;border-radius:2px;"></div>
+          <div class="skeleton" style="width:44px;height:11px;border-radius:2px;"></div>
+        </div>
+        <div class="tape-item" style="gap:6px;">
+          <div class="skeleton" style="width:32px;height:11px;border-radius:2px;"></div>
+          <div class="skeleton" style="width:44px;height:11px;border-radius:2px;"></div>
+        </div>
+        <div class="tape-item" style="gap:6px;">
+          <div class="skeleton" style="width:28px;height:11px;border-radius:2px;"></div>
+          <div class="skeleton" style="width:44px;height:11px;border-radius:2px;"></div>
+        </div>
       </div>
 
       <!-- Smart Search -->
-      <div class="search-wrap" x-data="tickerSearch()">
-        <div class="search-icon">
+      <div class="search-wrap" x-data="tickerSearch()" role="search">
+        <div class="search-icon" aria-hidden="true">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
         </div>
-        <input
-          class="search-input"
-          type="text"
-          placeholder='Ticker or "nvidia"...'
-          x-model="query"
-          @input.debounce.300ms="search()"
-          @keydown.enter="navigate()"
-          @keydown.escape="close()"
-          @keydown.arrow-down.prevent="moveDown()"
-          @keydown.arrow-up.prevent="moveUp()"
-          @focus="if(query.length > 0) search()"
-          @blur.debounce.150ms="close()"
-          autocomplete="off"
-          spellcheck="false"
-        />
-        <div class="search-dropdown" x-show="open && results.length > 0" x-cloak>
+          <input
+            class="search-input"
+            type="search"
+            placeholder="Search ticker…"
+            x-model="query"
+            @input.debounce.150ms="search()"
+            @keydown.enter="navigate()"
+            @keydown.escape="close()"
+            @keydown.arrow-down.prevent="moveDown()"
+            @keydown.arrow-up.prevent="moveUp()"
+            @focus="if(query.length > 0) search()"
+            @blur.debounce.150ms="close()"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Search for a stock ticker"
+            aria-autocomplete="list"
+            :aria-expanded="open"
+          />
+        <div class="search-dropdown"
+             x-show="open && results.length > 0"
+             x-cloak
+             role="listbox"
+             aria-label="Search results">
           <template x-for="(r, i) in results" :key="r.ticker">
             <div
               class="search-result"
               :class="{ 'highlighted': i === selected }"
               @mousedown.prevent="goTo(r.ticker)"
+              role="option"
+              :aria-selected="i === selected"
             >
               <span class="sr-ticker" x-text="r.ticker"></span>
               <span class="sr-name"   x-text="r.name"></span>
@@ -182,54 +222,72 @@
       </div>
 
       <!-- Market status -->
-      <div class="mkt-badge" :class="isMarketOpen ? 'open' : 'closed'">
-        <div class="mkt-dot" :class="isMarketOpen ? 'open' : 'closed'"></div>
-        <span class="mkt-label" x-text="isMarketOpen ? 'MKT OPEN' : 'MKT CLOSED'"></span>
+      <div class="mkt-badge" :class="isMarketOpen ? 'open' : 'closed'" role="status" :aria-label="isMarketOpen ? 'Market open' : 'Market closed'">
+        <div class="mkt-dot" :class="isMarketOpen ? 'open' : 'closed'" aria-hidden="true"></div>
+        <span class="mkt-label" x-text="marketSession || (isMarketOpen ? 'OPEN' : 'CLOSED')"></span>
       </div>
 
       <!-- Clock -->
-      <span class="mono text-oracle-text-5 text-xs flex-shrink-0" x-text="clock" style="min-width:68px;text-align:right;"></span>
+      <span class="mono flex-shrink-0" style="font-size:11px;color:#787B86;min-width:64px;text-align:right;letter-spacing:0.3px;" x-text="clock" aria-live="off"></span>
     </header>
 
     <!-- ─── PAGE CONTENT ───────────────────── -->
-    <main class="page-content" id="page-content">
+    <main class="page-content" id="page-content" role="main">
       {% block content %}{% endblock %}
     </main>
 
   </div><!-- /.main-wrap -->
 
-  <!-- ─── MOBILE BOTTOM NAV (5-tab, Robinhood-style) ───── -->
-  <nav class="mobile-nav">
-    <a href="{{ url_for('main.index') }}" class="mobile-nav-item {% if request.endpoint in ['main.index','main.command_center'] %}active{% endif %}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+  <!-- ─── MOBILE BOTTOM NAV ─────────────────── -->
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <a href="{{ url_for('main.index') }}"
+       class="mobile-nav-item {% if request.endpoint in ['main.index','main.command_center'] %}active{% endif %}"
+       aria-label="Home">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="14" width="7" height="7" rx="1.5"/>
       </svg>
       <span>Home</span>
     </a>
-    <a href="{{ url_for('main.analysis') }}" class="mobile-nav-item {% if request.endpoint == 'main.analysis' %}active{% endif %}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+
+    <a href="{{ url_for('main.analysis') }}"
+       class="mobile-nav-item {% if request.endpoint == 'main.analysis' %}active{% endif %}"
+       aria-label="Chart analysis">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
       </svg>
       <span>Chart</span>
     </a>
-    <a href="{{ url_for('main.scanner') }}" class="mobile-nav-item {% if request.endpoint in ['main.scanner','main.watchlist','main.ai_guidance'] %}active{% endif %}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+
+    <a href="{{ url_for('main.scanner') }}"
+       class="mobile-nav-item {% if request.endpoint in ['main.scanner','main.watchlist','main.ai_guidance'] %}active{% endif %}"
+       aria-label="Scan stocks">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        <line x1="11" y1="8" x2="11" y2="14"/>
+        <line x1="8" y1="11" x2="14" y2="11"/>
       </svg>
       <span>Scan</span>
     </a>
-    <a href="{{ url_for('main.macro') }}" class="mobile-nav-item {% if request.endpoint == 'main.macro' %}active{% endif %}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+
+    <a href="{{ url_for('main.macro') }}"
+       class="mobile-nav-item {% if request.endpoint == 'main.macro' %}active{% endif %}"
+       aria-label="Macro intelligence">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="10"/>
         <line x1="2" y1="12" x2="22" y2="12"/>
         <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
       </svg>
       <span>Macro</span>
     </a>
-    <a href="{{ url_for('main.settings') }}" class="mobile-nav-item {% if request.endpoint == 'main.settings' %}active{% endif %}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+
+    <a href="{{ url_for('main.settings') }}"
+       class="mobile-nav-item {% if request.endpoint == 'main.settings' %}active{% endif %}"
+       aria-label="Settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="3"/>
         <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
       </svg>
@@ -238,41 +296,71 @@
   </nav>
 
   <!-- ─── TOAST ────────────────────────────── -->
-  <div class="toast" aria-live="polite">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    <template x-for="(t, i) in flashToasts" :key="i">
+  <div class="toast" aria-live="polite" aria-atomic="false">
+
+    <!-- Flash toasts from server -->
+    <template x-for="(t, i) in flashToasts" :key="'flash-'+i">
       <div class="toast-item" :class="t.type"
            x-show="t.show"
            x-transition:enter="transition ease-out duration-200"
-           x-transition:enter-start="opacity-0 translate-y-2"
-           x-transition:enter-end="opacity-100 translate-y-0"
+           x-transition:enter-start="opacity-0 translate-y-3 scale-95"
+           x-transition:enter-end="opacity-100 translate-y-0 scale-100"
            x-transition:leave="transition ease-in duration-150"
-           x-transition:leave-start="opacity-100"
-           x-transition:leave-end="opacity-0">
-        <span x-text="t.icon" style="font-size:14px;"></span>
-        <span x-text="t.message" style="flex:1;font-size:12px;"></span>
-        <button @click="t.show = false" style="color:#475569;background:none;border:none;cursor:pointer;padding:0;line-height:1;">✕</button>
+           x-transition:leave-start="opacity-100 scale-100"
+           x-transition:leave-end="opacity-0 scale-95"
+           role="alert">
+        <!-- Icon -->
+        <div style="flex-shrink:0;width:20px;height:20px;display:flex;align-items:center;justify-content:center;">
+          <template x-if="t.type === 'success'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00C853" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </template>
+          <template x-if="t.type === 'error'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </template>
+          <template x-if="t.type === 'info'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f0c060" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </template>
+        </div>
+        <span x-text="t.message" style="flex:1;font-size:13px;line-height:1.4;"></span>
+        <button @click="t.show = false"
+                style="color:#787B86;background:none;border:none;cursor:pointer;padding:2px;line-height:1;flex-shrink:0;"
+                aria-label="Dismiss notification">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
     </template>
-    {% endif %}
-    {% endwith %}
 
     <!-- Dynamic toasts -->
-    <template x-for="(t, i) in toasts" :key="i">
+    <template x-for="(t, i) in toasts" :key="'toast-'+i">
       <div class="toast-item" :class="t.type"
            x-show="t.show"
            x-transition:enter="transition ease-out duration-200"
-           x-transition:enter-start="opacity-0 translate-y-2"
-           x-transition:enter-end="opacity-100 translate-y-0"
+           x-transition:enter-start="opacity-0 translate-y-3 scale-95"
+           x-transition:enter-end="opacity-100 translate-y-0 scale-100"
            x-transition:leave="transition ease-in duration-150"
-           x-transition:leave-start="opacity-100"
-           x-transition:leave-end="opacity-0">
-        <span x-text="t.icon" style="font-size:14px;"></span>
-        <span x-text="t.message" style="flex:1;font-size:12px;"></span>
-        <button @click="t.show = false" style="color:#475569;background:none;border:none;cursor:pointer;padding:0;line-height:1;">✕</button>
+           x-transition:leave-start="opacity-100 scale-100"
+           x-transition:leave-end="opacity-0 scale-95"
+           role="alert">
+        <div style="flex-shrink:0;width:20px;height:20px;display:flex;align-items:center;justify-content:center;">
+          <template x-if="t.type === 'success'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00C853" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </template>
+          <template x-if="t.type === 'error'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </template>
+          <template x-if="t.type === 'info'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f0c060" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </template>
+        </div>
+        <span x-text="t.message" style="flex:1;font-size:13px;line-height:1.4;"></span>
+        <button @click="t.show = false"
+                style="color:#787B86;background:none;border:none;cursor:pointer;padding:2px;line-height:1;flex-shrink:0;"
+                aria-label="Dismiss notification">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
     </template>
+
   </div>
 
 </div><!-- /.app-shell -->
@@ -282,6 +370,7 @@
 function appShell() {
   return {
     isMarketOpen: false,
+    marketSession: null,
     clock: '',
     toasts: [],
     flashToasts: [],
@@ -313,38 +402,72 @@ function appShell() {
         const r = await fetch('/api/market/status');
         const d = await r.json();
         this.isMarketOpen = d.is_open || false;
-      } catch(e) { this.isMarketOpen = false; }
+        this.marketSession = d.session || null;
+      } catch(e) { this.isMarketOpen = false; this.marketSession = null; }
     },
 
     async loadTape() {
-      const symbols = ['SPY','QQQ','VIX','DXY','GLD','BTC-USD'];
       const tape = document.getElementById('ticker-tape');
       if (!tape) return;
 
+      // Use public macro-data endpoint for all tickers (no auth required)
       try {
-        const results = await Promise.allSettled(
-          symbols.map(s => fetch(`/api/stock/${s}/quote`).then(r => r.json()))
-        );
+        const macroRes = await fetch('/api/macro-data').then(r => r.json()).catch(() => ({}));
 
-        let html = '';
-        symbols.forEach((sym, i) => {
-          if (results[i].status !== 'fulfilled') return;
-          const d = results[i].value;
-          const price = d.current || d.price || 0;
-          const chg   = d.percent_change || 0;
-          const pos   = chg >= 0;
-          const label = sym === 'BTC-USD' ? 'BTC' : sym;
-          const fmt   = price > 999 ? price.toLocaleString('en-US', {maximumFractionDigits: 0})
-                                    : price.toFixed(2);
-          html += `
-            <a href="/analysis/${sym}" class="tape-item" style="text-decoration:none;">
-              <span class="tape-sym">${label}</span>
-              <span class="tape-price">${fmt}</span>
-              <span class="tape-chg ${pos ? 'pos' : 'neg'}">${pos ? '+' : ''}${chg.toFixed(2)}%</span>
-            </a>`;
-        });
+        const data = {
+          spy: macroRes.spy?.price || 0,
+          spyChg: macroRes.spy?.change || 0,
+          qqq: macroRes.qqq?.price || 0,
+          qqqChg: macroRes.qqq?.change || 0,
+          vix: macroRes.vix?.value || 0,
+          dxy: macroRes.dxy?.value || 0,
+          gld: macroRes.gold?.price || 0,
+          gldChg: macroRes.gold?.change || 0,
+          btc: macroRes.btc?.price || 0,
+          btcChg: macroRes.btc?.change || 0
+        };
+
+        const fmt = (p) => p > 999 ? p.toLocaleString('en-US', { maximumFractionDigits: 0 }) : p.toFixed(2);
+        const pos = (c) => c >= 0;
+        const pct = (c) => c >= 0 ? `+${c.toFixed(2)}%` : `${c.toFixed(2)}%`;
+
+        // VIX and DXY: show raw value (no percent), clickable to macro page
+        const vixHtml = `<span class="tape-chg" style="color:#B2B5BE;">${data.vix}</span>`;
+        const dxyHtml = `<span class="tape-chg" style="color:#B2B5BE;">${data.dxy}</span>`;
+
+        const html = `
+          <a href="/analysis/SPY" class="tape-item" style="text-decoration:none;">
+            <span class="tape-sym">SPY</span>
+            <span class="tape-price">${fmt(data.spy)}</span>
+            <span class="tape-chg" style="color:${pos(data.spyChg) ? '#00C853' : '#FF5252'};">${pct(data.spyChg)}</span>
+          </a>
+          <a href="/analysis/QQQ" class="tape-item" style="text-decoration:none;">
+            <span class="tape-sym">QQQ</span>
+            <span class="tape-price">${fmt(data.qqq)}</span>
+            <span class="tape-chg" style="color:${pos(data.qqqChg) ? '#00C853' : '#FF5252'};">${pct(data.qqqChg)}</span>
+          </a>
+          <a href="/macro" class="tape-item" style="text-decoration:none;">
+            <span class="tape-sym">VIX</span>
+            ${vixHtml}
+          </a>
+          <a href="/macro" class="tape-item" style="text-decoration:none;">
+            <span class="tape-sym">DXY</span>
+            ${dxyHtml}
+          </a>
+          <a href="/analysis/GLD" class="tape-item" style="text-decoration:none;">
+            <span class="tape-sym">GLD</span>
+            <span class="tape-price">${fmt(data.gld)}</span>
+            <span class="tape-chg" style="color:${pos(data.gldChg) ? '#00C853' : '#FF5252'};">${pct(data.gldChg)}</span>
+          </a>
+          <a href="/analysis/BTC-USD" class="tape-item" style="text-decoration:none;">
+            <span class="tape-sym">BTC</span>
+            <span class="tape-price">${fmt(data.btc)}</span>
+            <span class="tape-chg" style="color:${pos(data.btcChg) ? '#00C853' : '#FF5252'};">${pct(data.btcChg)}</span>
+          </a>`;
         tape.innerHTML = html;
-      } catch(e) {}
+      } catch(e) {
+        console.error('Tape load failed', e);
+      }
     },
 
     initFlashToasts() {
@@ -352,7 +475,6 @@ function appShell() {
       this.flashToasts = raw.map(([cat, msg]) => ({
         show: true,
         type: cat === 'success' ? 'success' : cat === 'error' ? 'error' : 'info',
-        icon: cat === 'success' ? '✓' : cat === 'error' ? '✕' : 'ℹ',
         message: msg,
       }));
       this.flashToasts.forEach((t, i) => {
@@ -361,12 +483,7 @@ function appShell() {
     },
 
     showToast(message, type = 'info') {
-      const t = {
-        show: true,
-        type,
-        icon: type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ',
-        message,
-      };
+      const t = { show: true, type, message };
       this.toasts.push(t);
       setTimeout(() => { t.show = false; }, 5000);
     },
@@ -411,14 +528,8 @@ function tickerSearch() {
     },
 
     close() { this.open = false; this.selected = -1; },
-
-    moveDown() {
-      if (this.selected < this.results.length - 1) this.selected++;
-    },
-
-    moveUp() {
-      if (this.selected > 0) this.selected--;
-    },
+    moveDown() { if (this.selected < this.results.length - 1) this.selected++; },
+    moveUp()   { if (this.selected > 0) this.selected--; },
   };
 }
 </script>

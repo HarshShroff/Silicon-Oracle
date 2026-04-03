@@ -3,63 +3,120 @@
 
 {% block content %}
 <div class="min-h-screen flex items-center justify-center px-4 py-12">
-    <div class="w-full max-w-sm">
+  <div class="w-full max-w-sm animate-fade-in">
 
-        <!-- Logo -->
-        <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-oracle-accent/20 border border-oracle-primary/30 mb-4">
-                <svg class="w-8 h-8 text-oracle-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                </svg>
-            </div>
-            <h1 class="text-2xl font-bold text-white tracking-tight">Silicon Oracle</h1>
-            <p class="text-xs text-oracle-border-strong font-mono mt-1">AI-Powered Market Intelligence</p>
-        </div>
-
-        <!-- Card -->
-        <div class="t-card">
-            <p class="text-sm font-semibold text-white mb-4">Sign In</p>
-            <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-3">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-                <div>
-                    <label class="section-label block mb-1" for="email">Email</label>
-                    <input type="email" name="email" id="email" placeholder="you@example.com" required autocomplete="email"
-                           class="t-input w-full">
-                </div>
-
-                <div>
-                    <label class="section-label block mb-1" for="password">Password</label>
-                    <input type="password" name="password" id="password" placeholder="••••••••" required autocomplete="current-password"
-                           class="t-input w-full">
-                </div>
-
-                <button type="submit" class="btn btn-primary w-full mt-1">Sign In</button>
-            </form>
-
-            <p class="text-center text-xs text-oracle-border-strong mt-4">
-                No account?
-                <a href="{{ url_for('auth.signup') }}" class="text-oracle-primary hover:text-oracle-accent transition-colors font-medium">Sign Up</a>
-            </p>
-        </div>
-
-        <!-- Feature strip -->
-        <div class="grid grid-cols-3 gap-2 mt-4 text-center">
-            <div class="py-2 px-1 bg-oracle-surface/60 rounded-lg border border-oracle-border">
-                <p class="text-[10px] text-oracle-border-strong font-mono">Real-Time</p>
-                <p class="text-[10px] text-white mt-0.5">Market Data</p>
-            </div>
-            <div class="py-2 px-1 bg-oracle-surface/60 rounded-lg border border-oracle-border">
-                <p class="text-[10px] text-oracle-border-strong font-mono">AI-Powered</p>
-                <p class="text-[10px] text-white mt-0.5">Analysis</p>
-            </div>
-            <div class="py-2 px-1 bg-oracle-surface/60 rounded-lg border border-oracle-border">
-                <p class="text-[10px] text-oracle-border-strong font-mono">Paper</p>
-                <p class="text-[10px] text-white mt-0.5">Trading</p>
-            </div>
-        </div>
-
-        <p class="text-center text-[10px] text-oracle-border font-mono mt-6">Silicon Oracle v2.0</p>
+    <!-- Logo & Branding -->
+    <div class="text-center mb-10">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-5"
+           style="background:linear-gradient(135deg,rgba(0,200,83,0.12),rgba(240,192,96,0.08));border:1px solid rgba(0,200,83,0.18);box-shadow:0 0 32px rgba(0,200,83,0.1);">
+        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="url(#logoGrad)" aria-hidden="true">
+          <defs>
+            <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#00C853"/>
+              <stop offset="100%" stop-color="#f0c060"/>
+            </linearGradient>
+          </defs>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <h1 class="text-3xl font-bold tracking-tight" style="color:#D1D4DC;letter-spacing:-0.5px;">Silicon Oracle</h1>
+      <p class="text-xs font-mono mt-2 tracking-[0.18em] uppercase" style="color:#787B86;">AI-Powered Market Intelligence</p>
     </div>
+
+    <!-- Sign-in card -->
+    <div class="rounded-2xl" style="background:#131722;border:1px solid #2A2E39;box-shadow:0 16px 48px rgba(0,0,0,0.5);">
+      <div class="px-7 py-6">
+        <p class="text-sm font-semibold mb-6" style="color:#8fa48c;">Sign in to your account</p>
+
+        <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-5" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <!-- Email -->
+          <div>
+            <label class="input-label" for="email">Email address</label>
+            <input type="email"
+                   name="email"
+                   id="email"
+                   placeholder="you@example.com"
+                   required
+                   autocomplete="email"
+                   class="t-input">
+          </div>
+
+          <!-- Password -->
+          <div>
+            <label class="input-label" for="password">Password</label>
+            <input type="password"
+                   name="password"
+                   id="password"
+                   placeholder="••••••••"
+                   required
+                   autocomplete="current-password"
+                   class="t-input">
+          </div>
+
+          <button type="submit"
+                  class="btn btn-primary w-full mt-1"
+                  style="justify-content:center;font-size:13px;padding:11px 16px;">
+            Sign In
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+
+      <!-- Divider -->
+      <div class="relative px-7 py-1" aria-hidden="true">
+        <div style="position:absolute;inset:0;display:flex;align-items:center;padding:0 28px;">
+          <div style="width:100%;border-top:1px solid #2A2E39;"></div>
+        </div>
+        <div class="relative flex justify-center">
+          <span class="px-3 text-xs" style="background:#131722;color:#787B86;font-family:'JetBrains Mono',monospace;">or</span>
+        </div>
+      </div>
+
+      <div class="px-7 pb-6 pt-3 space-y-3">
+        <!-- Demo button -->
+        <a href="{{ url_for('main.demo') }}"
+           class="btn btn-ghost w-full"
+           style="justify-content:center;gap:8px;font-size:12px;border:1px solid #00C853 !important;color:#00C853 !important;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          Try Live Demo
+        </a>
+
+        <p class="text-center text-xs" style="color:#787B86;">
+          No account?
+          <a href="{{ url_for('auth.signup') }}"
+             class="font-semibold transition-colors"
+             style="color:#00C853;"
+             onmouseover="this.style.color='#36c96a'"
+             onmouseout="this.style.color='#00C853'">
+            Create one free
+          </a>
+        </p>
+      </div>
+    </div>
+
+    <!-- Feature strip -->
+    <div class="grid grid-cols-3 gap-2 mt-4">
+      <div class="rounded-xl py-3 px-2 text-center" style="background:#0B0C0F;border:1px solid #2A2E39;">
+        <p class="text-xs font-mono mb-0.5" style="color:#787B86;letter-spacing:0.5px;">Real-Time</p>
+        <p class="text-xs font-medium" style="color:#8fa48c;">Market Data</p>
+      </div>
+      <div class="rounded-xl py-3 px-2 text-center" style="background:#0B0C0F;border:1px solid #2A2E39;">
+        <p class="text-xs font-mono mb-0.5" style="color:#787B86;letter-spacing:0.5px;">AI Oracle</p>
+        <p class="text-xs font-medium" style="color:#8fa48c;">Analysis</p>
+      </div>
+      <div class="rounded-xl py-3 px-2 text-center" style="background:#0B0C0F;border:1px solid #2A2E39;">
+        <p class="text-xs font-mono mb-0.5" style="color:#787B86;letter-spacing:0.5px;">Paper</p>
+        <p class="text-xs font-medium" style="color:#8fa48c;">Trading</p>
+      </div>
+    </div>
+
+    <p class="text-center mt-8" style="color:#787B86;font-size:10px;font-family:'JetBrains Mono',monospace;letter-spacing:1px;">SILICON ORACLE v2.0</p>
+  </div>
 </div>
 {% endblock %}

@@ -3,16 +3,19 @@
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-bold text-white">
-                👔 Insider Trading - <span class="text-oracle-primary" x-text="ticker"></span>
+                Insider Trading - <span class="text-oracle-primary" x-text="ticker"></span>
             </h2>
             <p class="text-sm text-gray-400 mt-1">Insiders know more than analysts - track what CEOs are doing</p>
         </div>
         <button
             @click="fetchInsiderTrades()"
-            class="px-4 py-2 bg-oracle-primary text-white rounded-md hover:bg-oracle-secondary transition text-sm"
+            class="px-4 py-2 bg-oracle-primary text-white rounded-md hover:bg-oracle-secondary transition text-sm flex items-center gap-2"
             :disabled="loading"
         >
-            <span x-show="!loading">🔄 Refresh</span>
+            <svg class="w-4 h-4" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span x-show="!loading">Refresh</span>
             <span x-show="loading">Loading...</span>
         </button>
     </div>
@@ -52,9 +55,9 @@
                  :class="clusterBuyDetected ? 'border-green-500' : 'border-transparent'">
                 <p class="text-2xl font-bold text-green-600" x-text="buyCount"></p>
                 <p class="text-xs text-gray-400">Buy Transactions</p>
-                <div x-show="clusterBuyDetected" class="mt-1">
-                    <span class="text-xs font-bold text-green-400">🔥 CLUSTER BUY</span>
-                </div>
+                        <div x-show="clusterBuyDetected" class="mt-1">
+                            <span class="text-xs font-bold text-green-400">CLUSTER BUY</span>
+                        </div>
             </div>
             <div class="bg-red-900/20 rounded-lg p-4 text-center">
                 <p class="text-2xl font-bold text-red-600" x-text="sellCount"></p>
@@ -65,7 +68,7 @@
                 <p class="text-xs text-gray-400">Total Value</p>
             </div>
             <div class="bg-purple-50 rounded-lg p-4 text-center">
-                <p class="text-2xl font-bold text-purple-600" x-text="sentiment"></p>
+                <p class="text-2xl font-bold text-purple-600" x-text="sentimentLabel"></p>
                 <p class="text-xs text-gray-400">Sentiment</p>
             </div>
         </div>
@@ -95,7 +98,7 @@
                         <div class="flex items-center space-x-2 mb-2">
                             <span class="px-2 py-1 text-xs font-semibold rounded"
                                   :class="trade.transaction === 'P-Purchase' || trade.transaction === 'A-Award' ? 'bg-green-100 text-green-400' : 'bg-red-100 text-red-400'">
-                                <span x-text="trade.transaction === 'P-Purchase' || trade.transaction === 'A-Award' ? '🟢 BUY' : '🔴 SELL'"></span>
+                                <span x-text="trade.transaction === 'P-Purchase' || trade.transaction === 'A-Award' ? 'BUY' : 'SELL'"></span>
                             </span>
                             <span class="text-sm font-bold text-white" x-text="trade.name"></span>
                         </div>
@@ -123,9 +126,9 @@
 
     <!-- Interpretation Guide -->
     <div class="mt-6 bg-oracle-card border-l-4 border-oracle-primary p-4">
-        <h4 class="text-sm font-bold text-blue-300 mb-2">📚 Insider Trading for Swing Traders</h4>
+        <h4 class="text-sm font-bold text-blue-300 mb-2">Insider Trading for Swing Traders</h4>
         <ul class="text-xs text-blue-400 space-y-1">
-            <li>• <strong>🔥 Cluster Buys = STRONG SIGNAL:</strong> 3+ insiders buying within 30 days is the <em>only</em> statistically significant bullish indicator. This suggests insider conviction.</li>
+            <li>• <strong>Cluster Buys = STRONG SIGNAL:</strong> 3+ insiders buying within 30 days is the <em>only</em> statistically significant bullish indicator. This suggests insider conviction.</li>
             <li>• <strong>Single Buys = Weak Signal:</strong> One insider buying could be personal reasons, not actionable for swing trades</li>
             <li>• <strong>Insider Selling = NOISE:</strong> Insiders sell for many reasons (taxes, buying a house, diversification). Selling is NOT a sell signal.</li>
             <li>• <strong>Time Mismatch:</strong> Insiders invest for years, you swing trade for days. Use cluster buys as a floor support indicator, not a timing signal.</li>
@@ -159,6 +162,13 @@ function insiderTracker() {
 
         get totalValue() {
             return this.trades.reduce((sum, t) => sum + Math.abs(t.value || 0), 0);
+        },
+
+        get sentimentLabel() {
+            if (this.clusterBuyDetected) return 'Strong Buy';
+            if (this.buyCount > this.sellCount * 2) return 'Bullish';
+            if (this.sellCount > this.buyCount * 2) return 'Bearish';
+            return 'Neutral';
         },
 
         get sentiment() {

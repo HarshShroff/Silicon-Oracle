@@ -5,17 +5,18 @@ BYOK (Bring Your Own Keys) - Users must provide their own API keys.
 """
 
 from datetime import datetime
+
 from flask import (
     Blueprint,
+    current_app,
+    flash,
+    redirect,
     render_template,
     request,
-    redirect,
-    url_for,
-    flash,
     session,
-    jsonify,
-    current_app,
+    url_for,
 )
+
 from utils import database as db
 
 auth_bp = Blueprint("auth", __name__)
@@ -53,8 +54,7 @@ def login():
 
             # Authenticate with Supabase
             try:
-                res = client.auth.sign_in_with_password(
-                    {"email": email, "password": password})
+                res = client.auth.sign_in_with_password({"email": email, "password": password})
                 user = res.user
 
                 if user:
@@ -69,7 +69,10 @@ def login():
                     # Check if user has API keys configured
                     api_keys = db.get_user_api_keys(user.id, decrypt=True)
                     if not api_keys.get("FINNHUB_API_KEY"):
-                        flash("Welcome back! Please configure your API keys to use all features.", "info")
+                        flash(
+                            "Welcome back! Please configure your API keys to use all features.",
+                            "info",
+                        )
                         return redirect(url_for("main.settings"))
 
                     flash("Welcome back!", "success")
@@ -106,8 +109,8 @@ def signup():
         if not email or "@" not in email:
             errors.append("Please enter a valid email address")
 
-        if not password or len(password) < 6:
-            errors.append("Password must be at least 6 characters")
+        if not password or len(password) < 12:
+            errors.append("Password must be at least 12 characters")
 
         if password != confirm_password:
             errors.append("Passwords do not match")
@@ -157,7 +160,7 @@ def signup():
             if "already registered" in error_msg or "duplicate" in error_msg:
                 flash("This email is already registered. Please log in instead.", "error")
             else:
-                flash(f"Error creating account. Please try again.", "error")
+                flash("Error creating account. Please try again.", "error")
             return render_template("pages/signup.html", email=email, username=username)
 
     return render_template("pages/signup.html", email="", username="")

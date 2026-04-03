@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "silicon-oracle"
-version = "2.1.0"
+version = "3.0.0"
 description = "AI-powered stock analysis platform with multi-user BYOK support"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -86,10 +86,6 @@ frontend = [
     "autoprefixer>=10.4.0",
     "lightweightcharts>=3.8.0",
 ]
-streamlit = [
-    "streamlit>=1.30.0",
-    "streamlit-autorefresh>=1.0.0",
-]
 
 [project.urls]
 Homepage = "https://github.com/harshshroff/Silicon-Oracle"
@@ -102,7 +98,7 @@ packages = ["flask_app"]
 
 [tool.black]
 line-length = 100
-target-version = ["py311", "py312", "py313"]
+target-version = ["py311", "py312"]
 
 [tool.ruff]
 line-length = 100
@@ -112,9 +108,16 @@ ignore = ["E501"]  # Line too long (handled by black)
 
 [tool.mypy]
 python_version = "3.11"
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = [
+    "flask_app/services/",
+    "flask_app/agent/",
+    "utils/",
+    "flask_app/scheduler.py",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

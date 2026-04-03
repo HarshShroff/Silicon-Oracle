@@ -6,12 +6,13 @@ Run this to start the Flask web application.
 Usage:
     python run_flask.py
 
-The app will be available at: http://localhost:5000
+The app will be available at: http://localhost:5001
 """
 
-from flask_app import create_app
 import os
 import sys
+
+from flask_app import create_app
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -19,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Load .env file if it exists
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
     print("✓ Loaded environment variables from .env")
 except ImportError:
@@ -32,6 +34,7 @@ except Exception as e:
 # Load secrets into environment variables for shared utilities
 try:
     from flask_app.config import load_streamlit_secrets
+
     secrets = load_streamlit_secrets()
 
     # Map specifically Supabase keys for utils.database
@@ -49,15 +52,15 @@ try:
 except Exception as e:
     print(f"Warning: Could not load secrets into environment: {e}")
 
-app = create_app(os.environ.get('FLASK_ENV', 'development'))
+app = create_app(os.environ.get("FLASK_ENV", "development"))
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Run the development server
     # Note: Use gunicorn for production deployment
-    is_production = os.environ.get('FLASK_ENV') == 'production'
+    is_production = os.environ.get("FLASK_ENV") == "production"
     app.run(
-        host='0.0.0.0',
-        port=int(os.environ.get('PORT', 5001)),
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5001)),
         debug=not is_production,
-        threaded=True
+        threaded=True,
     )
