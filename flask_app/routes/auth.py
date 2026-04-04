@@ -161,6 +161,14 @@ def login():
                 user = res.user
 
                 if user:
+                    # Block unconfirmed accounts
+                    if user.confirmed_at is None:
+                        flash(
+                            "Please confirm your email address before logging in. Check your inbox for the confirmation link.",
+                            "error",
+                        )
+                        return render_template("pages/login.html")
+
                     # Set up persistent session (email stored for fallback)
                     setup_user_session(user.id, email=email)
 
@@ -238,40 +246,37 @@ def signup():
             user = res.user
 
             if user:
-                # Set up persistent session immediately
-                setup_user_session(user.id, email=email)
-
-                # Try to create/update profile with username
-                # Note: Supabase trigger may have already created the profile
+                # Create profile now (before confirmation) so username is saved
                 profile = db.get_user_profile(user.id)
                 if profile:
-                    # Profile exists (from trigger), update with username
                     db.update_user_profile(user.id, {"username": username})
                 else:
-                    # Create new profile
                     db.create_user_profile(user_id=user.id, email=email, username=username)
 
-                flash(
-                    "Account created! Please configure your API keys (BYOK - Bring Your Own Keys).",
-                    "success",
-                )
-                # Always redirect to settings for BYOK setup
-                return redirect(url_for("main.settings"))
+                # Check if Supabase requires email confirmation
+                # user.confirmed_at is None when email confirmation is enabled
+                if user.confirmed_at is None:
+                    flash(
+                        "Account created! Check your email and click the confirmation link to activate your account.",
+                        "success",
+                    )
+                    return redirect(url_for("auth.login"))
+                else:
+                    # Email confirmation disabled — log in immediately
+                    setup_user_session(user.id, email=email)
+                    flash(
+                        "Account created! Please configure your API keys (BYOK - Bring Your Own Keys).",
+                        "success",
+                    )
+                    return redirect(url_for("main.settings"))
             else:
                 flash("Signup failed. Email may already be registered.", "error")
 
         except Exception as e:
             current_app.logger.error(f"Signup exception: {e}")
-            # Check for common errors
             error_msg = str(e).lower()
             if "already registered" in error_msg or "duplicate" in error_msg:
                 flash("This email is already registered. Please log in instead.", "error")
-            elif "confirmation email" in error_msg or "email" in error_msg and "send" in error_msg:
-                flash(
-                    "Account created but confirmation email failed. "
-                    "Disable email confirmation in Supabase dashboard or configure SMTP.",
-                    "error",
-                )
             else:
                 flash("Error creating account. Please try again.", "error")
             return render_template("pages/signup.html", email=email, username=username)
