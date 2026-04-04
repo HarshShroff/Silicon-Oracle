@@ -8,7 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- (Features coming in next release)
+- **Email validation on signup**: format check, disposable domain block (mailinator, yopmail, etc.), and MX record lookup — fake/nonexistent domains are rejected before account creation. Inline frontend feedback debounced at 700 ms.
+- **US-only ticker enforcement**: non-US exchange suffixes (`.NS`, `.BO`, `.L`, `.DE`, etc.) are rejected at all API entry points with a clear error message.
+- **SPY benchmark label**: home page chart now shows a `SPY · benchmark` pill when no sentinel portfolio history exists yet.
+
+### Fixed
+- `SUPABASE_SERVICE_KEY` validation — non-JWT values (e.g. `sb_secret_*`) are detected and rejected with a warning, preventing silent RLS failures.
+- `update_user_profile` now logs when UPDATE matches 0 rows (missing profile row).
+- `save_user_api_keys` self-heals a missing profile row via admin API before updating.
+
+### Performance
+- `--preload` added to gunicorn: app initialises once before workers fork, eliminating per-request cold start.
+- DB migrations moved to a background daemon thread — no longer block server startup.
+- `pip3.11` used explicitly in Render build command.
 
 ---
 

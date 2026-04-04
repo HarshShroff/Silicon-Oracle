@@ -16,7 +16,20 @@ Login with email and password.
 ### POST /auth/signup
 Create a new account.
 
-**Body:** `{ "email": string, "password": string, "username": string }`
+**Body:** `{ "email": string, "password": string, "username": string, "confirm_password": string }`
+
+Email is validated server-side: format check, disposable domain block, and MX record lookup. Only US-listed stock tickers (NYSE/NASDAQ) are supported throughout the app.
+
+### POST /auth/validate-email
+AJAX endpoint. Validates an email address before form submission.
+
+**Body:** `{ "email": string }`
+
+**Response:**
+```json
+{ "valid": true, "error": "" }
+{ "valid": false, "error": "The domain 'example.xyz' doesn't appear to accept email." }
+```
 
 ### GET /auth/logout
 Ends the current session and redirects to `/auth/login`.
