@@ -18,10 +18,16 @@ Create a new account.
 
 **Body:** `{ "email": string, "password": string, "username": string, "confirm_password": string }`
 
-Email is validated server-side: format check, disposable domain block, and MX record lookup. Only US-listed stock tickers (NYSE/NASDAQ) are supported throughout the app.
+**Validation (server-side):**
+- Username ≥ 3 characters
+- Password ≥ 12 characters
+- Email format, disposable domain block, MX record lookup
+- Duplicate email check against `user_profiles` table
+
+When email confirmation is enabled in Supabase, the user is redirected to login with a "check your inbox" message — no session is created until confirmed.
 
 ### POST /auth/validate-email
-AJAX endpoint. Validates an email address before form submission.
+Public AJAX endpoint. Validates an email address in real time before form submission.
 
 **Body:** `{ "email": string }`
 
@@ -30,6 +36,15 @@ AJAX endpoint. Validates an email address before form submission.
 { "valid": true, "error": "" }
 { "valid": false, "error": "The domain 'example.xyz' doesn't appear to accept email." }
 ```
+
+**Checks performed:** regex format → disposable domain blocklist → MX DNS record.
+
+### POST /auth/login
+Login with email and password. Returns a session cookie on success.
+
+**Body (form):** `email`, `password`
+
+Unconfirmed accounts are blocked with a clear message. Redirects to `/settings` if no Finnhub key is configured.
 
 ### GET /auth/logout
 Ends the current session and redirects to `/auth/login`.

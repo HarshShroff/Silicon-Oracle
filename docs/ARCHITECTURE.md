@@ -118,6 +118,17 @@ Each user provides and stores their own API keys (Finnhub, Alpaca, Gemini, Gmail
 - The app operator never needs API keys for market data or AI
 - Users have full control over their API quota
 
+### Auth & Signup Validation
+Signup enforces three layers before creating an account:
+1. **Format + length** — username ≥ 3 chars, password ≥ 12, email regex
+2. **Email quality** — disposable domain blocklist (35+ services) + MX DNS record lookup via `dnspython`
+3. **Duplicate check** — queries `user_profiles` before calling Supabase auth (Supabase silently reuses existing users on duplicate when confirmation is enabled)
+
+When email confirmation is enabled in Supabase, no session is created on signup — the user must click the confirmation link first.
+
+### US-Only Ticker Constraint
+All user-facing ticker inputs in `api.py` are validated against a set of known non-US exchange suffixes (`.NS`, `.BO`, `.L`, `.DE`, `.HK`, etc.) and rejected with a clear error. The app relies on Finnhub (US-only on free tier) and Alpaca (US equities only) — non-US tickers would silently return empty data.
+
 ### Service Layer
 All business logic lives in `flask_app/services/`. Routes are thin — they validate input, call services, and return responses. Services are stateless and instantiated per-request where possible, or held as module-level singletons for connection-heavy clients (Finnhub, Alpaca).
 
@@ -144,6 +155,7 @@ Flask-Caching with in-memory backend (configurable to Redis). Cache keys for API
 User clicks "Analyze AAPL"
   → GET /api/stock/analysis?ticker=AAPL
   → api.py route handler
+  → _is_non_us_ticker("AAPL") → False (passes)
   → OracleService.calculate_oracle_score("AAPL")
       → StockService.get_complete_data("AAPL")  [parallel via ThreadPoolExecutor]
           → Finnhub quote

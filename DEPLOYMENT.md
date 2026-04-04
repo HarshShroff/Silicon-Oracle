@@ -43,12 +43,15 @@ In Render Dashboard → Your Service → Environment:
 
 ** Good news!** The `render.yaml` auto-configures everything. You only need environment variables if:
 
-1. **Using Supabase for database** (optional - for persistent PostgreSQL instead of SQLite):
+1. **Using Supabase for database** (required for multi-user production use):
 ```
 SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_key
+SUPABASE_SERVICE_KEY=your_service_role_jwt   # Must be a JWT (eyJ...), NOT sb_secret_*
+SUPABASE_ANON_KEY=your_anon_key              # Fallback only — subject to RLS
 DATABASE_URL=postgresql://...
 ```
+
+> **Important:** Always set `SUPABASE_SERVICE_KEY` to the **service_role** JWT from Supabase Dashboard → Settings → API. The anon key cannot perform server-side writes due to Row Level Security.
 
 ** You do NOT need to add API keys here!**
 
@@ -69,13 +72,14 @@ Your app uses **BYOK (Bring Your Own Keys)** architecture:
 
 1. Visit your deployed URL (e.g., `https://silicon-oracle-xxx.onrender.com`)
 2. Click **"Sign Up"** to create your account
-3. After login, go to **Settings** page
+3. Check your email and click the confirmation link to activate your account
+4. Log in, then go to **Settings** page
 4. Add YOUR personal API keys (each user adds their own):
    - **Finnhub API Key** (required) - Get free at https://finnhub.io
    - **Alpaca Keys** (optional) - Get free at https://alpaca.markets
    - **Gemini API Key** (optional) - Get free at https://ai.google.dev
 5. Save keys (they're encrypted and stored securely in your user profile)
-6. Start trading! 
+6. Start trading!
 
 **Why BYOK (Bring Your Own Keys)?**
 -  No shared rate limits - your keys, your quota
@@ -107,10 +111,11 @@ railway up
 3. Add environment variables (only if using Supabase database):
 ```bash
 railway variables set FLASK_ENV=production
-# Only add these if using Supabase for database:
+# Supabase (required for production):
 railway variables set SUPABASE_URL=your_url
-railway variables set SUPABASE_ANON_KEY=your_key
-# Note: API keys NOT needed - users add their own after signup!
+railway variables set SUPABASE_SERVICE_KEY=your_service_role_jwt
+railway variables set DATABASE_URL=postgresql://...
+# Note: user API keys NOT needed here — users add their own after signup (BYOK)
 ```
 
 4. Open your app:

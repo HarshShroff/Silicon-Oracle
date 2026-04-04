@@ -8,14 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Email validation on signup**: format check, disposable domain block (mailinator, yopmail, etc.), and MX record lookup — fake/nonexistent domains are rejected before account creation. Inline frontend feedback debounced at 700 ms.
-- **US-only ticker enforcement**: non-US exchange suffixes (`.NS`, `.BO`, `.L`, `.DE`, etc.) are rejected at all API entry points with a clear error message.
-- **SPY benchmark label**: home page chart now shows a `SPY · benchmark` pill when no sentinel portfolio history exists yet.
+- **Email validation on signup**: format check, disposable domain block (mailinator, yopmail, 35+ services), and MX record DNS lookup — fake/nonexistent domains rejected before account creation. Inline frontend feedback debounced at 700 ms via `/auth/validate-email`.
+- **Email confirmation required**: users must verify their email before they can log in (Supabase confirmation flow). Unconfirmed login attempts show a clear error.
+- **Duplicate email check**: signup checks `user_profiles` before calling Supabase auth, giving an explicit "already registered" message instead of a silent no-op.
+- **US-only ticker enforcement**: non-US exchange suffixes (`.NS`, `.BO`, `.L`, `.DE`, etc.) are rejected at all API entry points with a clear error.
+- **SPY benchmark label**: home page chart shows a `SPY · benchmark` pill when no sentinel portfolio history exists yet.
 
 ### Fixed
-- `SUPABASE_SERVICE_KEY` validation — non-JWT values (e.g. `sb_secret_*`) are detected and rejected with a warning, preventing silent RLS failures.
-- `update_user_profile` now logs when UPDATE matches 0 rows (missing profile row).
+- `SUPABASE_SERVICE_KEY` validation — non-JWT values (e.g. `sb_secret_*`) are detected and rejected with a clear warning, falling back to anon key with an RLS notice.
+- `update_user_profile` logs when UPDATE matches 0 rows (missing profile row).
 - `save_user_api_keys` self-heals a missing profile row via admin API before updating.
+- Password placeholder corrected to "Min 12 characters".
+- Dot-stripping middleware no longer corrupts exchange suffixes in query params.
 
 ### Performance
 - `--preload` added to gunicorn: app initialises once before workers fork, eliminating per-request cold start.
