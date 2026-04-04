@@ -30,6 +30,53 @@ from flask_app.services.scanner_service import WATCHLISTS
 logger = logging.getLogger(__name__)
 api_bp = Blueprint("api", __name__)
 
+# Exchange suffixes that indicate a non-US listed security
+_NON_US_SUFFIXES = {
+    # Asia-Pacific
+    ".NS",
+    ".BO",  # NSE / BSE (India)
+    ".HK",
+    ".SS",
+    ".SZ",  # Hong Kong, Shanghai, Shenzhen
+    ".T",  # Tokyo
+    ".KS",
+    ".KQ",  # Korea
+    ".AX",  # ASX (Australia)
+    ".NZ",  # New Zealand
+    ".SI",  # Singapore
+    # Europe
+    ".L",  # London
+    ".DE",
+    ".F",
+    ".BE",
+    ".MU",
+    ".DU",
+    ".HM",
+    ".HA",  # Germany
+    ".PA",  # Euronext Paris
+    ".AS",  # Amsterdam
+    ".BR",  # Brussels
+    ".MC",  # Madrid
+    ".MI",  # Milan
+    ".SW",  # Swiss
+    ".ST",  # Stockholm
+    ".OL",  # Oslo
+    ".CO",  # Copenhagen
+    ".HE",  # Helsinki
+    # Other
+    ".SA",  # Brazil (B3)
+    ".MX",  # Mexico
+    ".JO",  # Johannesburg
+    ".TA",  # Tel Aviv
+    ".IS",  # Istanbul
+}
+
+
+def _is_non_us_ticker(ticker: str) -> bool:
+    """Return True if the ticker has a known non-US exchange suffix."""
+    upper = ticker.upper()
+    return any(upper.endswith(suffix.upper()) for suffix in _NON_US_SUFFIXES)
+
 
 def api_login_required(f):
     """Decorator to require authentication for API endpoints."""
@@ -531,6 +578,8 @@ def demo_chart(ticker):
     import yfinance as yf
 
     ticker = ticker.upper()[:10]
+    if _is_non_us_ticker(ticker):
+        return jsonify({"error": "Only US-listed tickers are supported (NYSE/NASDAQ)."}), 400
     period = request.args.get("period", "3mo")
     candle = request.args.get("candle", "false").lower() == "true"
     allowed_periods = {"1mo", "3mo", "6mo", "1y", "ytd"}
@@ -575,6 +624,8 @@ def demo_oracle(ticker):
     import yfinance as yf
 
     ticker = ticker.upper()[:10]
+    if _is_non_us_ticker(ticker):
+        return jsonify({"error": "Only US-listed tickers are supported (NYSE/NASDAQ)."}), 400
     try:
         t = yf.Ticker(ticker)
         hist = t.history(period="6mo", interval="1d")
@@ -688,6 +739,8 @@ def demo_news(ticker):
     import yfinance as yf
 
     ticker = ticker.upper()[:10]
+    if _is_non_us_ticker(ticker):
+        return jsonify({"error": "Only US-listed tickers are supported (NYSE/NASDAQ)."}), 400
     try:
         t = yf.Ticker(ticker)
         news = t.news or []
@@ -721,6 +774,8 @@ def demo_technicals(ticker):
     import yfinance as yf
 
     ticker = ticker.upper()[:10]
+    if _is_non_us_ticker(ticker):
+        return jsonify({"error": "Only US-listed tickers are supported (NYSE/NASDAQ)."}), 400
     try:
         hist = yf.Ticker(ticker).history(period="6mo", interval="1d")
         if hist.empty:
@@ -1039,6 +1094,8 @@ def add_ticker_to_watchlist():
         return jsonify({"error": "Watchlist not found"}), 404
 
     ticker = ticker.upper()
+    if _is_non_us_ticker(ticker):
+        return jsonify({"error": "Only US-listed tickers are supported (NYSE/NASDAQ)."}), 400
     if ticker not in session["user_watchlists"][name]["tickers"]:
         session["user_watchlists"][name]["tickers"].append(ticker)
 
@@ -1366,6 +1423,9 @@ def submit_order():
 
     if not all([ticker, qty, side]):
         return jsonify({"error": "Missing required fields"}), 400
+
+    if _is_non_us_ticker(ticker):
+        return jsonify({"error": "Only US-listed tickers are supported (NYSE/NASDAQ)."}), 400
 
     trading_service = TradingService(get_config())
     if not trading_service.is_connected():
