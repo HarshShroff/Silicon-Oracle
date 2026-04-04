@@ -6,11 +6,12 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Flask](https://img.shields.io/badge/Flask-3.0+-green.svg)](https://flask.palletsprojects.com/)
+[![Tests](https://github.com/HarshShroff/Silicon-Oracle/actions/workflows/tests.yml/badge.svg)](https://github.com/HarshShroff/Silicon-Oracle/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/HarshShroff/Silicon-Oracle/branch/main/graph/badge.svg)](https://codecov.io/gh/HarshShroff/Silicon-Oracle)
 
-> A professional trading platform combining real-time market data, AI-powered analysis, and paper trading in a sleek, modern interface. Built with Flask, powered by Gemini AI, and deployed for free on Render.
-> A personal full-stack financial engineering project demonstrating Cloud Architecture, Python, and Generative AI.
+> A full-stack trading intelligence platform — real-time market data, a 15-factor AI Oracle scoring engine, paper trading, and automated Gemini-powered email alerts. **Free to deploy. Use your own API keys.**
 
-**[Live Demo →](https://silicon-oracle.onrender.com/demo)** — Try it without an account.
+**[🎬 Live Demo →](https://silicon-oracle.onrender.com/demo)** — Try it without an account. &nbsp;|&nbsp; **[📦 Deploy in 15 min →](#-quick-deploy-15-minutes)**
 
 **DISCLAIMER:** This is an educational project for portfolio demonstration purposes. Not financial advice. See [DISCLAIMER.md](DISCLAIMER.md) for full details.
 

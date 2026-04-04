@@ -34,7 +34,14 @@ jobs:
       run: black --check flask_app/ tests/ || true
 
     - name: Run pytest
-      run: pytest tests/ -v --tb=short || true
+      run: pytest tests/ -v --tb=short --cov=flask_app --cov-report=xml || true
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage.xml
+        flags: unittests
+        fail_ci_if_error: false
 
   security:
     runs-on: ubuntu-latest
