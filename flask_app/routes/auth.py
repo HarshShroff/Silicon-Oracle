@@ -4,13 +4,15 @@ Database-backed authentication with signup and API key management.
 BYOK (Bring Your Own Keys) - Users must provide their own API keys.
 """
 
+import re
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Tuple
 
 from flask import (
     Blueprint,
     current_app,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -22,6 +24,95 @@ from utils import database as db
 
 auth_bp = Blueprint("auth", __name__)
 
+# Disposable email domains to block
+_DISPOSABLE_DOMAINS = {
+    "mailinator.com",
+    "guerrillamail.com",
+    "guerrillamail.net",
+    "guerrillamail.org",
+    "guerrillamail.biz",
+    "guerrillamail.de",
+    "guerrillamail.info",
+    "sharklasers.com",
+    "guerrillamailblock.com",
+    "grr.la",
+    "guerrillamail.com",
+    "spam4.me",
+    "trashmail.com",
+    "trashmail.me",
+    "trashmail.net",
+    "trashmail.at",
+    "trashmail.io",
+    "trashmail.org",
+    "dispostable.com",
+    "yopmail.com",
+    "yopmail.fr",
+    "cool.fr.nf",
+    "jetable.fr.nf",
+    "nospam.ze.tc",
+    "nomail.xl.cx",
+    "mega.zik.dj",
+    "speed.1s.fr",
+    "courriel.fr.nf",
+    "moncourrier.fr.nf",
+    "monemail.fr.nf",
+    "monmail.fr.nf",
+    "tempmail.com",
+    "temp-mail.org",
+    "throwam.com",
+    "throwam.net",
+    "fakeinbox.com",
+    "maildrop.cc",
+    "mailnull.com",
+    "spamgourmet.com",
+    "10minutemail.com",
+    "10minutemail.net",
+    "10minutemail.org",
+    "minutemail.com",
+    "discard.email",
+    "cuvox.de",
+    "dayrep.com",
+    "einrot.com",
+    "fleckens.hu",
+    "gustr.com",
+    "jourrapide.com",
+    "rhyta.com",
+    "superrito.com",
+    "teleworm.us",
+}
+
+
+def _validate_email(email: str) -> Tuple[bool, str]:
+    """
+    Validate email address:
+    1. Basic format check
+    2. Disposable domain block
+    3. MX record lookup (domain has real mail servers)
+    Returns (is_valid, error_message).
+    """
+    email = email.strip().lower()
+
+    # 1. Format
+    pattern = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
+    if not pattern.match(email):
+        return False, "Please enter a valid email address."
+
+    domain = email.split("@")[1]
+
+    # 2. Disposable domains
+    if domain in _DISPOSABLE_DOMAINS:
+        return False, "Disposable email addresses are not allowed."
+
+    # 3. MX record check
+    try:
+        import dns.resolver
+
+        dns.resolver.resolve(domain, "MX")
+    except Exception:
+        return False, f"The domain '{domain}' doesn't appear to accept email."
+
+    return True, ""
+
 
 def setup_user_session(user_id: str, email: Optional[str] = None):
     """Set up a persistent user session across all tabs."""
@@ -30,6 +121,17 @@ def setup_user_session(user_id: str, email: Optional[str] = None):
         session["user_email"] = email
     session["logged_in_at"] = datetime.now().isoformat()
     session.permanent = True  # Use PERMANENT_SESSION_LIFETIME from config
+
+
+@auth_bp.route("/validate-email", methods=["POST"])
+def validate_email():
+    """AJAX endpoint — check email format, disposable domain, and MX record."""
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip().lower()
+    if not email:
+        return jsonify({"valid": False, "error": "Email is required."})
+    valid, error = _validate_email(email)
+    return jsonify({"valid": valid, "error": error})
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
@@ -107,8 +209,12 @@ def signup():
         if not username or len(username) < 3:
             errors.append("Username must be at least 3 characters")
 
-        if not email or "@" not in email:
+        if not email:
             errors.append("Please enter a valid email address")
+        else:
+            valid, email_error = _validate_email(email)
+            if not valid:
+                errors.append(email_error)
 
         if not password or len(password) < 12:
             errors.append("Password must be at least 12 characters")
