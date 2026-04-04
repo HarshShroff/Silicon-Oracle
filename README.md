@@ -434,6 +434,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
+##  Contact
+
+**Harsh Shroff**
+
+- **Email**: harsh.shroff@vitg.us
+- **LinkedIn**: [linkedin.com/in/harshroff](https://linkedin.com/in/harshroff)
+- **GitHub**: [@HarshShroff](https://github.com/HarshShroff)
+- **Issues**: [GitHub Issues](https://github.com/HarshShroff/Silicon-Oracle/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/HarshShroff/Silicon-Oracle/discussions)
+
+---
+
 <div align="center">
 
 **Built with  by traders, for traders**

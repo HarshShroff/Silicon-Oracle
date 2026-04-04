@@ -19,8 +19,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create directory for SQLite database
-RUN mkdir -p /app/instance
+# Create non-root user and set ownership
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \
+    && mkdir -p /app/instance \
+    && chown -R appuser:appgroup /app
+
+USER appuser
 
 # Expose port
 EXPOSE 5001
