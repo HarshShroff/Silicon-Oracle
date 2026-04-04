@@ -41,7 +41,21 @@ def get_supabase_client():
         # run_flask.py already maps streamlit secrets → env vars at startup,
         # so env vars are the single source of truth here.
         url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+        service_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+        anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+
+        # Service key must be a JWT (starts with eyJ). Reject non-JWT values.
+        if service_key and service_key.startswith("eyJ"):
+            key = service_key
+            logger.info("Supabase: using service role key (RLS bypassed)")
+        elif anon_key:
+            key = anon_key
+            logger.warning(
+                "Supabase: using anon key — RLS applies. "
+                "Set SUPABASE_SERVICE_KEY to a valid JWT for server-side writes."
+            )
+        else:
+            key = None
 
         if url and key:
             _supabase_client = create_client(url, key)
@@ -210,10 +224,11 @@ def update_user_profile(user_id: str, data: Dict[str, Any]) -> bool:
         return False
 
     try:
-        data["id"] = user_id
-        logger.info(f"Upserting profile for user {user_id} with keys: {list(data.keys())}")
-        response = client.table("user_profiles").upsert(data).execute()
-        logger.info(f"Profile upsert response: {response}")
+        response = client.table("user_profiles").update(data).eq("id", user_id).execute()
+        if not response.data:
+            logger.warning(
+                f"update_user_profile: no rows matched for user_id={user_id} — profile may not exist"
+            )
         return True
     except Exception as e:
         logger.error(f"Error updating profile for {user_id}: {e}")
@@ -233,6 +248,23 @@ def save_user_api_keys(user_id: str, api_keys: Dict[str, str]) -> bool:
             elif key.endswith("_encrypted"):
                 # Already encrypted, pass through
                 encrypted_keys[key] = value
+
+        # Ensure profile row exists before updating (handles signup race condition)
+        profile = get_user_profile(user_id)
+        if not profile:
+            logger.warning(f"No profile found for {user_id} when saving API keys — creating one")
+            client = get_supabase_client()
+            email = ""
+            if client:
+                try:
+                    user_data = client.auth.admin.get_user_by_id(user_id)
+                    email = (user_data.user.email or "") if (user_data and user_data.user) else ""
+                except Exception as admin_err:
+                    logger.warning(f"Could not fetch email from admin API: {admin_err}")
+            if not email:
+                logger.error(f"Cannot create profile for {user_id}: no email available")
+                return False
+            create_user_profile(user_id, email)
 
         return update_user_profile(user_id, encrypted_keys)
     except Exception as e:
