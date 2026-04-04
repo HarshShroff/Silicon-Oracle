@@ -7,7 +7,6 @@ import os
 import sys
 
 from flask import Flask, flash, g, redirect, request, session, url_for
-from werkzeug.datastructures import ImmutableMultiDict
 
 from flask_app.extensions import cache, csrf, limiter
 
@@ -73,13 +72,18 @@ def create_app(config_name=None):
     except Exception as e:
         app.logger.warning(f"Scheduler initialization failed: {e}")
 
-    # Run DB migrations (adds missing columns — idempotent)
-    try:
-        from utils.database import run_migrations
+    # Run DB migrations in background so they don't block startup
+    import threading
 
-        run_migrations()
-    except Exception as e:
-        app.logger.warning(f"DB migrations skipped: {e}")
+    def _run_migrations():
+        try:
+            from utils.database import run_migrations
+
+            run_migrations()
+        except Exception as e:
+            app.logger.warning(f"DB migrations skipped: {e}")
+
+    threading.Thread(target=_run_migrations, daemon=True).start()
 
     # ============================================
     # MIDDLEWARE (ORDER MATTERS)
@@ -195,14 +199,8 @@ def create_app(config_name=None):
             if "." in ticker:
                 request.view_args["ticker"] = ticker.replace(".", "-")
 
-        if request.args:
-            new_args = {}
-            for key, value in request.args.items():
-                if key == "ticker" or key.endswith("_ticker"):
-                    new_args[key] = value.replace(".", "-") if "." in value else value
-                else:
-                    new_args[key] = value
-            request.args = ImmutableMultiDict(new_args)
+        # Note: do NOT strip dots from query-param tickers — dots encode
+        # exchange suffixes (e.g. RELIANCE.NS) that we validate in route handlers.
 
     @app.before_request
     def check_api_keys():

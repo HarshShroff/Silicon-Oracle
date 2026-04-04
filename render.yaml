@@ -6,8 +6,8 @@ services:
     region: oregon
     plan: free
     branch: main
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 'flask_app:create_app()'"
+    buildCommand: "pip3.11 install -r requirements.txt"
+    startCommand: "gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60 --worker-class gthread --preload 'flask_app:create_app()'"
     envVars:
       - key: FLASK_ENV
         value: production
