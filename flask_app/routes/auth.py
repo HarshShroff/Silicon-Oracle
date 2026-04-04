@@ -241,6 +241,13 @@ def signup():
                 flash("Database configuration error. Please try again later.", "error")
                 return render_template("pages/signup.html", email=email, username=username)
 
+            # Check for existing email before hitting Supabase auth
+            # (Supabase silently returns the existing user on duplicate when confirmation is on)
+            existing = db.get_user_by_email(email)
+            if existing:
+                flash("An account with this email already exists. Please log in instead.", "error")
+                return render_template("pages/signup.html", email=email, username=username)
+
             # Signup with Supabase Auth
             res = client.auth.sign_up({"email": email, "password": password})
             user = res.user
