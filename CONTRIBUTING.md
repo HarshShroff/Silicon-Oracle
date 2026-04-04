@@ -13,7 +13,7 @@ Thank you for your interest in contributing! Here's how to help make Silicon-Ora
 
 1. **Fork this repository**
    ```bash
-   https://github.com/harshshroff/Silicon-Oracle/fork
+   https://github.com/HarshShroff/Silicon-Oracle/fork
    ```
 
 2. **Clone and set up**
@@ -191,7 +191,7 @@ def calculate_oracle_score(ticker: str, lookback_days: int = 365) -> dict:
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Email: harsh.shroff@vitg.us with:
+Email: harshrofff@gmail.com with:
 - Title and description
 - Steps to reproduce
 - Potential impact
@@ -201,10 +201,10 @@ See [SECURITY.md](SECURITY.md) for details.
 
 ## Questions?
 
-- 📧 Email: harsh.shroff@vitg.us
-- 💬 Open a [GitHub Discussion](https://github.com/harshshroff/Silicon-Oracle/discussions)
+- 📧 Email: harshrofff@gmail.com
+- 💬 Open a [GitHub Discussion](https://github.com/HarshShroff/Silicon-Oracle/discussions)
 - 📖 Check [DOCS.md](DOCS.md) for architecture details
-- 🐛 Browse [existing issues](https://github.com/harshshroff/Silicon-Oracle/issues)
+- 🐛 Browse [existing issues](https://github.com/HarshShroff/Silicon-Oracle/issues)
 
 ---
 

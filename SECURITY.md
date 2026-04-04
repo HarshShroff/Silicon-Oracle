@@ -4,7 +4,7 @@
 
 If you discover a security vulnerability in Silicon-Oracle, **please do not open a public GitHub issue**.
 
-Instead, email **harsh.shroff@vitg.us** with:
+Instead, email **harshrofff@gmail.com** with:
 
 - **Subject**: `[SECURITY] Brief description`
 - **Description**: Detailed explanation of the vulnerability
@@ -173,9 +173,9 @@ See [DISCLAIMER.md](DISCLAIMER.md) for full legal terms.
 
 ## Contact
 
-**Security inquiries:** harsh.shroff@vitg.us
-**Bug reports (non-security):** [GitHub Issues](https://github.com/harshshroff/Silicon-Oracle/issues)
-**General questions:** [GitHub Discussions](https://github.com/harshshroff/Silicon-Oracle/discussions)
+**Security inquiries:** harshrofff@gmail.com
+**Bug reports (non-security):** [GitHub Issues](https://github.com/HarshShroff/Silicon-Oracle/issues)
+**General questions:** [GitHub Discussions](https://github.com/HarshShroff/Silicon-Oracle/discussions)
 
 ---
 

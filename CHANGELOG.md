@@ -10,15 +10,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - (Features coming in next release)
 
+---
+
+## [3.0.0] - 2026-03-31
+
+### Added
+- **TradingView-Style UI**: Complete visual overhaul using TradingView dark palette (`#101010`/`#131722` backgrounds, `#00C853` gain, `#FF5252` loss, `#F0C060` gold)
+- **Lightweight Charts v4**: Replaced Chart.js with TradingView's Lightweight Charts for financial charts
+  - Area and candlestick series with period switcher (1D / 5D / 1M / 6M / 1Y)
+  - Chart type toggle (line ↔ candlestick) without page reload
+  - Correct cache-keying per ticker + period + chart type
+- **Public Demo Page**: Full live demo at `/demo` — no account required
+  - Oracle analysis, chart, news, technicals, and factor breakdown
+  - Technical Indicators strip in left column below chart
+- **Agent Orchestration Module** (`flask_app/agent/`):
+  - `AgentRuntime` — keyword-scored tool-call routing loop
+  - `ExecutionRegistry` — typed `AgentTool` / `AgentCommand` registry with real service handlers
+  - `ToolPermissionContext` — deny-list permission gating by name and prefix
+  - `AgentSession` / `AgentTurnResult` dataclasses for structured turn output
+- **Trading Profile System**: Day / Swing / Long-Term profiles that adapt all AI outputs
+  - Deep-dive analysis, Oracle factor interpretations, email content, backtesting defaults, and rebalancer thresholds all respond to trading style
+- **AI Market Intelligence**: Automated hourly email alerts via Gemini 2.0 Flash with Google Search grounding
+  - Personalized BUY/HOLD/SELL recommendations with confidence scores
+  - Portfolio impact analysis with Oracle-based stop-loss suggestions
+  - Market catalysts with clickable source links
+  - Watchlist generation for emerging opportunities
+  - TL;DR summaries and portfolio health metrics
+- **Market Preview & Close Summary**: Pre-market heads-up at 9 AM and end-of-day recap at 5 PM (Mon–Fri)
+- **Portfolio Sentinel Monitor**: Real-time position monitoring every 5 minutes during market hours
+- **Portfolio Rebalancer**: Style-aware rebalancing thresholds and drift analysis
+- **Backtesting Engine**: Style-matched defaults, historical P&L simulation
+- **Macro Intelligence Service**: Geopolitical and macro event monitoring
+  - Free RSS sources (BBC, Reuters, Al Jazeera, MarketWatch, CNBC, Fed)
+  - Sector impact scoring and trade suggestion generation
+  - Risk-profile-aware BUY/SELL suggestions
+- **Command Center**: Chat-style interface with agent tool routing
+- **Insider Transaction Tracker**: Normalized Finnhub insider trade data (S-Sale / P-Purchase / A-Award)
+- **Sector Heatmap & Rotation Components**: Visual sector performance tracking
+- **Earnings Calendar Component**: Upcoming earnings dates
+- **Correlation Matrix Component**: Asset correlation visualization
+- **Manual Job Trigger**: `/api/jobs/trigger/:job_name` for testing scheduled jobs
+- **mypy Type Safety**: Full mypy compliance across all modules with pre-commit hook
+- **Docker Non-Root User**: Production container now runs as `appuser` (non-root)
+- **build-docker.yml**: GitHub Actions workflow to build and push Docker image to GHCR on release tags
+- **docs/API.md**: Full API reference for all endpoints
+- **docs/ARCHITECTURE.md**: Detailed architecture documentation with data flow diagrams
+- **tests/test_services.py**: 21 additional pytest tests covering services and agent module
+
 ### Changed
-
-### Deprecated
-
-### Removed
+- `pyproject.toml` version bumped to `3.0.0`
+- `@cache.memoize` on `/api/demo/chart` replaced with explicit `cache.get/set` keyed on `ticker + period + candle` to correctly cache per query params
+- `build_execution_registry()` now accepts `extra_tools` and `extra_commands` for extensibility
+- `StockService._get_yfinance_quote` return type corrected to `Optional[Dict[str, Any]]`
+- `create_secure_permission_context` uses `tuple[str, ...]` internally for deny prefixes
+- Watchlist handler in agent module correctly converts `List[Dict]` from database to `Dict` for merging
+- Market pre-market hours boundary corrected (pre-market ends at 9:00 AM, not 9:30 AM)
+- `upload-artifact` GitHub Action upgraded from v3 to v4 (v3 deprecated)
 
 ### Fixed
+- Blinking dot on Market Collections: was incorrectly animating only the first collection (AI/Tech); removed per-item animation
+- Demo chart: `setChartType` and `changePeriod` now call `initChart()` as guard before reload
+- Demo chart: applies `visible: false` + `setData([])` on both series before switching type
+- Homepage chart rendering, positioning, and error handling
+- Template rendering errors across multiple pages
+- Signup error message now provides actionable guidance when Supabase email confirmation fails
+- Auth route improvements for email confirmation failure detection
 
 ### Security
+- All service files fully mypy-typed — no implicit `Optional` defaults
+- Dockerfile runs as non-root `appuser`
+- `types-pytz` and `types-requests` added to dev dependencies
+
+### Removed
+- Stale `streamlit` optional dependency block from `pyproject.toml`
+- `py313` from black `target-version` (not supported by installed version)
+- Unused `COMPLETION_SUMMARY.md`, `NEXT_STEPS.md`, `QUICK_REFERENCE.txt`
+- `Co-Authored-By` lines removed from entire git history
 
 ---
 
@@ -33,7 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Candlestick charts with multiple timeframes
   - Volume bars with customizable indicators
   - Touch-friendly mobile controls
-- **Portfolio-Aware AI**: Gemini Claude now has access to user portfolios
+- **Portfolio-Aware AI**: Gemini now has access to user portfolios
   - Context-aware stock recommendations
   - Position-specific insights
   - Risk analysis based on actual holdings
@@ -57,46 +124,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Complete Flask Rewrite**: Professional web UI replacing Streamlit
   - Responsive Tailwind CSS design
   - Modern component library
-  - Real-time WebSocket updates (foundation laid)
 - **Advanced Scanner**: Stock screening with 15+ technical indicators
   - Custom filters (price, volume, PE ratio, etc.)
-  - Save/load scan templates
   - Alert thresholds
 - **Macro Dashboard**: Real-time macro indicators
   - Treasury yields, VIX, inflation rates
   - Oil/gold/crypto prices
-  - Economic calendar integration
-- **Portfolio Management**: Full position tracking
-  - Cost basis calculations
-  - Unrealized P&L tracking
-  - Tax loss harvesting recommendations
-- **AI Integration**: Gemini Claude integration
-  - Natural language stock queries
-  - Portfolio analysis
-  - Risk assessment
-- **Paper Trading**: Alpaca integration
-  - Buy/sell orders
-  - Portfolio simulation
-  - Performance tracking
-- **Email Notifications**: APScheduler + SendGrid
-  - Daily market summary
-  - Scanner alerts
-  - Portfolio updates
-- **Database**: Supabase PostgreSQL
-  - Multi-user support
-  - Per-user API key storage (encrypted)
-  - RLS (Row Level Security) enforcement
+- **Portfolio Management**: Full position tracking with P&L
+- **AI Integration**: Gemini integration for natural language stock queries
+- **Paper Trading**: Alpaca integration with buy/sell orders
+- **Email Notifications**: APScheduler + Gmail SMTP
+- **Database**: Supabase PostgreSQL with multi-user support and encrypted API key storage
 
 ### Changed
 - Migrated from SQLite to PostgreSQL (Supabase)
 - Updated yfinance to v1.0+ (curl_cffi support)
-- Modernized technical analysis with pandas-ta-classic
 
 ### Security
-- Implemented AES-256 encryption for stored API keys
-- BYOK (Bring Your Own Key) model for user data privacy
+- AES-256 (Fernet) encryption for stored API keys
+- BYOK model for user data privacy
 - CSRF protection enabled
-- SQL injection protection via SQLAlchemy ORM
 - Rate limiting on sensitive endpoints
 
 ---
@@ -106,17 +153,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Initial Streamlit Release**
   - Stock data retrieval (yfinance)
-  - Technical analysis indicators (pandas-ta)
+  - Technical analysis (pandas-ta)
   - Sentiment analysis (transformers)
   - Backtesting engine
-  - Market alerts
-  - News aggregation (feedparser)
   - Paper trading simulation (Alpaca)
+  - News aggregation (feedparser)
 
 ### Known Limitations
 - Single-user (no authentication)
 - SQLite database (no cloud backup)
-- Streamlit UI limitations
 - No API key encryption
 - Manual data refresh (no scheduling)
 
@@ -125,91 +170,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2024-Q3
 
 ### Added
-- Early beta release
-- Core market data aggregation
-- Technical analysis indicators
-- Basic charting with Plotly
+- Early beta: core market data, technical indicators, basic Plotly charting
 
 ---
 
 ## Migration Guide
 
+### v2.1 → v3.0
+
+No breaking changes to the database schema. Update dependencies and restart:
+
+```bash
+pip install -r requirements.txt
+python run_flask.py
+```
+
+New environment variables (all optional):
+- No new required env vars in v3.0
+
 ### v1.0 → v2.0
 
-**Database Migration:**
 ```bash
-# Backup SQLite database
-cp sqlite.db sqlite.db.backup
-
-# Run database setup
-flask db init
-flask db migrate -m "Initial migration"
-flask db upgrade
-
-# Migrate existing data (if needed)
-python scripts/migrate_sqlite_to_postgres.py
-```
-
-**Configuration:**
-```bash
-# Copy environment template
 cp .env.example .env
-
-# Update .env with PostgreSQL credentials
-# SUPABASE_URL=https://your-project.supabase.co
-# SUPABASE_KEY=your-anon-key
+# Add SUPABASE_URL and SUPABASE_SERVICE_KEY
+python run_flask.py
 ```
-
-**Startup:**
-```bash
-flask run
-# Application available at http://localhost:5000
-```
-
-### v2.0 → v2.1
-
-No breaking changes. Simply update dependencies:
-```bash
-pip install -e ".[dev]" --upgrade
-```
-
----
-
-## Planned Features (Roadmap)
-
-### v2.2 (Q2 2025)
-- [ ] WebSocket real-time updates
-- [ ] Advanced charting indicators
-- [ ] Strategy backtesting engine
-- [ ] Social features (share portfolios, leaderboards)
-
-### v3.0 (Q4 2025)
-- [ ] Mobile app (React Native)
-- [ ] Options chain analysis
-- [ ] Tax planning tools
-- [ ] Institutional data (Morningstar, S&P)
-- [ ] API endpoints for third-party integrations
-
-### v4.0 (2026)
-- [ ] Robo-advisor features
-- [ ] Machine learning for price prediction
-- [ ] Blockchain/crypto integration
-- [ ] Multi-currency support
 
 ---
 
 ## How to Report Issues
 
-- **Bug**: [GitHub Issues](https://github.com/harshshroff/Silicon-Oracle/issues)
-- **Security**: Email harsh.shroff@vitg.us (see [SECURITY.md](SECURITY.md))
-- **Feature Request**: [GitHub Discussions](https://github.com/harshshroff/Silicon-Oracle/discussions)
+- **Bug**: [GitHub Issues](https://github.com/HarshShroff/Silicon-Oracle/issues)
+- **Security**: harshrofff@gmail.com (see [SECURITY.md](SECURITY.md))
+- **Feature Request**: [GitHub Discussions](https://github.com/HarshShroff/Silicon-Oracle/discussions)
 
 ---
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
-
----
-
-**Questions?** Check [DOCS.md](DOCS.md) or open a discussion!
