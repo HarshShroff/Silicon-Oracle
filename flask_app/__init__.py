@@ -61,6 +61,12 @@ def create_app(config_name=None):
     csrf.exempt(sentinel_bp)
     csrf.exempt(sentinel_ui_bp)
 
+    # Pre-warm yfinance to avoid concurrent-import errors in scheduler threads
+    try:
+        import yfinance  # noqa: F401
+    except Exception:
+        pass
+
     # Initialize Scheduler
     try:
         from flask_app.scheduler import init_scheduler, scheduler
