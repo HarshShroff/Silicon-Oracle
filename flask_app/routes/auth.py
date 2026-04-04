@@ -160,6 +160,12 @@ def signup():
             error_msg = str(e).lower()
             if "already registered" in error_msg or "duplicate" in error_msg:
                 flash("This email is already registered. Please log in instead.", "error")
+            elif "confirmation email" in error_msg or "email" in error_msg and "send" in error_msg:
+                flash(
+                    "Account created but confirmation email failed. "
+                    "Disable email confirmation in Supabase dashboard or configure SMTP.",
+                    "error",
+                )
             else:
                 flash("Error creating account. Please try again.", "error")
             return render_template("pages/signup.html", email=email, username=username)
