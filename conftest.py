@@ -1,0 +1,8 @@
+"""
+Root conftest.py — ensures the project root is on sys.path for all tests.
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
