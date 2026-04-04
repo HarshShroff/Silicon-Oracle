@@ -316,12 +316,19 @@ def settings():
         # Handle different form submissions
         if "save_api_keys" in request.form:
             # Save API keys to Supabase (BYOK) with encryption
-            api_keys_data = {
-                "alpaca_api_key": request.form.get("alpaca_key", "").strip(),
-                "alpaca_secret_key": request.form.get("alpaca_secret", "").strip(),
-                "finnhub_api_key": request.form.get("finnhub_key", "").strip(),
-                "gemini_api_key": request.form.get("gemini_key", "").strip(),
-            }
+            # Only save keys that have actual values (don't overwrite with empty)
+            api_keys_data = {}
+            if request.form.get("alpaca_key", "").strip():
+                api_keys_data["alpaca_api_key"] = request.form.get("alpaca_key", "").strip()
+            if request.form.get("alpaca_secret", "").strip():
+                api_keys_data["alpaca_secret_key"] = request.form.get("alpaca_secret", "").strip()
+            if request.form.get("finnhub_key", "").strip():
+                api_keys_data["finnhub_api_key"] = request.form.get("finnhub_key", "").strip()
+            if request.form.get("gemini_key", "").strip():
+                api_keys_data["gemini_api_key"] = request.form.get("gemini_key", "").strip()
+
+            if not api_keys_data:
+                return jsonify({"success": False, "error": "No API keys provided"})
 
             # save_user_api_keys will handle encryption
             success = db.save_user_api_keys(user_id, api_keys_data)

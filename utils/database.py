@@ -195,10 +195,10 @@ def create_user_profile(user_id: str, email: str, username: Optional[str] = None
         if username:
             profile_data["username"] = username
 
-        client.table("user_profiles").insert(profile_data).execute()
+        client.table("user_profiles").upsert(profile_data).execute()
         return True
-    except Exception:
-        # Fail silently (e.g. RLS violation); let caller handle or rely on Trigger
+    except Exception as e:
+        logger.error(f"Error creating user profile for {user_id}: {e}")
         return False
 
 
@@ -206,13 +206,17 @@ def update_user_profile(user_id: str, data: Dict[str, Any]) -> bool:
     """Update user profile (API keys, settings, etc.)."""
     client = get_supabase_client()
     if not client:
+        logger.error("No Supabase client available")
         return False
 
     try:
-        client.table("user_profiles").update(data).eq("id", user_id).execute()
+        data["id"] = user_id
+        logger.info(f"Upserting profile for user {user_id} with keys: {list(data.keys())}")
+        response = client.table("user_profiles").upsert(data).execute()
+        logger.info(f"Profile upsert response: {response}")
         return True
     except Exception as e:
-        logger.error(f"Error updating profile: {e}")
+        logger.error(f"Error updating profile for {user_id}: {e}")
         return False
 
 
