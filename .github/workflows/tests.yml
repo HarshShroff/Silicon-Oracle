@@ -37,8 +37,9 @@ jobs:
       run: pytest tests/ -v --tb=short --cov=flask_app --cov-report=xml || true
 
     - name: Upload coverage
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
+        token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage.xml
         flags: unittests
         fail_ci_if_error: false
