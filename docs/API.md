@@ -60,7 +60,7 @@ Public. Returns service health status.
 ```json
 {
   "status": "healthy",
-  "timestamp": "2025-03-31T12:00:00",
+  "timestamp": "2026-04-08T12:00:00",
   "version": "3.0.0"
 }
 ```
@@ -202,3 +202,32 @@ Geopolitical and macro events with sector impact scores.
 
 ### GET /api/macro/suggestions
 AI-generated trade suggestions based on current macro events.
+
+---
+
+## Agent / Command Center
+
+### POST /api/agent/run
+Run a natural-language command through the Agent. Requires auth and a valid Gemini API key.
+
+**Body:** `{ "prompt": string, "session_id": string? }`
+
+**Flow:**
+1. `AgentRuntime._gemini_plan_tools` asks Gemini 2.0 Flash which tools to call and with what arguments (falls back to keyword scoring if Gemini is unavailable).
+2. Planned tool calls are executed through `ExecutionRegistry` subject to `ToolPermissionContext` deny-lists.
+3. `AgentRuntime._gemini_synthesize` turns the structured tool results into a natural-language answer (falls back to formatted text summary).
+
+**Response:**
+```json
+{
+  "answer": "NVDA is currently trading at $875.20 with an Oracle score of 12/15 (Strong Buy)...",
+  "tools_used": ["get_quote", "oracle_score"],
+  "session_id": "abc123"
+}
+```
+
+### GET /api/agent/session/:session_id
+Retrieve the turn history for an agent session.
+
+### DELETE /api/agent/session/:session_id
+Clear an agent session.

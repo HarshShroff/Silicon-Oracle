@@ -404,7 +404,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 -  Portfolio Sentinel monitoring with shadow positions
 -  Portfolio rebalancer with style-aware thresholds
 -  Backtesting engine with style-matched defaults
--  Agent orchestration module with permission-gated tool loops
+-  Agent orchestration module with permission-gated tool loops — **now Gemini-planned**
+-  Simulation page: Performance History + Allocation Donut (50/50 side-by-side layout)
+-  Portfolio page: Today's P&L toggle, mini sparklines, allocation donut
 -  TradingView-style UI with Lightweight Charts v4
 -  Public live demo page (no account required)
 -  Manual email-job trigger endpoint for testing

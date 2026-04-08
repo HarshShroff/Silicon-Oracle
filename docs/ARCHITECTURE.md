@@ -136,9 +136,13 @@ All business logic lives in `flask_app/services/`. Routes are thin — they vali
 A proprietary 15-factor scoring system implemented in `oracle_service.py`. Factors include: RSI position, SMA trend, volume analysis, earnings proximity, analyst consensus, price momentum, and more. Each factor returns a score 0–1; the aggregate drives BUY/HOLD/SELL verdicts.
 
 ### Agent Module
-`flask_app/agent/` implements a lightweight tool-routing loop:
+`flask_app/agent/` implements a two-phase tool-routing loop:
+1. **Gemini planning** (`_gemini_plan_tools`): sends the prompt + all tool names/descriptions to Gemini 2.0 Flash, which returns a JSON array of `{tool_name, payload}` calls to execute. Falls back to keyword scoring if Gemini is unavailable.
+2. **Execution**: `AgentRuntime` runs the planned calls through `ExecutionRegistry`, filters by `ToolPermissionContext`, and collects structured results.
+3. **Synthesis** (`_gemini_synthesize`): Gemini turns the raw tool results into a natural-language answer. Falls back to a plain-text summary if Gemini is unavailable.
+
 - `ExecutionRegistry` holds named `AgentTool` objects with typed handlers
-- `AgentRuntime` scores prompts against tool names/descriptions, filters by `ToolPermissionContext`, and executes the top matches
+- `ToolPermissionContext` deny-lists tools by name or prefix
 - Used by the Command Center chat interface
 
 ### Scheduled Jobs (APScheduler)

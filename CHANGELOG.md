@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Duplicate email check**: signup checks `user_profiles` before calling Supabase auth, giving an explicit "already registered" message instead of a silent no-op.
 - **US-only ticker enforcement**: non-US exchange suffixes (`.NS`, `.BO`, `.L`, `.DE`, etc.) are rejected at all API entry points with a clear error.
 - **SPY benchmark label**: home page chart shows a `SPY · benchmark` pill when no sentinel portfolio history exists yet.
+- **Simulation page 50/50 layout**: Performance History area chart and Allocation Donut chart displayed side-by-side (50/50 grid on desktop, stacked on mobile). Donut re-renders on every data refresh and supports hover labels showing per-position dollar value and % weight.
+- **Portfolio page enhancements**:
+  - **Today's P&L toggle** — switch between total unrealized P&L and today's intraday P&L on the portfolio summary card.
+  - **Mini sparklines** in each position row showing recent price history at a glance.
+  - **Allocation donut** on the portfolio page mirroring the Sentinel donut design.
+- **Gemini-powered agent tool planning** (`AgentRuntime._gemini_plan_tools`): instead of pure keyword scoring, the agent now sends available tool names/descriptions to Gemini 2.0 Flash to decide which tools to call and with what arguments. Falls back to keyword routing if Gemini is unavailable.
+- **Gemini synthesis step** (`AgentRuntime._gemini_synthesize`): after tool execution, Gemini writes a natural-language answer from the structured tool results. Falls back to a formatted text summary if Gemini is unavailable.
 
 ### Fixed
 - `SUPABASE_SERVICE_KEY` validation — non-JWT values (e.g. `sb_secret_*`) are detected and rejected with a clear warning, falling back to anon key with an RLS notice.
@@ -20,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `save_user_api_keys` self-heals a missing profile row via admin API before updating.
 - Password placeholder corrected to "Min 12 characters".
 - Dot-stripping middleware no longer corrupts exchange suffixes in query params.
+- Resolved unresolved git merge conflict markers committed into `flask_app/agent/runtime.py`, `flask_app/agent/execution_registry.py`, and `flask_app/services/agentic_intel_service.py` — all three files were restored to valid Python and re-committed.
 
 ### Performance
 - `--preload` added to gunicorn: app initialises once before workers fork, eliminating per-request cold start.

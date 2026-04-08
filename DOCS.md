@@ -271,9 +271,10 @@ The monitoring dashboard for **shadow positions** — positions imported from a 
 | Section | API | Notes |
 |---------|-----|-------|
 | Live positions with P&L | `GET /sentinel/positions/enriched` | Enriches each position with Finnhub live price + Oracle score |
+| Performance History chart | `GET /sentinel/history` | Lightweight Charts area chart; period switcher 1D/5D/1M/3M/1Y. Shows "Live" badge during market hours. |
+| Allocation Donut chart | Client-side Chart.js | 50/50 grid alongside Performance History. Top-8 positions by value; hover shows $ value + % weight. Re-renders on every data refresh. |
 | News for holdings | `GET /sentinel/news` | Aggregated from Finnhub |
 | Breaking news alerts | `GET /sentinel/news/breaking` | Last 24 hours |
-| Performance chart | `GET /sentinel/history` | Auto-backfills last 24 h if sparse |
 | Settings panel | `GET/POST /sentinel/settings` | Starting capital, alert thresholds |
 | Bulk import | `POST /sentinel/import` | JSON array of positions |
 
