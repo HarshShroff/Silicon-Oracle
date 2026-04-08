@@ -190,7 +190,7 @@
 <script>
 function backtestEngine() {
     let activeChart = null;
-    
+
     return {
         ticker: '{{ ticker }}' || 'AAPL',
         strategy: 'rsi',
@@ -289,9 +289,9 @@ function backtestEngine() {
             const lwData = data.map(d => {
                 const dateObj = new Date(d.date);
                 // Return YYYY-MM-DD for backtest
-                return { 
-                    time: dateObj.toISOString().split('T')[0], 
-                    value: d.value 
+                return {
+                    time: dateObj.toISOString().split('T')[0],
+                    value: d.value
                 };
             }).filter(d => !isNaN(new Date(d.time).getTime())); // filter out invalid dates if any
 
@@ -300,7 +300,7 @@ function backtestEngine() {
 
             areaSeries.setData(lwData);
             chartInstance.timeScale().fitContent();
-            
+
             activeChart = chartInstance;
         },
 
