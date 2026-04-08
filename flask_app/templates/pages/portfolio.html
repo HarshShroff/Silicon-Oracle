@@ -3,6 +3,7 @@
 {% block page_title %}Portfolio{% endblock %}
 {% block extra_head %}
 <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 {% endblock %}
 {% block content %}
 <div x-data="portfolioPage()" x-init="init()" class="space-y-4">
@@ -29,27 +30,50 @@
         </div>
     </div>
     {% elif shadow_metrics %}
-    {# Alpaca disabled — show shadow portfolio metrics #}
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="t-card">
-            <p class="section-label mb-2">Portfolio Value</p>
-            <p class="text-2xl font-bold font-mono text-white">${{ "{:,.0f}".format(shadow_metrics.total_value) }}</p>
+    {# Alpaca disabled — show shadow portfolio metrics with Today vs Total toggle #}
+    <div class="t-card" style="padding:14px 16px;">
+        <!-- Toggle row -->
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex gap-0">
+                <button @click="plView='total'"
+                        :style="plView==='total' ? 'background:rgba(0,200,83,0.12);border-color:rgba(0,200,83,0.4);color:#00C853;' : 'background:transparent;border-color:#2A2E39;color:#787B86;'"
+                        style="padding:3px 12px;border-radius:6px 0 0 6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid;border-right:none;font-family:'Space Grotesk',sans-serif;transition:all 0.15s;">
+                    All Time
+                </button>
+                <button @click="plView='today'"
+                        :style="plView==='today' ? 'background:rgba(0,200,83,0.12);border-color:rgba(0,200,83,0.4);color:#00C853;' : 'background:transparent;border-color:#2A2E39;color:#787B86;'"
+                        style="padding:3px 12px;border-radius:0 6px 6px 0;font-size:11px;font-weight:700;cursor:pointer;border:1px solid;font-family:'Space Grotesk',sans-serif;transition:all 0.15s;">
+                    Today
+                </button>
+            </div>
+            <span class="mono muted" style="font-size:10px;">{{ positions|length }} position{{ 's' if positions|length != 1 else '' }}</span>
         </div>
-        <div class="t-card">
-            <p class="section-label mb-2">Deployed Capital</p>
-            <p class="text-2xl font-bold font-mono text-oracle-primary">${{ "{:,.0f}".format(shadow_metrics.total_cost) }}</p>
-        </div>
-        <div class="t-card">
-            <p class="section-label mb-2">Unrealized P&amp;L</p>
-            <p class="text-2xl font-bold font-mono {% if shadow_metrics.total_pl >= 0 %}text-oracle-gain{% else %}text-oracle-loss{% endif %}">
-                ${{ "%+,.0f"|format(shadow_metrics.total_pl) }}
-            </p>
-        </div>
-        <div class="t-card">
-            <p class="section-label mb-2">Return</p>
-            <p class="text-2xl font-bold font-mono {% if shadow_metrics.total_plpc >= 0 %}text-oracle-gain{% else %}text-oracle-loss{% endif %}">
-                {{ "%+.2f"|format(shadow_metrics.total_plpc) }}%
-            </p>
+        <!-- Metrics grid -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+                <p class="section-label mb-1">Portfolio Value</p>
+                <p class="text-2xl font-bold font-mono text-white">${{ "{:,.0f}".format(shadow_metrics.total_value) }}</p>
+            </div>
+            <div>
+                <p class="section-label mb-1">Deployed Capital</p>
+                <p class="text-xl font-bold font-mono text-oracle-primary">${{ "{:,.0f}".format(shadow_metrics.total_cost) }}</p>
+            </div>
+            <!-- P&L card — switches between today and all-time -->
+            <div>
+                <p class="section-label mb-1" x-text="plView==='today' ? 'Today\\'s P&L' : 'Unrealized P&L'"></p>
+                <p class="text-xl font-bold font-mono"
+                   :class="(plView==='today' ? todayPL : {{ shadow_metrics.total_pl }}) >= 0 ? 'text-oracle-gain' : 'text-oracle-loss'"
+                   x-text="'$' + (plView==='today' ? todayPL : {{ shadow_metrics.total_pl }}).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0, signDisplay:'always'})">
+                </p>
+            </div>
+            <!-- Return card — switches between today % and all-time % -->
+            <div>
+                <p class="section-label mb-1" x-text="plView==='today' ? 'Today \\'' : 'All-Time Return'"></p>
+                <p class="text-xl font-bold font-mono"
+                   :class="(plView==='today' ? todayPLPct : {{ shadow_metrics.total_plpc }}) >= 0 ? 'text-oracle-gain' : 'text-oracle-loss'"
+                   x-text="(plView==='today' ? todayPLPct : {{ shadow_metrics.total_plpc }}).toFixed(2) + '%'">
+                </p>
+            </div>
         </div>
     </div>
     <div class="t-card border-oracle-border/50 py-2">
@@ -69,31 +93,65 @@
     </div>
     {% endif %}
 
-    <!-- Portfolio Chart -->
-    <div class="t-card">
-        <div class="flex items-center justify-between mb-3">
-            <p class="text-sm font-semibold text-white">Portfolio Value</p>
-            <div class="flex gap-1">
-                {% for period in ['1D', '1W', '1M', '3M', 'YTD', '1A'] %}
-                <button @click="setPeriod('{{ period }}')"
-                        :class="chartPeriod === '{{ period }}' ? 'bg-oracle-accent text-white' : 'bg-oracle-surface text-oracle-border-strong hover:text-white border border-oracle-border hover:border-oracle-border-strong'"
-                        class="px-2.5 py-1 rounded text-[10px] font-mono font-semibold transition-colors">
-                    {{ period }}
-                </button>
+    <!-- ── Two-column layout: Chart + Donut ──────────────────── -->
+    <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;" class="lg:grid-cols-[1fr_220px]">
+
+        <!-- Portfolio Chart -->
+        <div class="t-card">
+            <div class="flex items-center justify-between mb-3">
+                <p class="text-sm font-semibold text-white">Portfolio Value</p>
+                <div class="flex gap-1">
+                    {% for period in ['1D', '1W', '1M', '3M', 'YTD', '1A'] %}
+                    <button @click="setPeriod('{{ period }}')"
+                            :class="chartPeriod === '{{ period }}' ? 'bg-oracle-accent text-white' : 'bg-oracle-surface text-oracle-border-strong hover:text-white border border-oracle-border hover:border-oracle-border-strong'"
+                            class="px-2.5 py-1 rounded text-[10px] font-mono font-semibold transition-colors">
+                        {{ period }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="relative" style="height: 200px;">
+                <div x-show="chartLoading" class="absolute inset-0 skeleton rounded-lg opacity-60 z-10"></div>
+                <div x-show="!hasChartData && !chartLoading" class="absolute inset-0 flex items-center justify-center text-oracle-border-strong text-xs font-mono z-10">
+                    No chart data available
+                </div>
+                <div id="portfolioChartContainer" class="w-full h-full absolute inset-0 rounded-lg"></div>
+            </div>
+            <p x-show="lastUpdate" class="text-[10px] text-oracle-border font-mono text-right mt-1">Updated <span x-text="lastUpdate"></span></p>
+        </div>
+
+        <!-- Allocation Donut Chart -->
+        {% if positions %}
+        <div class="t-card" style="width:220px;min-width:200px;">
+            <p style="font-size:10px;font-weight:700;color:#787B86;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Allocation</p>
+            <div style="position:relative;width:140px;height:140px;margin:0 auto 12px;">
+                <canvas id="allocationDonut"></canvas>
+                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
+                    <span class="mono" style="font-size:10px;color:#787B86;" id="donut-center-label">Total</span>
+                    <span class="mono" style="font-size:13px;font-weight:700;color:#FFFFFF;" id="donut-center-value">${{ "{:,.0f}".format(shadow_metrics.total_value if shadow_metrics else 0) }}</span>
+                </div>
+            </div>
+            <!-- Legend -->
+            <div style="display:flex;flex-direction:column;gap:4px;">
+                {% for pos in positions[:8] %}
+                {% set pct = ((pos.shares * pos.current_price) / shadow_metrics.total_value * 100) if shadow_metrics and shadow_metrics.total_value else 0 %}
+                <div style="display:flex;align-items:center;justify-content:space-between;font-size:10px;">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:var(--donut-color-{{ loop.index0 }});"></span>
+                        <span class="font-mono" style="color:#D1D4DC;">{{ pos.ticker }}</span>
+                    </div>
+                    <span class="mono" style="color:#787B86;">{{ "%.1f"|format(pct) }}%</span>
+                </div>
                 {% endfor %}
+                {% if positions|length > 8 %}
+                <p class="mono muted" style="font-size:10px;margin-top:2px;">+{{ positions|length - 8 }} more</p>
+                {% endif %}
             </div>
         </div>
-        <div class="relative" style="height: 200px;">
-            <div x-show="chartLoading" class="absolute inset-0 skeleton rounded-lg opacity-60 z-10"></div>
-            <div x-show="!hasChartData && !chartLoading" class="absolute inset-0 flex items-center justify-center text-oracle-border-strong text-xs font-mono z-10">
-                No chart data available
-            </div>
-            <div id="portfolioChartContainer" class="w-full h-full absolute inset-0 rounded-lg"></div>
-        </div>
-        <p x-show="lastUpdate" class="text-[10px] text-oracle-border font-mono text-right mt-1">Updated <span x-text="lastUpdate"></span></p>
+        {% endif %}
     </div>
 
-    <!-- Positions -->
+    <!-- Positions with sparklines -->
     <div class="t-card">
         <p class="text-sm font-semibold text-white mb-3">Open Positions</p>
         {% if positions %}
@@ -102,6 +160,7 @@
                 <thead>
                     <tr>
                         <th>Ticker</th>
+                        <th>7D</th>
                         <th>Shares</th>
                         <th>Avg Cost</th>
                         <th>Current</th>
@@ -116,6 +175,12 @@
                         <td>
                             <a href="{{ url_for('main.analysis', ticker=pos.ticker) }}"
                                class="font-bold font-mono text-oracle-primary hover:text-oracle-accent">{{ pos.ticker }}</a>
+                        </td>
+                        <td style="padding:4px 8px;">
+                            <!-- Sparkline canvas — loaded by JS -->
+                            <canvas class="position-sparkline" data-ticker="{{ pos.ticker }}"
+                                    width="60" height="28"
+                                    style="display:block;"></canvas>
                         </td>
                         <td class="font-mono">{{ "%.2f"|format(pos.shares) }}</td>
                         <td class="font-mono">${{ "%.2f"|format(pos.avg_price) }}</td>
@@ -176,8 +241,121 @@
     {% include 'components/portfolio_rebalancer.html' %}
 </div>
 
+<!-- Donut color CSS vars -->
+<style>
+:root {
+    --donut-color-0: #00C853;
+    --donut-color-1: #26a69a;
+    --donut-color-2: #a78bfa;
+    --donut-color-3: #F0C060;
+    --donut-color-4: #f87171;
+    --donut-color-5: #38bdf8;
+    --donut-color-6: #fb923c;
+    --donut-color-7: #e879f9;
+}
+</style>
+
 <script>
     const _alpacaEnabled = {{ alpaca_enabled | tojson }};
+
+    // ── Donut chart ───────────────────────────────────────────────────
+    (function() {
+        const ctx = document.getElementById('allocationDonut');
+        if (!ctx) return;
+        const positions = {{ positions | tojson if positions else '[]' }};
+        if (!positions.length) return;
+        const totalValue = positions.reduce((s, p) => s + (p.shares * p.current_price), 0);
+        const colors = ['#00C853','#26a69a','#a78bfa','#F0C060','#f87171','#38bdf8','#fb923c','#e879f9'];
+        const top8 = positions.slice(0, 8);
+        const labels = top8.map(p => p.ticker);
+        const data   = top8.map(p => p.shares * p.current_price);
+        const bgColors = top8.map((_, i) => colors[i % colors.length]);
+
+        const chart = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data, backgroundColor: bgColors, borderColor: '#131722', borderWidth: 2, hoverBorderWidth: 3 }] },
+            options: {
+                cutout: '68%',
+                responsive: false,
+                animation: { duration: 800, easing: 'easeInOutQuart' },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label(ctx) {
+                                const val = ctx.raw;
+                                const pct = totalValue ? (val / totalValue * 100).toFixed(1) : 0;
+                                return ` $${val.toLocaleString('en-US',{maximumFractionDigits:0})}  (${pct}%)`;
+                            }
+                        },
+                        backgroundColor: '#1C1C1C',
+                        borderColor: '#2A2E39',
+                        borderWidth: 1,
+                        titleColor: '#00C853',
+                        bodyColor: '#D1D4DC',
+                        titleFont: { family: 'JetBrains Mono', size: 11 },
+                        bodyFont: { family: 'JetBrains Mono', size: 11 },
+                    }
+                },
+                onHover(_, elements) {
+                    const center = document.getElementById('donut-center-value');
+                    const label  = document.getElementById('donut-center-label');
+                    if (elements.length && center && label) {
+                        const idx = elements[0].index;
+                        center.textContent = '$' + data[idx].toLocaleString('en-US', {maximumFractionDigits:0});
+                        label.textContent  = labels[idx];
+                    } else if (center && label) {
+                        center.textContent = '$' + totalValue.toLocaleString('en-US', {maximumFractionDigits:0});
+                        label.textContent  = 'Total';
+                    }
+                }
+            }
+        });
+    })();
+
+    // ── Sparklines ────────────────────────────────────────────────────
+    (function() {
+        const canvases = document.querySelectorAll('.position-sparkline');
+        canvases.forEach(async canvas => {
+            const ticker = canvas.dataset.ticker;
+            try {
+                const resp = await fetch(`/api/stock/${ticker}/chart?period=5d&interval=1d`);
+                const data = await resp.json();
+                if (!Array.isArray(data) || data.length < 2) return;
+                const prices = data.map(d => d.Close).filter(Boolean);
+                if (prices.length < 2) return;
+                const isUp = prices[prices.length - 1] >= prices[0];
+                const color = isUp ? '#00C853' : '#f87171';
+                const ctx = canvas.getContext('2d');
+                const W = canvas.width, H = canvas.height;
+                const min = Math.min(...prices), max = Math.max(...prices);
+                const range = max - min || 1;
+                const xs = prices.map((_, i) => (i / (prices.length - 1)) * W);
+                const ys = prices.map(p => H - ((p - min) / range) * H * 0.8 - H * 0.1);
+                ctx.clearRect(0, 0, W, H);
+                // Fill
+                const grad = ctx.createLinearGradient(0, 0, 0, H);
+                grad.addColorStop(0, isUp ? 'rgba(0,200,83,0.3)' : 'rgba(248,113,113,0.3)');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.beginPath();
+                ctx.moveTo(xs[0], ys[0]);
+                for (let i = 1; i < prices.length; i++) ctx.lineTo(xs[i], ys[i]);
+                ctx.lineTo(xs[xs.length - 1], H);
+                ctx.lineTo(xs[0], H);
+                ctx.closePath();
+                ctx.fillStyle = grad;
+                ctx.fill();
+                // Line
+                ctx.beginPath();
+                ctx.moveTo(xs[0], ys[0]);
+                for (let i = 1; i < prices.length; i++) ctx.lineTo(xs[i], ys[i]);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+            } catch(e) { /* silent fail */ }
+        });
+    })();
 
     function portfolioPage() {
         let activeChart = null;
@@ -187,6 +365,9 @@
             hasChartData: false,
             chartPeriod: '1D',
             lastUpdate: null,
+            plView: 'total',   // 'total' | 'today'
+            todayPL: 0,
+            todayPLPct: 0,
 
             async closePosition(ticker) {
                 if (!_alpacaEnabled) { alert('Enable Alpaca in Settings to close positions.'); return; }
@@ -199,11 +380,34 @@
                 } catch (error) { alert('Error closing position'); }
             },
 
-            init() {
+            async init() {
                 this.$nextTick(() => {
                     setTimeout(() => this.loadChart(), 100);
                     if (_alpacaEnabled) setInterval(() => { this.loadChart(true); }, 30000);
                 });
+                // Compute today's P&L from individual position quotes
+                await this._computeTodayPL();
+            },
+
+            async _computeTodayPL() {
+                const positions = {{ positions | tojson if positions else '[]' }};
+                if (!positions.length) return;
+                let totalDayPL = 0;
+                let totalValue = 0;
+                await Promise.allSettled(positions.map(async pos => {
+                    try {
+                        const r = await fetch(`/api/stock/${pos.ticker}/quote`);
+                        const q = await r.json();
+                        if (q && q.change !== undefined) {
+                            const dayPL = q.change * pos.shares;
+                            totalDayPL += dayPL;
+                            totalValue += pos.shares * (q.current || pos.current_price);
+                        }
+                    } catch(e) {}
+                }));
+                this.todayPL = parseFloat(totalDayPL.toFixed(2));
+                const costBase = positions.reduce((s, p) => s + p.shares * p.current_price, 0);
+                this.todayPLPct = costBase > 0 ? parseFloat((totalDayPL / costBase * 100).toFixed(2)) : 0;
             },
 
             async loadChart(silent = false) {
@@ -227,7 +431,8 @@
                         if (data && data.length > 0) {
                             this.hasChartData = true;
                             this.lastUpdate = new Date().toLocaleTimeString();
-                            const lwData = data.map(d => ({ time: Math.floor(new Date(d.timestamp).getTime() / 1000), value: d.equity }));
+                            const toET = s => { const n = String(s).slice(0,19).replace(' ','T')+'Z'; return Math.floor(new Date(n).getTime()/1000); };
+                            const lwData = data.map(d => ({ time: toET(d.timestamp), value: d.equity }));
                             lwData.sort((a,b) => a.time - b.time);
                             this._renderChart(lwData, this.chartPeriod === '1D' || this.chartPeriod === '1W');
                             this.chartLoading = false;
@@ -271,6 +476,7 @@
                 const chartInstance = LightweightCharts.createChart(container, {
                     layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#64748b' },
                     grid: { vertLines: { color: 'rgba(30,45,61,0.6)' }, horzLines: { color: 'rgba(30,45,61,0.6)' } },
+                    localization: { timeZone: 'America/New_York' },
                     rightPriceScale: { borderVisible: false },
                     timeScale: { borderVisible: false, timeVisible, fixLeftEdge: true, fixRightEdge: true },
                     crosshair: { mode: 0 }

@@ -243,6 +243,64 @@ def _create_watchlist_get_handler() -> Callable[[dict[str, Any], ToolContext], A
     return handler
 
 
+def _create_gemini_analysis_handler() -> Callable[[dict[str, Any], ToolContext], Any]:
+    def handler(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
+        ticker = payload.get("ticker", "").upper()
+        trading_style = payload.get("trading_style", "swing_trading")
+        if not ticker:
+            return {"error": "ticker required"}
+
+        if not context.user_id:
+            return {"error": "User not authenticated"}
+
+        try:
+            from utils import database as db
+            from flask_app.services.gemini_service import GeminiService
+
+            user_config = db.get_user_api_keys(context.user_id) or {}
+            gemini_service = GeminiService(config=user_config)
+            analysis_html, score, label = gemini_service.analyze_ticker(
+                ticker, trading_style=trading_style
+            )
+            return {
+                "ticker": ticker,
+                "analysis": analysis_html,
+                "score": score,
+                "label": label,
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    return handler
+
+
+def _create_gemini_insight_handler() -> Callable[[dict[str, Any], ToolContext], Any]:
+    def handler(payload: dict[str, Any], context: ToolContext) -> dict[str, Any]:
+        ticker = payload.get("ticker", "").upper()
+        oracle_data = payload.get("oracle_data", {})
+        trading_style = payload.get("trading_style", "swing_trading")
+        if not ticker:
+            return {"error": "ticker required"}
+
+        if not context.user_id:
+            return {"error": "User not authenticated"}
+
+        try:
+            from utils import database as db
+            from flask_app.services.gemini_service import GeminiService
+
+            user_config = db.get_user_api_keys(context.user_id) or {}
+            gemini_service = GeminiService(config=user_config)
+            interpretation = gemini_service.get_factor_interpretation(
+                ticker, oracle_data=oracle_data, trading_style=trading_style
+            )
+            return {"ticker": ticker, "interpretation": interpretation}
+        except Exception as e:
+            return {"error": str(e)}
+
+    return handler
+
+
 def build_execution_registry(
     extra_tools: tuple[AgentTool, ...] = (),
     extra_commands: tuple[AgentCommand, ...] = (),
@@ -296,6 +354,22 @@ def build_execution_registry(
             required_permissions=("read_watchlist",),
             is_read_only=True,
             category="watchlist",
+        ),
+        AgentTool(
+            name="gemini_deep_analysis",
+            description="Get Gemini AI deep-dive analysis with Google Search grounding for a ticker",
+            handler=_create_gemini_analysis_handler(),
+            required_permissions=("market_data", "ai_analysis"),
+            is_read_only=True,
+            category="ai_analysis",
+        ),
+        AgentTool(
+            name="gemini_factor_insight",
+            description="Get Gemini AI interpretation of Oracle factor scores for a ticker",
+            handler=_create_gemini_insight_handler(),
+            required_permissions=("market_data", "ai_analysis"),
+            is_read_only=True,
+            category="ai_analysis",
         ),
     )
 

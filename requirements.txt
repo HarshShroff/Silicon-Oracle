@@ -35,6 +35,7 @@ transformers>=4.36.0
 torch>=2.1.0
 google-generativeai>=0.3.0  # Gemini API
 google-genai
+google-adk>=1.0.0           # Google Agent Development Kit (agentic email alerts)
 
 # HTTP & APIs
 curl-cffi>=0.5.10

@@ -4,12 +4,15 @@ Silicon Oracle - Oracle Scoring Service
 """
 
 import logging
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from flask_app.services.stock_service import StockService
 
 logger = logging.getLogger(__name__)
+
+_SPY_CACHE_TTL = 300  # 5 minutes
 
 
 class OracleService:
@@ -21,11 +24,14 @@ class OracleService:
     def __init__(self, config: Optional[Dict[str, str]] = None):
         self.stock_service = StockService(config)
         self.spy_data: Optional[Dict[str, Any]] = None  # Cache SPY data for market context
+        self._spy_cache_time: float = 0.0
 
     def _get_market_context(self) -> Dict[str, Any]:
-        """Get SPY data for market context."""
-        if self.spy_data is None:
+        """Get SPY data for market context with a 5-minute TTL cache."""
+        now = time.monotonic()
+        if self.spy_data is None or (now - self._spy_cache_time) > _SPY_CACHE_TTL:
             self.spy_data = self.stock_service.get_technical_indicators("SPY")
+            self._spy_cache_time = now
         return self.spy_data or {}
 
     def calculate_oracle_score(self, ticker: str) -> Dict[str, Any]:

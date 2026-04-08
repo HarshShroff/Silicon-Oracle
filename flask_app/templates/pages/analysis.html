@@ -9,32 +9,64 @@
 <div x-data="{ ...analysisPage(), activeTab: 'chart' }" x-init="init()">
 
     <!-- ── Ticker Header Bar ────────────────────────────────────── -->
-    <div class="t-card mb-3" style="padding:10px 14px;">
-        <div class="flex items-center gap-3 flex-wrap">
-            <!-- Ticker + Company -->
+    <div class="t-card mb-3" style="padding:12px 16px;">
+        <!-- Row 1: Ticker + Company + Market session badge -->
+        <div class="flex items-center gap-3 flex-wrap mb-2">
             <div class="flex items-center gap-2 min-w-0">
-                <h1 style="font-size:20px;font-weight:700;color:#FFFFFF;letter-spacing:-0.5px;">{{ ticker }}</h1>
+                <h1 style="font-size:21px;font-weight:700;color:#FFFFFF;letter-spacing:-0.5px;">{{ ticker }}</h1>
                 {% if stock_data.company %}
                 <span style="font-size:12px;color:#787B86;" class="truncate hidden sm:block">{{ stock_data.company.name }}</span>
                 {% endif %}
-                <template x-if="isMarketOpen">
-                    <span class="badge badge-live" style="margin-left:4px;">LIVE</span>
-                </template>
-                <template x-if="!isMarketOpen">
-                    <span class="badge badge-closed" style="margin-left:4px;">CLOSED</span>
-                </template>
             </div>
+            <!-- Market session badge (live-updated) -->
+            <span id="market-session-badge" class="mono" style="font-size:10px;font-weight:700;letter-spacing:1px;padding:2px 8px;border-radius:12px;background:#1C1C1C;border:1px solid #2A2E39;color:#787B86;">
+                <span id="market-session-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#787B86;margin-right:4px;vertical-align:middle;"></span>
+                <span id="market-session-text">LOADING</span>
+            </span>
+            <!-- Watchlist quick-add -->
+            <button @click="toggleWatchlist()"
+                    :title="inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'"
+                    style="display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.15s;border:1px solid;"
+                    :style="inWatchlist
+                        ? 'background:rgba(0,200,83,0.12);border-color:rgba(0,200,83,0.4);color:#00C853;'
+                        : 'background:transparent;border-color:#2A2E39;color:#787B86;'">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                    <path x-show="inWatchlist" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                    <path x-show="!inWatchlist" d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zm-10 6.58L6.24 19l1.36-5.93L3 9.74l6.02-.52L12 4.1l2.97 5.12 6.02.52-4.6 3.33L17.76 19 12 15.82z"/>
+                </svg>
+                <span x-text="inWatchlist ? 'Watching' : 'Watch'"></span>
+            </button>
+            <span x-show="watchlistMsg" x-text="watchlistMsg"
+                  style="font-size:10px;color:#00C853;font-weight:600;" x-transition></span>
+            <div class="hidden lg:flex items-center gap-1 ml-auto">
+                <input type="text" id="ticker-jump" placeholder="Ticker..." value="{{ ticker }}"
+                       class="t-input t-input-ticker"
+                       @keydown.enter="const v=$el.value.trim(); if(v) window.location.href='/analysis/'+v.toUpperCase()">
+                <button class="btn btn-ghost btn-sm"
+                        @click="const v=document.getElementById('ticker-jump').value.trim(); if(v) window.location.href='/analysis/'+v.toUpperCase()">Go</button>
+            </div>
+        </div>
 
-            <!-- Live Price -->
-            <div class="flex items-baseline gap-2">
+        <!-- Row 2: Hero Price (Robinhood-style) -->
+        <div class="flex items-end gap-4 flex-wrap">
+            <div>
                 {% if stock_data.quote and stock_data.quote.current %}
-                <span id="live-price" class="mono tabular-nums transition-colors duration-300" style="font-size:22px;font-weight:600;color:#FFFFFF;">${{ "%.2f"|format(stock_data.quote.current) }}</span>
-                <span id="live-change" class="mono tabular-nums transition-colors duration-300" style="font-size:13px;font-weight:500;{% if stock_data.quote.change >= 0 %}color:#00C853{% else %}color:#f87171{% endif %};">
+                <div id="live-price" class="mono tabular-nums transition-colors duration-300"
+                     style="font-size:34px;font-weight:700;color:#FFFFFF;line-height:1;letter-spacing:-1px;">${{ "%.2f"|format(stock_data.quote.current) }}</div>
+                <div id="live-change" class="mono tabular-nums transition-colors duration-300 mt-0.5"
+                     style="font-size:14px;font-weight:500;{% if stock_data.quote.change >= 0 %}color:#00C853{% else %}color:#f87171{% endif %};">
                     {% if stock_data.quote.change >= 0 %}▲{% else %}▼{% endif %} {{ "%.2f"|format(stock_data.quote.change|abs) }} ({{ "%.2f"|format(stock_data.quote.percent_change|abs) }}%)
-                </span>
+                    <span style="color:#787B86;font-size:11px;margin-left:4px;" id="live-change-label">Today</span>
+                </div>
                 {% else %}
-                <div class="skeleton" style="height:28px;width:112px;border-radius:4px;"></div>
+                <div class="skeleton" style="height:40px;width:140px;border-radius:4px;"></div>
                 {% endif %}
+                <!-- Pre/After-market price (shown outside regular hours) -->
+                <div id="extended-price-row" style="display:none;margin-top:4px;">
+                    <span id="extended-price" class="mono" style="font-size:13px;font-weight:600;color:#F0C060;"></span>
+                    <span id="extended-change" class="mono" style="font-size:11px;color:#787B86;margin-left:4px;"></span>
+                    <span id="extended-label" class="mono" style="font-size:10px;color:#787B86;margin-left:4px;padding:1px 6px;background:#1C1C1C;border-radius:4px;border:1px solid #2A2E39;"></span>
+                </div>
             </div>
 
             <!-- Quick Stats (desktop) -->
@@ -58,20 +90,6 @@
                 </div>
             </div>
             {% endif %}
-
-            <!-- Actions -->
-            <div class="flex items-center gap-2 {% if not stock_data.company %}ml-auto{% endif %}">
-                <div class="flex items-center gap-1">
-                    <input type="text" id="ticker-jump" placeholder="Ticker..." value="{{ ticker }}"
-                           class="t-input t-input-ticker"
-                           @keydown.enter="const v=$el.value.trim(); if(v) window.location.href='/analysis/'+v.toUpperCase()">
-                    <button class="btn btn-ghost btn-sm"
-                            @click="const v=document.getElementById('ticker-jump').value.trim(); if(v) window.location.href='/analysis/'+v.toUpperCase()">Go</button>
-                </div>
-                {% if alpaca_enabled %}
-                <a href="{{ url_for('main.trade', ticker=ticker) }}" class="btn btn-primary btn-sm">Trade</a>
-                {% endif %}
-            </div>
         </div>
     </div>
 
@@ -127,11 +145,13 @@
                 <div class="space-y-1 max-h-72 overflow-y-auto pr-1">
                     {% for item in stock_data.news %}
                     <a href="{{ item.url }}" target="_blank"
-                       class="block p-2.5 rounded border transition-colors"
+                       class="news-item-link block p-2.5 rounded border transition-colors"
                        style="background:#1C1C1C;border-color:#2A2E39;"
                        onmouseover="this.style.borderColor='#4A5060'" onmouseout="this.style.borderColor='#2A2E39'">
-                        <p class="text-xs font-medium line-clamp-2" style="color:#D1D4DC;">{{ item.headline }}</p>
-                        <p class="mono muted mt-0.5" style="font-size:10px;">{{ item.source }}</p>
+                        <p class="news-headline text-xs font-medium line-clamp-2" style="color:#D1D4DC;">{{ item.headline }}</p>
+                        <div class="news-meta-row flex items-center gap-2 mt-0.5">
+                            <span class="mono muted" style="font-size:10px;">{{ item.source }}</span>
+                        </div>
                     </a>
                     {% endfor %}
                 </div>
@@ -366,7 +386,92 @@
 
 </div>
 
+{% if alpaca_enabled %}
+<!-- ── Floating Trade Buttons (Alpaca only) ────────────────────── -->
+<div style="position:fixed;bottom:28px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:40;">
+    <button @click="openTrade('buy')"
+            style="width:56px;height:56px;border-radius:50%;background:#00C853;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(0,200,83,0.4);font-size:11px;font-weight:700;color:#000;font-family:'Space Grotesk',sans-serif;transition:all 0.2s;"
+            onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
+        BUY
+    </button>
+    <button @click="openTrade('sell')"
+            style="width:56px;height:56px;border-radius:50%;background:#f87171;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(248,113,113,0.35);font-size:11px;font-weight:700;color:#000;font-family:'Space Grotesk',sans-serif;transition:all 0.2s;"
+            onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
+        SELL
+    </button>
+</div>
+
+<!-- ── Trade Slide-Up Panel ────────────────────────────────────── -->
+<!-- Backdrop -->
+<div x-show="tradeOpen" x-transition:enter="transition-opacity duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     x-transition:leave="transition-opacity duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+     @click="closeTrade()"
+     style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:50;backdrop-filter:blur(2px);"
+     x-cloak></div>
+<!-- Panel -->
+<div x-show="tradeOpen"
+     x-transition:enter="transition-transform duration-300 ease-out"
+     x-transition:enter-start="translate-y-full"
+     x-transition:enter-end="translate-y-0"
+     x-transition:leave="transition-transform duration-200 ease-in"
+     x-transition:leave-start="translate-y-0"
+     x-transition:leave-end="translate-y-full"
+     style="position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:#131722;border:1px solid #2A2E39;border-bottom:none;border-radius:16px 16px 0 0;padding:20px 20px 32px;z-index:51;"
+     x-cloak>
+    <!-- Handle bar -->
+    <div style="width:40px;height:4px;background:#2A2E39;border-radius:2px;margin:0 auto 16px;"></div>
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div style="display:flex;gap:0;">
+            <button @click="tradeAction='buy'"
+                    :style="tradeAction==='buy' ? 'background:#00C853;color:#000;' : 'background:transparent;color:#787B86;border:1px solid #2A2E39;'"
+                    style="padding:6px 20px;border-radius:6px 0 0 6px;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;transition:all 0.15s;">
+                Buy
+            </button>
+            <button @click="tradeAction='sell'"
+                    :style="tradeAction==='sell' ? 'background:#f87171;color:#000;' : 'background:transparent;color:#787B86;border:1px solid #2A2E39;'"
+                    style="padding:6px 20px;border-radius:0 6px 6px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;transition:all 0.15s;">
+                Sell
+            </button>
+        </div>
+        <button @click="closeTrade()" style="background:none;border:none;color:#787B86;cursor:pointer;font-size:18px;padding:4px;">✕</button>
+    </div>
+    <!-- Ticker + price row -->
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
+        <span style="font-size:20px;font-weight:700;color:#FFFFFF;font-family:\'Space Grotesk\',sans-serif;">{{ ticker }}</span>
+        <span class="mono" style="font-size:16px;color:#D1D4DC;" x-text="tradePrice ? '$' + tradePrice.toFixed(2) : '—'"></span>
+    </div>
+    <!-- Shares input -->
+    <div style="margin-bottom:12px;">
+        <label style="font-size:11px;color:#787B86;font-weight:600;display:block;margin-bottom:6px;">SHARES</label>
+        <input type="number" min="0.001" step="0.001"
+               x-model="tradeShares"
+               placeholder="0"
+               style="width:100%;background:#1C1C1C;border:1px solid #2A2E39;border-radius:8px;padding:12px 14px;font-size:20px;font-weight:600;color:#FFFFFF;font-family:\'JetBrains Mono\',monospace;outline:none;transition:border-color 0.15s;"
+               onfocus="this.style.borderColor='rgba(0,200,83,0.5)'" onblur="this.style.borderColor='#2A2E39'">
+    </div>
+    <!-- Est. total -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#1C1C1C;border-radius:8px;margin-bottom:16px;">
+        <span style="font-size:12px;color:#787B86;">Est. Total</span>
+        <span class="mono" style="font-size:14px;font-weight:600;color:#D1D4DC;"
+              x-text="tradeTotal ? '$' + tradeTotal : '—'"></span>
+    </div>
+    <!-- Submit -->
+    <button @click="submitTrade()" :disabled="tradeSubmitting || !tradeShares"
+            :style="tradeAction==='buy' ? 'background:#00C853;' : 'background:#f87171;'"
+            style="width:100%;padding:14px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;color:#000;transition:opacity 0.15s;"
+            :class="(tradeSubmitting || !tradeShares) ? 'opacity-50 cursor-not-allowed' : ''"
+            x-text="tradeSubmitting ? 'Placing order...' : (tradeAction === 'buy' ? 'Place Buy Order' : 'Place Sell Order')">
+    </button>
+    <p style="font-size:10px;color:#787B86;text-align:center;margin-top:8px;">Market order via Alpaca · Paper trading</p>
+</div>
+{% endif %}
+
 <script>
+    // ── Alpaca flag injected from server ──────────────────────────────
+    const _alpacaEnabled = {{ alpaca_enabled | tojson }};
+    const _currentTicker = '{{ ticker }}';
+
     function analysisPage() {
         let activeChart = null;
 
@@ -377,6 +482,19 @@
             chartPeriod: '1D',
             basePrice: null,
             isMarketOpen: false,
+            marketSession: 'closed',
+
+            // Watchlist
+            inWatchlist: false,
+            watchlistMsg: '',
+            _watchlistTimer: null,
+
+            // Trade panel (Alpaca only)
+            tradeOpen: false,
+            tradeAction: 'buy',
+            tradeShares: '',
+            tradePrice: null,
+            tradeSubmitting: false,
 
             // Monte Carlo
             monteCarloLoading: false,
@@ -395,10 +513,24 @@
             init() {
                 const self = this;
 
-                // Check market status
+                // Market status + session badge
                 fetch('/api/market/status').then(r => r.json()).then(d => {
                     self.isMarketOpen = d.is_open || false;
+                    self.marketSession = d.session || 'closed';
+                    self._updateSessionBadge(d.session || 'closed');
+                }).catch(() => {
+                    self._updateSessionBadge('closed');
+                });
+
+                // Check if ticker is already in a watchlist
+                fetch('/api/scanner/watchlists').then(r => r.json()).then(lists => {
+                    if (Array.isArray(lists)) {
+                        self.inWatchlist = lists.some(l => Array.isArray(l.tickers) && l.tickers.map(t => t.toUpperCase()).includes(_currentTicker.toUpperCase()));
+                    }
                 }).catch(() => {});
+
+                // Add news sentiment badges after DOM is ready
+                self.$nextTick(() => { self._addNewsSentimentBadges(); });
 
                 const initChart = () => {
                     const canvas = document.getElementById('priceChartContainer');
@@ -414,6 +546,156 @@
                     initChart();
                     setInterval(() => { self.updatePrice(); }, 10000);
                 });
+            },
+
+            _updateSessionBadge(session) {
+                const badge = document.getElementById('market-session-badge');
+                const dot   = document.getElementById('market-session-dot');
+                const text  = document.getElementById('market-session-text');
+                if (!badge || !dot || !text) return;
+                const map = {
+                    'regular':    { label: 'MARKET OPEN',  dot: '#00C853', border: 'rgba(0,200,83,0.35)',   bg: 'rgba(0,200,83,0.08)',   color: '#00C853' },
+                    'pre-market': { label: 'PRE-MARKET',   dot: '#F0C060', border: 'rgba(240,192,96,0.35)', bg: 'rgba(240,192,96,0.08)', color: '#F0C060' },
+                    'after-hours':{ label: 'AFTER HOURS',  dot: '#a78bfa', border: 'rgba(167,139,250,0.35)',bg: 'rgba(167,139,250,0.08)',color: '#a78bfa' },
+                    'closed':     { label: 'MARKET CLOSED',dot: '#787B86', border: '#2A2E39',               bg: '#1C1C1C',               color: '#787B86' },
+                };
+                const s = map[session] || map['closed'];
+                text.textContent = s.label;
+                dot.style.background = s.dot;
+                if (session === 'regular') dot.style.animation = 'pulse 2s infinite';
+                badge.style.background = s.bg;
+                badge.style.borderColor = s.border;
+                badge.style.color = s.color;
+
+                // Show extended hours price row
+                const extRow = document.getElementById('extended-price-row');
+                if (extRow && (session === 'pre-market' || session === 'after-hours')) {
+                    // Fetch extended hours price via yfinance fast_info
+                    fetch(`/api/stock/${_currentTicker}/quote`).then(r => r.json()).then(q => {
+                        const regularClose = q.prev_close || q.current;
+                        // yfinance doesn't expose extended hours directly in our API,
+                        // so we show a note instead
+                        const extPriceEl   = document.getElementById('extended-price');
+                        const extChangeEl  = document.getElementById('extended-change');
+                        const extLabelEl   = document.getElementById('extended-label');
+                        if (extPriceEl && extLabelEl) {
+                            extPriceEl.textContent  = '$' + (q.current || 0).toFixed(2);
+                            extLabelEl.textContent  = session === 'pre-market' ? 'Pre-Market' : 'After Hours';
+                            extRow.style.display = 'block';
+                            if (extChangeEl && regularClose) {
+                                const chg = q.current - regularClose;
+                                const pct = regularClose ? (chg / regularClose * 100) : 0;
+                                extChangeEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
+                                extChangeEl.style.color = chg >= 0 ? '#00C853' : '#f87171';
+                            }
+                        }
+                    }).catch(() => {});
+                }
+            },
+
+            // ── Sentiment badge helper ─────────────────────────────────────
+            _sentimentScore(headline) {
+                const h = headline.toLowerCase();
+                const bullish = ['beat','beats','surge','surges','soar','soars','rally','rallies','rise','rises','gain','gains','profit','record','upgrade','outperform','buy','strong','positive','growth','revenue','earnings beat','above expectations'];
+                const bearish = ['miss','misses','fall','falls','drop','drops','decline','declines','cut','cuts','downgrade','underperform','sell','weak','loss','losses','layoff','layoffs','lawsuit','investigation','recall','concern','warning','below expectations','disappoint'];
+                let score = 0;
+                bullish.forEach(w => { if (h.includes(w)) score++; });
+                bearish.forEach(w => { if (h.includes(w)) score--; });
+                if (score > 0)  return { label: 'BULLISH',  color: '#00C853', bg: 'rgba(0,200,83,0.1)',    border: 'rgba(0,200,83,0.3)'    };
+                if (score < 0)  return { label: 'BEARISH',  color: '#f87171', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.3)' };
+                return               { label: 'NEUTRAL',  color: '#787B86', bg: 'rgba(120,123,134,0.1)', border: 'rgba(120,123,134,0.25)' };
+            },
+
+            _addNewsSentimentBadges() {
+                const newsItems = document.querySelectorAll('.news-item-link');
+                newsItems.forEach(el => {
+                    const headlineEl = el.querySelector('.news-headline');
+                    if (!headlineEl) return;
+                    const sentiment = this._sentimentScore(headlineEl.textContent);
+                    const existing = el.querySelector('.sentiment-badge');
+                    if (existing) return;
+                    const badge = document.createElement('span');
+                    badge.className = 'sentiment-badge mono';
+                    badge.textContent = sentiment.label;
+                    badge.style.cssText = `font-size:9px;font-weight:700;letter-spacing:0.8px;padding:1px 6px;border-radius:3px;color:${sentiment.color};background:${sentiment.bg};border:1px solid ${sentiment.border};flex-shrink:0;`;
+                    const sourceRow = el.querySelector('.news-meta-row');
+                    if (sourceRow) sourceRow.appendChild(badge);
+                    else el.appendChild(badge);
+                });
+            },
+
+            // ── Watchlist toggle ──────────────────────────────────────────
+            async toggleWatchlist() {
+                try {
+                    if (this.inWatchlist) {
+                        // Can't easily remove from watchlist without knowing which list
+                        // Show a helpful message instead
+                        this.watchlistMsg = 'Manage in Scanner →';
+                        clearTimeout(this._watchlistTimer);
+                        this._watchlistTimer = setTimeout(() => { this.watchlistMsg = ''; }, 3000);
+                        return;
+                    }
+                    // Get first watchlist or create default
+                    const lists = await fetch('/api/scanner/watchlists').then(r => r.json()).catch(() => []);
+                    let listName = 'My Watchlist';
+                    if (Array.isArray(lists) && lists.length > 0) listName = lists[0].name;
+
+                    const resp = await fetch('/api/scanner/watchlists/add-ticker', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ list_name: listName, ticker: _currentTicker })
+                    });
+                    const data = await resp.json();
+                    if (data.success || resp.ok) {
+                        this.inWatchlist = true;
+                        this.watchlistMsg = `Added to ${listName} ✓`;
+                        clearTimeout(this._watchlistTimer);
+                        this._watchlistTimer = setTimeout(() => { this.watchlistMsg = ''; }, 3000);
+                    }
+                } catch(e) { console.error('Watchlist toggle error:', e); }
+            },
+
+            // ── Trade slide-up panel ──────────────────────────────────────
+            openTrade(action) {
+                if (!_alpacaEnabled) return;
+                this.tradeAction = action || 'buy';
+                this.tradeOpen = true;
+                // Fetch current price
+                const priceEl = document.getElementById('live-price');
+                if (priceEl) this.tradePrice = parseFloat(priceEl.textContent.replace('$','')) || null;
+            },
+
+            closeTrade() { this.tradeOpen = false; this.tradeShares = ''; },
+
+            get tradeTotal() {
+                const s = parseFloat(this.tradeShares) || 0;
+                const p = this.tradePrice || 0;
+                return s > 0 && p > 0 ? (s * p).toFixed(2) : null;
+            },
+
+            async submitTrade() {
+                if (!_alpacaEnabled || this.tradeSubmitting) return;
+                const shares = parseFloat(this.tradeShares);
+                if (!shares || shares <= 0) { this.$dispatch('show-toast', { message: 'Enter a valid number of shares', type: 'error' }); return; }
+                this.tradeSubmitting = true;
+                try {
+                    const resp = await fetch('/api/trading/order', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ticker: _currentTicker, action: this.tradeAction, shares, order_type: 'market' })
+                    });
+                    const data = await resp.json();
+                    if (data.success || data.order_id) {
+                        this.$dispatch('show-toast', { message: `${this.tradeAction.toUpperCase()} order placed for ${shares} shares of ${_currentTicker}`, type: 'success' });
+                        this.closeTrade();
+                    } else {
+                        this.$dispatch('show-toast', { message: data.error || 'Order failed', type: 'error' });
+                    }
+                } catch(e) {
+                    this.$dispatch('show-toast', { message: 'Order submission failed', type: 'error' });
+                } finally {
+                    this.tradeSubmitting = false;
+                }
             },
 
             async updatePrice() {
@@ -545,6 +827,9 @@
                             vertLines: { color: 'rgba(30, 45, 61, 0.6)' },
                             horzLines: { color: 'rgba(30, 45, 61, 0.6)' },
                         },
+                        localization: {
+                            timeZone: 'America/New_York',
+                        },
                         rightPriceScale: { borderVisible: false },
                         timeScale: {
                             borderVisible: false,
@@ -569,10 +854,29 @@
                         scaleMargins: { top: 0.8, bottom: 0 },
                     });
 
+                    // Convert API date string to LightweightCharts time.
+                    // For daily bars use YYYY-MM-DD string (no tz issues).
+                    // For intraday, parse the tz-aware string and return the
+                    // "wall-clock" unix seconds so the label shows ET time.
+                    const toChartTime = (raw, intraday) => {
+                        if (!raw) return 0;
+                        const s = String(raw);
+                        if (!intraday) {
+                            // e.g. "2024-01-15 00:00:00+00:00" → "2024-01-15"
+                            return s.slice(0, 10);
+                        }
+                        // Intraday: yfinance returns tz-aware strings like
+                        // "2024-01-15 09:30:00-05:00". We want to show that
+                        // clock time as-is, so we strip the tz offset and treat
+                        // the naive local time as UTC for the unix conversion.
+                        const naive = s.slice(0, 19).replace(' ', 'T') + 'Z';
+                        return Math.floor(new Date(naive).getTime() / 1000);
+                    };
+                    const intraday = (period === '1D' || period === '5D');
                     const lwData = [];
                     const volData = [];
                     data.forEach((d, i) => {
-                        const t = Math.floor(new Date(d.Date || d.Datetime).getTime() / 1000);
+                        const t = toChartTime(d.Date || d.Datetime, intraday);
                         const prevClose = i > 0 ? data[i-1].Close : d.Open;
                         lwData.push({ time: t, value: d.Close });
                         const vColor = d.Close >= prevClose ? 'rgba(96, 224, 110, 0.3)' : 'rgba(248, 113, 113, 0.3)';

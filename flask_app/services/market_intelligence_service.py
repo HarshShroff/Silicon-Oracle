@@ -108,31 +108,86 @@ class MarketIntelligenceService:
             else:
                 logger.info("No previous market intelligence found - first run for this user")
 
-            # Step 1: Get AI-powered market analysis
-            market_analysis = self._get_comprehensive_market_analysis()
+            # ------------------------------------------------------------------ #
+            # AGENTIC PATH: single ADK agent loop replacing steps 1, 2, 3, 7     #
+            # Falls back to sequential pipeline on any failure                   #
+            # ------------------------------------------------------------------ #
+            market_analysis = None
+            recommendations = []
+            holdings_impact = []
+            watchlist = []
 
+            try:
+                from flask_app.services.agentic_intel_service import AgenticIntelService
+
+                agentic_svc = AgenticIntelService(self.config, user_id)
+                intel = agentic_svc.generate_intelligence(
+                    user_holdings=user_holdings,
+                    risk_profile=risk_profile,
+                    available_cash=available_cash,
+                    trading_style=trading_style,
+                    previous_report=previous_report,
+                )
+                market_analysis = intel["market_analysis"]
+                recommendations = intel["recommendations"]
+                holdings_impact = intel["holdings_impact"]
+                watchlist = intel["watchlist"]
+                logger.info(
+                    "Agentic path succeeded: sentiment=%s, recs=%d",
+                    market_analysis.get("market_sentiment", "?"),
+                    len(recommendations),
+                )
+
+            except Exception as agentic_err:
+                logger.warning(
+                    "ADK agent failed — falling back to sequential pipeline: %s", agentic_err
+                )
+
+                # ------------------------------------------------------------------ #
+                # SEQUENTIAL FALLBACK: original 4-step pipeline (unchanged)         #
+                # ------------------------------------------------------------------ #
+
+                # Step 1: Get AI-powered market analysis
+                market_analysis = self._get_comprehensive_market_analysis()
+
+                if not market_analysis or not market_analysis.get("has_important_news"):
+                    logger.info(f"No significant market developments for {user_email}")
+                    return False
+
+                # Step 2: Generate personalized stock recommendations (with AI memory)
+                recommendations = self._generate_personalized_recommendations(
+                    market_analysis=market_analysis,
+                    user_holdings=user_holdings,
+                    risk_profile=risk_profile,
+                    available_cash=available_cash,
+                    previous_report=previous_report,
+                    trading_style=trading_style,
+                )
+
+                # Step 3: Analyze current holdings impact
+                holdings_impact = self._analyze_holdings_impact(
+                    user_holdings=user_holdings, market_analysis=market_analysis
+                )
+
+                # Step 7: Generate watchlist
+                watchlist = self._generate_watchlist(
+                    market_analysis=market_analysis,
+                    user_holdings=user_holdings,
+                    risk_profile=risk_profile,
+                )
+
+            # Early exits (apply to both paths)
             if not market_analysis or not market_analysis.get("has_important_news"):
                 logger.info(f"No significant market developments for {user_email}")
                 return False
-
-            # Step 2: Generate personalized stock recommendations (with AI memory)
-            recommendations = self._generate_personalized_recommendations(
-                market_analysis=market_analysis,
-                user_holdings=user_holdings,
-                risk_profile=risk_profile,
-                available_cash=available_cash,
-                previous_report=previous_report,
-                trading_style=trading_style,
-            )
 
             if not recommendations:
                 logger.info(f"No actionable recommendations for {user_email}")
                 return False
 
-            # Step 3: Analyze current holdings impact
-            holdings_impact = self._analyze_holdings_impact(
-                user_holdings=user_holdings, market_analysis=market_analysis
-            )
+            # ------------------------------------------------------------------ #
+            # Pure-Python steps — always run regardless of which path was used   #
+            # ------------------------------------------------------------------ #
 
             # Step 4: Generate TL;DR summary
             tldr_summary = self._generate_tldr_summary(
@@ -161,12 +216,6 @@ class MarketIntelligenceService:
             logger.info(f"🛑 Stop Losses calculated: {len(stop_losses)} positions")
             logger.info(f"   Stop loss details: {stop_losses}")
 
-            # Step 7: Generate watchlist
-            watchlist = self._generate_watchlist(
-                market_analysis=market_analysis,
-                user_holdings=user_holdings,
-                risk_profile=risk_profile,
-            )
             logger.info(f"👀 Watchlist generated: {len(watchlist)} stocks")
             logger.info(f"   Will show Watchlist? {bool(watchlist)}")
             if watchlist:
