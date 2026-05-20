@@ -5,6 +5,28 @@ All notable changes to Silicon-Oracle will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-05-18
+
+### Removed — Alpaca purge (complete)
+- **`/portfolio` and `/trade` pages deleted.** Both URLs now 302-redirect to `/simulation` (Sentinel dashboard). `portfolio.html` and `trade.html` templates removed.
+- `TradingService` import removed from `main.py`; `get_alpaca_enabled()` helper deleted.
+- `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` removed from `get_config()` return values and all route render calls.
+- `save_alpaca_toggle` POST handler removed from settings route.
+- Alpaca key fields removed from `save_api_keys` handler and `test_connections` (now tests Finnhub only).
+- Alpaca key/secret/enabled removed from settings GET render; `alpaca_enabled` template variable removed from `inject_globals()` context processor entirely.
+- `alpaca_api_key` / `alpaca_secret_key` attributes removed from `User` model; `get_api_keys()` and `to_dict()` cleaned.
+- "Alpaca Paper Trading" deprecated block removed from `settings.html`; `toggleAlpaca()` / `alpacaEnabled` / `alpaca_key` / `alpaca_secret` removed from settings JS.
+- `{% if alpaca_enabled %}` gate removed from sidebar nav — Portfolio and Holdings links were replaced by direct Sentinel link.
+- All `url_for('main.portfolio')` / `url_for('main.trade')` links across `scanner.html`, `watchlist.html`, `command_center.html`, `analysis.html`, `ai_guidance.html`, and `email_service.py` updated to point to `/simulation`.
+
+### Added
+- **Macro intelligence in every AI email:** `_fetch_macro_intel_snapshot()` pulls VIX, DXY (`DX-Y.NYB`), BTC, Gold, 10Y yield from yfinance + Fear & Greed, sector rotation, yield curve from `global_intel_service`. Snapshot injected into all three Gemini email prompts (market analysis, personalized recommendations, agentic holdings prompt). Email subject line includes current Fear & Greed label.
+- `_build_macro_dashboard_html()` renders a dark-themed gauge row in the email HTML between the header and body sections.
+
+### Fixed
+- `get_shadow_portfolio()` field name mismatch: was reading `shares` / `avg_price` from DB rows that store `quantity` / `average_entry_price`. Fixed with fallback: `h.get("quantity") or h.get("shares")`.
+- Same fix in `api.py` `get_shadow_portfolio_value()`.
+
 ## [Unreleased]
 
 ### Added

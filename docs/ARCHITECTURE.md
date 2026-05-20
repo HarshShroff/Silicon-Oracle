@@ -2,7 +2,7 @@
 
 ## Overview
 
-Silicon Oracle is a multi-user, cloud-native stock analysis and paper trading platform. The backend is a Flask application with a service-oriented architecture; the frontend is server-rendered Jinja2 templates enhanced with Alpine.js reactivity and Lightweight Charts for financial visualization.
+Silicon Oracle is a multi-user, cloud-native stock analysis and market intelligence platform. The backend is a Flask application with a service-oriented architecture; the frontend is server-rendered Jinja2 templates enhanced with Alpine.js reactivity and Lightweight Charts for financial visualization.
 
 ---
 
@@ -23,9 +23,10 @@ Silicon Oracle is a multi-user, cloud-native stock analysis and paper trading pl
 │                                                          │
 │  ┌────────────────────────────────────────────────────┐ │
 │  │                  Services Layer                     │ │
-│  │  StockService  OracleService  TradingService        │ │
+│  │  StockService  OracleService  SentinelEngine        │ │
 │  │  PortfolioService  AlertEngine  EmailService        │ │
 │  │  MacroIntelService  ScannerService  AgentRuntime    │ │
+│  │  MarketIntelligenceService  GlobalIntelService      │ │
 │  └────────────────────────────────────────────────────┘ │
 │                                                          │
 │  ┌────────────┐  ┌──────────────┐  ┌─────────────────┐ │
@@ -36,9 +37,9 @@ Silicon Oracle is a multi-user, cloud-native stock analysis and paper trading pl
                        │
 ┌──────────────────────▼──────────────────────────────────┐
 │                  External Services                       │
-│  Finnhub (quotes)   Alpaca (paper trading)               │
-│  Google Gemini (AI) yfinance (history)                   │
-│  Google News RSS    Supabase (database + auth)           │
+│  Finnhub (quotes)   Google Gemini (AI)                   │
+│  yfinance (history) Google News RSS                      │
+│  Supabase (database + auth)   Gmail (SMTP)               │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -52,32 +53,33 @@ Silicon-Oracle/
 │   ├── __init__.py          # App factory (create_app)
 │   ├── config.py            # Config classes (Dev/Prod/Test)
 │   ├── routes/
-│   │   ├── main.py          # Page routes (/, /demo, /portfolio, ...)
+│   │   ├── main.py          # Page routes (/, /demo, /simulation, ...)
 │   │   ├── api.py           # JSON API endpoints (/api/*)
 │   │   ├── auth.py          # Auth routes (/auth/login, /auth/signup)
-│   │   ├── sentinel.py      # Sentinel monitor API
-│   │   └── sentinel_ui.py   # Sentinel dashboard pages
+│   │   ├── sentinel.py      # Sentinel monitor API (/sentinel/add, /sentinel/dashboard)
+│   │   └── sentinel_ui.py   # Sentinel dashboard pages + data endpoints
 │   ├── services/
-│   │   ├── stock_service.py         # Finnhub + yfinance market data
-│   │   ├── oracle_service.py        # 15-factor Oracle scoring
-│   │   ├── enhanced_oracle_service.py  # Extended scoring + volume spikes
-│   │   ├── trading_service.py       # Alpaca paper trading
-│   │   ├── portfolio_service.py     # Portfolio tracking + P&L
-│   │   ├── alert_engine.py          # Price alert logic
-│   │   ├── email_service.py         # Gmail SMTP notifications
-│   │   ├── scanner_service.py       # Watchlist scanning
-│   │   ├── macro_intel_service.py   # Geopolitical + macro events
-│   │   ├── market_intelligence_service.py  # AI-powered market analysis
+│   │   ├── stock_service.py                # Finnhub + yfinance market data
+│   │   ├── oracle_service.py               # 15-factor Oracle scoring
+│   │   ├── enhanced_oracle_service.py      # Extended scoring + volume spikes
+│   │   ├── portfolio_service.py            # Trade history & P&L (local DB)
+│   │   ├── alert_engine.py                 # Price alert logic
+│   │   ├── email_service.py                # Gmail SMTP notifications
+│   │   ├── scanner_service.py              # Watchlist scanning
+│   │   ├── macro_intel_service.py          # Geopolitical + macro events
+│   │   ├── market_intelligence_service.py  # AI-powered market analysis + email
+│   │   ├── agentic_intel_service.py        # Two-agent Gemini pipeline
 │   │   ├── news_intelligence_service.py    # News sentiment
+│   │   ├── global_intel_service.py         # Global markets, fear & greed, sectors
 │   │   ├── notifications_service.py        # Scheduled email jobs
-│   │   └── market_data.py           # Market data aggregator
+│   │   └── sentinel_engine.py             # Background shadow-position monitor
 │   ├── agent/
 │   │   ├── runtime.py               # AgentRuntime — tool-call loop
 │   │   ├── execution_registry.py    # Tool/command registry + handlers
 │   │   ├── permissions.py           # Permission-gated tool blocking
 │   │   └── session_store.py         # JSON-persisted session store
 │   ├── models/
-│   │   └── user.py                  # User model
+│   │   └── __init__.py              # User model
 │   ├── templates/
 │   │   ├── layouts/                 # base.html, auth_base.html
 │   │   ├── pages/                   # Full page templates
@@ -113,7 +115,7 @@ Silicon-Oracle/
 ## Key Design Decisions
 
 ### BYOK (Bring Your Own Keys)
-Each user provides and stores their own API keys (Finnhub, Alpaca, Gemini, Gmail). Keys are encrypted at rest using Fernet symmetric encryption before storage in Supabase. This means:
+Each user provides and stores their own API keys (Finnhub, Gemini, Gmail). Keys are encrypted at rest using Fernet symmetric encryption before storage in Supabase. This means:
 - No shared rate limits between users
 - The app operator never needs API keys for market data or AI
 - Users have full control over their API quota
@@ -122,15 +124,20 @@ Each user provides and stores their own API keys (Finnhub, Alpaca, Gemini, Gmail
 Signup enforces three layers before creating an account:
 1. **Format + length** — username ≥ 3 chars, password ≥ 12, email regex
 2. **Email quality** — disposable domain blocklist (35+ services) + MX DNS record lookup via `dnspython`
-3. **Duplicate check** — queries `user_profiles` before calling Supabase auth (Supabase silently reuses existing users on duplicate when confirmation is enabled)
+3. **Duplicate check** — queries `user_profiles` before calling Supabase auth
 
 When email confirmation is enabled in Supabase, no session is created on signup — the user must click the confirmation link first.
 
 ### US-Only Ticker Constraint
-All user-facing ticker inputs in `api.py` are validated against a set of known non-US exchange suffixes (`.NS`, `.BO`, `.L`, `.DE`, `.HK`, etc.) and rejected with a clear error. The app relies on Finnhub (US-only on free tier) and Alpaca (US equities only) — non-US tickers would silently return empty data.
+All user-facing ticker inputs in `api.py` are validated against a set of known non-US exchange suffixes (`.NS`, `.BO`, `.L`, `.DE`, `.HK`, etc.) and rejected with a clear error. The app relies on Finnhub (US-only on free tier); non-US tickers would silently return empty data.
 
 ### Service Layer
-All business logic lives in `flask_app/services/`. Routes are thin — they validate input, call services, and return responses. Services are stateless and instantiated per-request where possible, or held as module-level singletons for connection-heavy clients (Finnhub, Alpaca).
+All business logic lives in `flask_app/services/`. Routes are thin — they validate input, call services, and return responses. Services are stateless and instantiated per-request where possible, or held as module-level singletons for connection-heavy clients.
+
+### Sentinel Shadow Portfolio
+Positions are added via `POST /sentinel/add` (from the Sentinel dashboard "Add Position" form or the Analysis page floating button). They live in the `shadow_positions` table with `quantity` and `average_entry_price` fields. `/portfolio` and `/trade` URLs redirect to `/simulation`.
+
+`SentinelEngine` runs every 5 minutes (Mon–Fri, market hours) as a background cron job. It checks each position for price breaches, earnings proximity, and Oracle score changes, then sends email alerts.
 
 ### Oracle Score™
 A proprietary 15-factor scoring system implemented in `oracle_service.py`. Factors include: RSI position, SMA trend, volume analysis, earnings proximity, analyst consensus, price momentum, and more. Each factor returns a score 0–1; the aggregate drives BUY/HOLD/SELL verdicts.
@@ -139,11 +146,10 @@ A proprietary 15-factor scoring system implemented in `oracle_service.py`. Facto
 `flask_app/agent/` implements a two-phase tool-routing loop:
 1. **Gemini planning** (`_gemini_plan_tools`): sends the prompt + all tool names/descriptions to Gemini 2.0 Flash, which returns a JSON array of `{tool_name, payload}` calls to execute. Falls back to keyword scoring if Gemini is unavailable.
 2. **Execution**: `AgentRuntime` runs the planned calls through `ExecutionRegistry`, filters by `ToolPermissionContext`, and collects structured results.
-3. **Synthesis** (`_gemini_synthesize`): Gemini turns the raw tool results into a natural-language answer. Falls back to a plain-text summary if Gemini is unavailable.
+3. **Synthesis** (`_gemini_synthesize`): Gemini turns the raw tool results into a natural-language answer.
 
-- `ExecutionRegistry` holds named `AgentTool` objects with typed handlers
-- `ToolPermissionContext` deny-lists tools by name or prefix
-- Used by the Command Center chat interface
+### Macro Intelligence in Emails
+`MarketIntelligenceService._fetch_macro_intel_snapshot()` pulls VIX, DXY (`DX-Y.NYB`), BTC, Gold, and 10Y yield from yfinance, plus Fear & Greed, sector rotation, and yield curve from `global_intel_service`, and injects the formatted snapshot into every Gemini email prompt. The email subject line includes the current Fear & Greed sentiment label (e.g., `| Extreme Fear`).
 
 ### Scheduled Jobs (APScheduler)
 Jobs run on UTC schedule via APScheduler. All jobs are per-user and fire conditionally on user preferences (stored in Supabase). Jobs are also manually triggerable via `/api/jobs/trigger/:name`.

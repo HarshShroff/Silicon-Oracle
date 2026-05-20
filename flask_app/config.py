@@ -139,8 +139,9 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "silicon-oracle-dev-key-change-in-production")
 
     # API Keys (BYOK - Bring Your Own Keys)
-    ALPACA_API_KEY = get_secret("ALPACA_API_KEY", "alpaca.api_key", "")
-    ALPACA_SECRET_KEY = get_secret("ALPACA_SECRET_KEY", "alpaca.secret_key", "")
+    # DEPRECATED: Alpaca integration removed
+    # ALPACA_API_KEY = get_secret("ALPACA_API_KEY", "alpaca.api_key", "")
+    # ALPACA_SECRET_KEY = get_secret("ALPACA_SECRET_KEY", "alpaca.secret_key", "")
     FINNHUB_API_KEY = get_secret("FINNHUB_API_KEY", "finnhub.api_key", "")
     GEMINI_API_KEY = get_secret("GEMINI_API_KEY", "gemini.api_key", "")
 

@@ -167,7 +167,7 @@ class EmailService:
                     </div>
                 </div>
                 <div style="margin-top: 20px; text-align: center;">
-                    <a href="{self.base_url}/trade/{ticker}"
+                    <a href="{self.base_url}/simulation"
                        style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
                         View Full Analysis
                     </a>

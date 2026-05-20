@@ -20,8 +20,6 @@ class User:
         self.email = email
         self.password_hash = password  # Supabase handles hashing
         self.finnhub_api_key = None
-        self.alpaca_api_key = None
-        self.alpaca_secret_key = None
         self.gemini_api_key = None
         self.email_notifications = True
         self.sms_notifications = False
@@ -44,8 +42,6 @@ class User:
         """Return a dict of user's API keys for service initialization."""
         return {
             "FINNHUB_API_KEY": self.finnhub_api_key or "",
-            "ALPACA_API_KEY": self.alpaca_api_key or "",
-            "ALPACA_SECRET_KEY": self.alpaca_secret_key or "",
             "GEMINI_API_KEY": self.gemini_api_key or "",
         }
 
@@ -60,7 +56,6 @@ class User:
             "username": self.username,
             "email": self.email,
             "has_finnhub_key": bool(self.finnhub_api_key),
-            "has_alpaca_keys": bool(self.alpaca_api_key and self.alpaca_secret_key),
             "has_gemini_key": bool(self.gemini_api_key),
             "email_notifications": self.email_notifications,
             "sms_notifications": self.sms_notifications,

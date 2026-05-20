@@ -39,7 +39,7 @@
               <h1 class="font-black tracking-tighter" style="font-size:clamp(2.5rem,6vw,3.75rem);color:#787B86;">—</h1>
               <div class="flex flex-wrap items-center gap-4">
                 <span class="text-sm font-bold uppercase tracking-widest" style="color:#787B86;">No positions tracked</span>
-                <a href="/portfolio"
+                <a href="/simulation"
                    class="text-[10px] font-black uppercase tracking-widest text-gain border px-3 py-1.5 rounded-full transition-all"
                    style="border-color:rgba(0,200,83,0.3);"
                    onmouseover="this.style.background='rgba(0,200,83,0.08)'"
@@ -83,7 +83,7 @@
 
       <!-- Deployed Capital row -->
       <div x-show="portfolioHasData"
-           @click="window.location.href='/portfolio'"
+           @click="window.location.href='/simulation'"
            class="group rounded-2xl mb-10 cursor-pointer flex items-center justify-between relative overflow-hidden transition-all duration-200"
            style="padding:20px 24px;background:#131722;border:1px solid #2A2E39;"
            onmouseover="this.style.borderColor='#2A2E39';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.3)'"
@@ -333,8 +333,6 @@
 </div>
 
 <script>
-const _alpacaEnabled = {{ alpaca_enabled | tojson }};
-
 function dashboard() {
     return {
         portfolioValue: 0,
@@ -523,11 +521,11 @@ function dashboard() {
 
         setPeriod(p) { this.loadTrendData(p); },
 
-        // ── NEXUS MONITOR: shadow positions → Alpaca positions → watchlist → defaults ──
+        // ── NEXUS MONITOR: shadow positions → watchlist → defaults ──
         async loadWatchlist() {
             this.wl.loading = true;
             try {
-                // 1) Shadow portfolio positions (always first — source of truth)
+                // 1) Shadow portfolio positions (source of truth)
                 try {
                     const sv = await fetch('/api/portfolio/shadow-value').then(r => r.json());
                     if (sv && !sv.error && sv.positions_list?.length > 0) {
@@ -554,35 +552,7 @@ function dashboard() {
                     }
                 } catch(e) {}
 
-                // 2) Alpaca positions (only if Alpaca is enabled)
-                if (_alpacaEnabled) {
-                    try {
-                        const positions = await fetch('/api/trading/positions').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => []);
-                        if (Array.isArray(positions) && positions.length > 0) {
-                            const sorted = [...positions].sort((a, b) => (b.market_value || 0) - (a.market_value || 0));
-                            this.wl.rows = sorted.slice(0, 6).map(p => ({
-                                ticker: p.ticker,
-                                name:   p.ticker,
-                                price:  p.current_price,
-                                change: p.unrealized_plpc,
-                                score:  0
-                            }));
-                            sorted.slice(0, 6).forEach(async (p, i) => {
-                                try {
-                                    const or = await fetch(`/api/oracle/${p.ticker}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => null);
-                                    if (or && !or.error && this.wl.rows[i]) {
-                                        this.wl.rows[i].name  = or.company_name || p.ticker;
-                                        this.wl.rows[i].score = or.score || 0;
-                                    }
-                                } catch(e) {}
-                            });
-                            if (this.wl.rows.length > 0) this.syncSpotlight(this.wl.rows[0].ticker);
-                            return;
-                        }
-                    } catch(e) {}
-                }
-
-                // 3) First scanner watchlist tickers
+                // 2) Scanner watchlist tickers
                 let tickers = [];
                 try {
                     const lists = await fetch('/api/scanner/watchlists').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(e => []);

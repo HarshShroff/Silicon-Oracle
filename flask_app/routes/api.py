@@ -1171,8 +1171,8 @@ def get_shadow_portfolio_value():
 
         for pos in holdings:
             ticker = pos.get("ticker", "")
-            shares = float(pos.get("shares") or 0)
-            avg_price = float(pos.get("avg_price") or 0)
+            shares = float(pos.get("quantity") or pos.get("shares") or 0)
+            avg_price = float(pos.get("average_entry_price") or pos.get("avg_price") or 0)
             if not ticker or shares <= 0:
                 continue
             try:
@@ -1478,79 +1478,40 @@ def portfolio_history():
     return jsonify([])
 
 
+# ---------------------------------------------------------------------------
+# DEPRECATED: Alpaca watchlist endpoints removed (Alpaca integration removed)
+# ---------------------------------------------------------------------------
+# @api_bp.route("/trading/watchlists")
+# def get_alpaca_watchlists(): ...
+#
+# @api_bp.route("/trading/watchlists/<watchlist_id>", methods=["DELETE"])
+# def delete_alpaca_watchlist(watchlist_id): ...
+#
+# @api_bp.route("/trading/watchlists/<watchlist_id>/sync", methods=["POST"])
+# def sync_alpaca_watchlist(watchlist_id): ...
+#
+# @api_bp.route("/trading/watchlists/sync-local", methods=["POST"])
+# def sync_local_to_alpaca(): ...
+
+
 @api_bp.route("/trading/watchlists")
 def get_alpaca_watchlists():
-    """Get Alpaca watchlists."""
-    trading_service = TradingService(get_config())
-    if not trading_service.is_connected():
-        return jsonify([])
-    return jsonify(trading_service.get_watchlists())
+    return jsonify([])  # DEPRECATED
 
 
 @api_bp.route("/trading/watchlists/<watchlist_id>", methods=["DELETE"])
 def delete_alpaca_watchlist(watchlist_id):
-    """Delete an Alpaca watchlist."""
-    trading_service = TradingService(get_config())
-    if not trading_service.is_connected():
-        return jsonify({"error": "Not connected"}), 401
-
-    try:
-        trading_service.trading_client.delete_watchlist(watchlist_id)
-        return jsonify({"success": True})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify({"error": "Alpaca integration deprecated"}), 410
 
 
 @api_bp.route("/trading/watchlists/<watchlist_id>/sync", methods=["POST"])
 def sync_alpaca_watchlist(watchlist_id):
-    """Sync watchlist from Alpaca to local."""
-    trading_service = TradingService(get_config())
-    if not trading_service.is_connected():
-        return jsonify({"error": "Not connected"}), 401
-
-    try:
-        watchlists = trading_service.get_watchlists()
-        wl = next((w for w in watchlists if w["id"] == watchlist_id), None)
-        if wl:
-            return jsonify({"success": True, "watchlist": wl})
-        return jsonify({"error": "Watchlist not found"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify({"error": "Alpaca integration deprecated"}), 410
 
 
 @api_bp.route("/trading/watchlists/sync-local", methods=["POST"])
 def sync_local_to_alpaca():
-    """Sync a local watchlist to Alpaca."""
-    data = request.get_json()
-    name = data.get("name")
-    tickers = data.get("tickers", [])
-
-    if not name:
-        return jsonify({"error": "Name required"}), 400
-
-    trading_service = TradingService(get_config())
-    if not trading_service.is_connected():
-        return jsonify({"error": "Not connected to Alpaca"}), 401
-
-    try:
-        result = trading_service.create_watchlist(name, tickers)
-        if result:
-            return jsonify({"success": True, "watchlist": result})
-        return jsonify({"error": "Failed to create watchlist"}), 500
-    except Exception as e:
-        # Watchlist may already exist, try updating
-        try:
-            from alpaca.trading.requests import UpdateWatchlistRequest
-
-            watchlists = trading_service.get_watchlists()
-            existing = next((w for w in watchlists if w["name"] == name), None)
-            if existing:
-                req = UpdateWatchlistRequest(symbols=tickers)
-                trading_service.trading_client.update_watchlist_by_id(existing["id"], req)
-                return jsonify({"success": True, "message": "Updated existing watchlist"})
-        except Exception as update_error:
-            logger.error(f"Error updating watchlist: {update_error}")
-        return jsonify({"error": str(e)}), 500
+    return jsonify({"error": "Alpaca integration deprecated"}), 410
 
 
 # ============================================
@@ -2490,7 +2451,7 @@ def get_macro_data():
         "VEU": "veu",
         "^VIX": "vix",
         "^TNX": "yield10y",
-        "^DXY": "dxy",
+        "DX-Y.NYB": "dxy",
         "BTC-USD": "btc",
         "ETH-USD": "eth",
         "GLD": "gold",
@@ -2808,7 +2769,22 @@ def get_portfolio_correlation():
 
 @api_bp.route("/backtest", methods=["POST"])
 def run_backtest():
-    """Run backtesting simulation. Default hold period aligns with user's trading style."""
+    """DEPRECATED: Backtesting Engine removed. Returns 410."""
+    return (
+        jsonify(
+            {
+                "error": "Backtesting Engine has been removed. Use Oracle scoring for forward-looking signals."
+            }
+        ),
+        410,
+    )
+
+    # ---------------------------------------------------------------------------
+    # DEPRECATED backtest implementation below — kept for reference only
+    # ---------------------------------------------------------------------------
+    # @api_bp.route("/backtest", methods=["POST"])
+    # def run_backtest_impl():
+    #     """Run backtesting simulation. Default hold period aligns with user's trading style."""
     try:
         data = request.get_json()
         ticker = data.get("ticker", "").upper()
@@ -3637,6 +3613,86 @@ def macro_intel_refresh():
     _event_cache["data"] = None
     _event_cache["expires"] = 0.0
     return macro_intel_scan()
+
+
+# ---------------------------------------------------------------------------
+# Global Intelligence  — new endpoints (extends macro without replacing it)
+# ---------------------------------------------------------------------------
+
+
+@api_bp.route("/global-intel")
+@cache.memoize(timeout=90)
+def get_global_intel():
+    """
+    Single endpoint that returns all global intelligence layers:
+      global_markets, sector_rotation, fear_greed, yield_curve,
+      peers, dividend_screen, swing_screen.
+    Cached 90 s.  Pass ?force=1 to bust cache.
+    """
+    from flask_app.services.global_intel_service import get_all_intel
+    from utils import database as db
+
+    force = request.args.get("force", "0") == "1"
+
+    vix_value: float | None = None
+    try:
+        from flask_app.services.global_intel_service import _yf_quote
+
+        q = _yf_quote("^VIX", timeout=5)
+        if q:
+            vix_value = q["price"]
+    except Exception:
+        pass
+
+    # Fetch user's shadow holdings to drive dynamic peer selection
+    holdings: list = []
+    try:
+        if hasattr(g, "user") and g.user and g.user.is_authenticated:
+            rows = db.get_shadow_positions(g.user.id, is_active=True) or []
+            holdings = [r["ticker"] for r in rows if r.get("ticker")]
+    except Exception:
+        pass
+
+    nra_rate = float(request.args.get("nra_rate", "0.30"))
+    data = get_all_intel(vix_value=vix_value, nra_rate=nra_rate, holdings=holdings, force=force)
+    data["generated_at"] = datetime.utcnow().isoformat() + "Z"
+    return jsonify(data)
+
+
+@api_bp.route("/global-intel/refresh")
+def refresh_global_intel():
+    """Bust all global-intel caches and return fresh data."""
+    from flask_app.services.global_intel_service import _CACHES
+
+    for key in _CACHES:
+        _CACHES[key] = {"data": None, "expires": 0.0}
+
+    return get_global_intel()
+
+
+@api_bp.route("/oracle/quick-signal/<ticker>")
+@cache.memoize(timeout=300)
+def get_quick_oracle_signal(ticker):
+    """Lightweight Oracle verdict for swing-screener badges. Cached 5 min."""
+    from utils.ticker_utils import normalize_ticker
+
+    oracle_service = OracleService(get_config())
+    try:
+        result = oracle_service.calculate_oracle_score(normalize_ticker(ticker))
+        return jsonify(
+            {
+                "ticker": ticker,
+                "verdict": result.get("verdict"),
+                "verdict_text": result.get("verdict_text"),
+                "confidence": result.get("confidence"),
+                "score": result.get("score"),
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Quick signal failed for {ticker}: {e}")
+        return jsonify(
+            {"ticker": ticker, "verdict": None, "verdict_text": "N/A", "confidence": 50, "score": 0}
+        )
 
 
 @api_bp.route("/trigger-email-job", methods=["POST"])

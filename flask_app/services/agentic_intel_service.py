@@ -50,6 +50,7 @@ class AgenticIntelService:
         available_cash: float,
         trading_style: str,
         previous_report: dict[str, Any] | None,
+        macro_intel: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Run the ADK agent and return a dict with keys:
@@ -64,6 +65,7 @@ class AgenticIntelService:
                 available_cash=available_cash,
                 trading_style=trading_style,
                 previous_report=previous_report,
+                macro_intel=macro_intel,
             )
         )
 
@@ -78,6 +80,7 @@ class AgenticIntelService:
         available_cash: float,
         trading_style: str,
         previous_report: dict[str, Any] | None,
+        macro_intel: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Two-agent pipeline required because Gemini does not allow google_search
@@ -125,12 +128,35 @@ class AgenticIntelService:
             user_id=self.user_id,
         )
 
+        # Build live macro context to ground the agent
+        macro_ctx = ""
+        if macro_intel:
+            lines = [f"LIVE MACRO DATA as of {datetime.now().strftime('%I:%M %p ET')}:"]
+            if macro_intel.get("vix"):
+                lines.append(f"  VIX={macro_intel['vix']:.1f}")
+            if macro_intel.get("dxy"):
+                lines.append(f"  DXY={macro_intel['dxy']:.2f}")
+            if macro_intel.get("gold"):
+                lines.append(f"  Gold=${macro_intel['gold']:,.0f}")
+            if macro_intel.get("btc"):
+                lines.append(f"  BTC=${macro_intel['btc']:,.0f}")
+            if macro_intel.get("t10y"):
+                lines.append(f"  10Y={macro_intel['t10y']:.2f}%")
+            if macro_intel.get("fear_greed_score"):
+                lines.append(
+                    f"  Fear&Greed={macro_intel['fear_greed_score']}/100 ({macro_intel.get('fear_greed_label','')})"
+                )
+            if macro_intel.get("yield_inverted"):
+                lines.append("  ⚠️ Yield curve INVERTED")
+            macro_ctx = "\n".join(lines) + "\n\n"
+
         macro_message = types.Content(
             role="user",
             parts=[
                 types.Part(
                     text=(
                         f"Today is {datetime.now().strftime('%A, %B %d, %Y at %I:%M %p ET')}. "
+                        f"{macro_ctx}"
                         "Search for today's major market developments and return ONLY the JSON report."
                     )
                 )
@@ -152,9 +178,7 @@ class AgenticIntelService:
             raise ValueError("Macro agent returned empty response")
 
         market_analysis = self._parse_market_analysis(market_analysis_text)
-        logger.info(
-            "Macro agent done: sentiment=%s", market_analysis.get("market_sentiment", "?")
-        )
+        logger.info("Macro agent done: sentiment=%s", market_analysis.get("market_sentiment", "?"))
 
         # ------------------------------------------------------------------ #
         # Agent 2: Holdings analysis via custom tools                        #
@@ -171,6 +195,7 @@ class AgenticIntelService:
                 trading_style=trading_style,
                 previous_report=previous_report,
                 oracle_context=oracle_context,
+                macro_intel=macro_intel,
             ),
             tools=adk_tools,
             generate_content_config=types.GenerateContentConfig(temperature=0.35),
@@ -341,6 +366,7 @@ Rules: has_important_news=true (markets always have relevant news). Include 3-7 
         trading_style: str,
         previous_report: dict[str, Any] | None,
         oracle_context: str,
+        macro_intel: dict[str, Any] | None = None,
     ) -> str:
         """System prompt for the holdings agent (custom tools only)."""
         holdings_str = ", ".join(user_holdings) if user_holdings else "none (all cash)"
@@ -370,6 +396,30 @@ Rules: has_important_news=true (markets always have relevant news). Include 3-7 
                 "  Note any meaningful changes since the last report."
             )
 
+        # Format macro context
+        macro_section = ""
+        if macro_intel:
+            macro_lines = ["LIVE MACRO CONTEXT (factor this into every recommendation):"]
+            if macro_intel.get("vix"):
+                macro_lines.append(
+                    f"  VIX={macro_intel['vix']:.1f} ({'fear' if macro_intel['vix']>25 else 'calm'})"
+                )
+            if macro_intel.get("dxy"):
+                macro_lines.append(f"  DXY={macro_intel['dxy']:.2f}")
+            if macro_intel.get("t10y"):
+                macro_lines.append(f"  10Y Yield={macro_intel['t10y']:.2f}%")
+            if macro_intel.get("fear_greed_score"):
+                macro_lines.append(
+                    f"  Fear&Greed={macro_intel['fear_greed_score']}/100 ({macro_intel.get('fear_greed_label','')})"
+                )
+            if macro_intel.get("yield_inverted"):
+                macro_lines.append("  ⚠️ Yield curve inverted — defensive tilt warranted")
+            if macro_intel.get("sector_top"):
+                macro_lines.append(f"  Leading sectors: {', '.join(macro_intel['sector_top'])}")
+            if macro_intel.get("sector_bottom"):
+                macro_lines.append(f"  Lagging sectors: {', '.join(macro_intel['sector_bottom'])}")
+            macro_section = "\n".join(macro_lines) + "\n"
+
         return f"""You are a financial advisor analyzing stocks for a Silicon Oracle user.
 
 USER PROFILE:
@@ -377,6 +427,7 @@ USER PROFILE:
   Risk profile: {risk_profile.upper()} — {risk_desc}
   Trading style: {trading_style.replace('_', ' ').upper()} — {style_desc}
   Available cash: ${available_cash:,.2f}
+{macro_section}
 {oracle_context}
 {ai_memory}
 
@@ -467,7 +518,6 @@ Rules:
         except Exception as exc:
             logger.warning(f"Oracle pre-fetch failed (non-fatal): {exc}")
             return ""
-
 
     # ------------------------------------------------------------------ #
     # Output parsing                                                      #

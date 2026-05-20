@@ -1,6 +1,6 @@
 #  Silicon Oracle
 
-**AI-Powered Stock Analysis & Paper Trading Platform**
+**AI-Powered Stock Analysis & Market Intelligence Platform**
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -9,7 +9,7 @@
 [![Tests](https://github.com/HarshShroff/Silicon-Oracle/actions/workflows/tests.yml/badge.svg)](https://github.com/HarshShroff/Silicon-Oracle/actions/workflows/tests.yml)
 [![codecov](https://codecov.io/gh/HarshShroff/Silicon-Oracle/branch/main/graph/badge.svg)](https://codecov.io/gh/HarshShroff/Silicon-Oracle)
 
-> A full-stack trading intelligence platform — real-time market data, a 15-factor AI Oracle scoring engine, paper trading, and automated Gemini-powered email alerts. **Free to deploy. Use your own API keys.**
+> A full-stack trading intelligence platform — real-time market data, a 15-factor AI Oracle scoring engine, global macro intelligence, Sentinel shadow-portfolio monitoring, and automated Gemini-powered email alerts. **Free to deploy. Use your own API keys.**
 
 **[🎬 Live Demo →](https://silicon-oracle.onrender.com/demo)** — Try it without an account. &nbsp;|&nbsp; **[📦 Deploy in 15 min →](#-quick-deploy-15-minutes)**
 
@@ -26,11 +26,12 @@
 - Multiple timeframe charts (1D, 5D, 1M, 6M, 1Y)
 
 ###  AI-Powered Insights
-- **Oracle Score™** - Proprietary 15-factor technical analysis system
-- **Trading Profile** - Set your style (Day / Swing / Long-Term) and every AI output adapts:
+- **Oracle Score™** — Proprietary 15-factor technical analysis system
+- **Trading Profile** — Set your style (Day / Swing / Long-Term) and every AI output adapts:
   - Deep-dive analysis, Oracle factor interpretations, email recommendations, backtesting defaults, and rebalancer thresholds all adjust to your horizon
-- **AI Market Intelligence** - Automated hourly email alerts with:
+- **AI Market Intelligence** — Automated hourly email alerts with:
   - Gemini 2.0 Flash AI with Google Search grounding
+  - Macro intelligence snapshot injected into every analysis (VIX, DXY, BTC, Gold, 10Y yield, Fear & Greed, sector rotation, yield curve)
   - Personalized stock recommendations (BUY/HOLD/SELL) with confidence scores, locked to your trading-style timeframe
   - Portfolio impact analysis with Oracle-based stop-loss suggestions
   - Market catalysts with clickable source links
@@ -42,11 +43,21 @@
 - Sentiment analysis from news and social media
 - Pattern recognition and trend prediction
 
-###  Paper Trading
-- Risk-free practice trading with Alpaca
-- Real-time portfolio tracking
-- P&L analysis and performance metrics
-- Order history and transaction logs
+###  Macro Intelligence
+- **Global Pulse** — VIX, DXY (live `DX-Y.NYB`), BTC, Gold, 10Y yield, P/C ratio — all real-time in topbar + macro page
+- **World Intelligence** — 11 global market indices, sector rotation bars, real yield curve, Fear & Greed gauge
+- **Swing Screener** — 30+ candidates filtered by RSI, off-52wk-high, price; Oracle signal badge for passing stocks
+- **Dividend Screener** — 14 candidates sorted by effective yield after 30% NRA withholding
+- **Key Peers** — semiconductor peers (NVDA, AMD, INTC, MU, LRCX, AMAT) for TSM/ASML context
+- Tab-based layout — Global Pulse | World Intelligence
+
+###  Sentinel Shadow Portfolio
+- Track positions locally — no brokerage connection required
+- Add positions at `/simulation` (Sentinel dashboard) with ticker, quantity, entry price
+- Live P&L, unrealized gains, 7-day sparklines, allocation donut chart
+- Performance history chart (Lightweight Charts area series)
+- Background monitor: Sentinel Engine checks every 5 min during market hours, sends email alerts on price breaches and Oracle score changes
+- Bulk import via JSON
 
 ###  Smart Alerts
 - Price alerts (above/below thresholds)
@@ -61,7 +72,7 @@
 - Quick access to favorite symbols
 
 ###  Security & Privacy
-- **BYOK (Bring Your Own Keys)** - Each user uses their own API keys
+- **BYOK (Bring Your Own Keys)** — Each user uses their own API keys
 - End-to-end encryption for API credentials
 - Secure session management
 - No shared rate limits between users
@@ -88,7 +99,6 @@
 
 1. **Fork this repository**
    ```bash
-   # Or clone it
    git clone https://github.com/HarshShroff/Silicon-Oracle.git
    cd Silicon-Oracle
    ```
@@ -136,18 +146,17 @@
 5. Everyone has independent rate limits and usage
 
 ### Benefits
- **No shared rate limits** - Your keys, your quota
- **More secure** - Keys encrypted per-user
- **Cost-effective** - App owner doesn't pay for everyone
- **Scalable** - Add unlimited users
- **Transparent** - Users control their own API usage
+ **No shared rate limits** — Your keys, your quota
+ **More secure** — Keys encrypted per-user
+ **Cost-effective** — App owner doesn't pay for everyone
+ **Scalable** — Add unlimited users
+ **Transparent** — Users control their own API usage
 
 ### Required API Keys (All FREE)
 
 | Service | Purpose | Free Tier | Get It |
 |---------|---------|-----------|--------|
 | **Finnhub** | Market data | 60 calls/min | [finnhub.io](https://finnhub.io) |
-| **Alpaca** | Paper trading | Unlimited paper trading | [alpaca.markets](https://alpaca.markets) |
 | **Gemini** | AI analysis & market intelligence | 60 requests/min | [ai.google.dev](https://ai.google.dev) |
 | **Gmail** | Email alerts (optional) | Free | Use your Gmail + [App Password](https://support.google.com/accounts/answer/185833) |
 
@@ -159,7 +168,7 @@
 |-----|------|------|
 | **Market Preview** | 9:00 AM | Pre-market heads-up & portfolio impact |
 | **Sentinel Monitor** | Every 5 min, 9 AM – 4 PM | Real-time position alerts |
-| **AI Market Intelligence** | Every hour, 10 AM – 4 PM | Personalized stock picks via Gemini |
+| **AI Market Intelligence** | Every hour, 10 AM – 4 PM | Personalized stock picks via Gemini + macro snapshot |
 | **Market Close Summary** | 5:00 PM | Today's performance recap |
 | **Daily Digest** | 5:30 PM | Full portfolio summary + top opportunities |
 
@@ -208,7 +217,7 @@
 
 6. **Run the app**
    ```bash
-   python run_flask.py
+   python3.11 run_flask.py
    ```
 
 7. **Open your browser**
@@ -221,36 +230,35 @@
 ##  Architecture
 
 ```
+             Frontend (Jinja2 + Alpine.js)
 
-             Frontend (Jinja2)
-
-    Analysis  Portfolio    Watchlist
-     Page       Page         Page
+    Analysis   Sentinel    Watchlist    Scanner
+     Page      (Simulation)   Page       Page
 
 
 
 
           Flask Backend (Python)
 
-    Routes (main, api, auth, sentinel)
+    Routes: main_bp, api_bp, auth_bp, sentinel_bp, sentinel_ui_bp
 
 
     Services Layer
-    • StockService (market data)
-    • OracleService (AI scoring)
-    • TradingService (Alpaca)
-    • PortfolioService (tracking)
-    • AlertEngine (notifications)
+    • StockService       (market data — Finnhub + yfinance)
+    • OracleService      (15-factor AI scoring)
+    • SentinelEngine     (shadow position monitoring)
+    • MarketIntelligenceService  (Gemini email generation + macro)
+    • AlertEngine        (threshold notifications)
+    • EmailService       (SMTP via user's Gmail)
 
 
 
 
            External Services
-  • Finnhub API (market data)
-  • Alpaca API (paper trading)
-  • Gemini API (AI analysis)
-  • News APIs (sentiment)
-
+  • Finnhub API     (market data)
+  • Google Gemini   (AI analysis)
+  • yfinance        (historical data)
+  • Supabase        (database + auth)
 ```
 
 ---
@@ -260,16 +268,16 @@
 ```
 Silicon-Oracle/
  flask_app/              # Main Flask application
-    routes/            # URL routes (main, api, auth, sentinel)
+    routes/            # URL routes (main, api, auth, sentinel, sentinel_ui)
     services/          # Business logic services
     templates/         # Jinja2 HTML templates
     static/            # CSS, JS, images
     models/            # Data models
- flask_app/agent/       # Agent orchestration module
-    runtime.py        # AgentRuntime — tool-call loop
-    execution_registry.py  # Tool & command registry
-    permissions.py    # Permission-gated tool blocking
-    session_store.py  # JSON-persisted session store
+    agent/             # Agent orchestration module
+       runtime.py        # AgentRuntime — Gemini-planned tool-call loop
+       execution_registry.py  # Tool & command registry
+       permissions.py    # Permission-gated tool blocking
+       session_store.py  # JSON-persisted session store
  utils/                 # Utility modules
     database.py       # Database operations
     encryption.py     # API key encryption
@@ -285,42 +293,41 @@ Silicon-Oracle/
 ##  Tech Stack
 
 ### Backend
-- **Flask** - Web framework
-- **Gunicorn** - WSGI server
-- **APScheduler** - Background tasks
-- **PostgreSQL** - Database (Supabase recommended)
-- **SQLite** - Local development only
-- **Cryptography** - Encryption
+- **Flask** — Web framework
+- **Gunicorn** — WSGI server
+- **APScheduler** — Background tasks
+- **PostgreSQL** — Database (Supabase recommended)
+- **SQLite** — Local development only
+- **Cryptography** — Fernet encryption
 
 ### Frontend
-- **Jinja2** - Templating
-- **Tailwind CSS** - Styling (TradingView-inspired dark palette)
-- **Alpine.js** - Reactive interactivity
-- **Lightweight Charts v4** - TradingView-style financial charts
-- **Chart.js** - Sector heatmaps & supplementary charts
+- **Jinja2** — Templating
+- **Tailwind CSS** — Styling (TradingView-inspired dark palette)
+- **Alpine.js** — Reactive interactivity
+- **Lightweight Charts v4** — TradingView-style financial charts
+- **Chart.js** — Allocation donuts & supplementary charts
 
 ### APIs & Services
-- **Finnhub** - Market data
-- **Alpaca** - Paper trading
-- **Google Gemini** - AI analysis
-- **yfinance** - Historical data
+- **Finnhub** — Market data
+- **Google Gemini** — AI analysis & market intelligence
+- **yfinance** — Historical data
 
 ### DevOps
-- **Render/Railway/Fly.io** - Hosting
-- **GitHub Actions** - CI/CD (optional)
-- **Docker** - Containerization
+- **Render/Railway/Fly.io** — Hosting
+- **GitHub Actions** — CI/CD (optional)
+- **Docker** — Containerization
 
 ---
 
 ##  Security Features
 
- **Encryption at Rest** - API keys encrypted with Fernet
- **Secure Sessions** - HTTPOnly, Secure cookies
- **CSRF Protection** - Flask-WTF enabled
- **Environment Variables** - No secrets in code
- **HTTPS Enforced** - Automatic on cloud platforms
- **Input Validation** - All user inputs sanitized
- **Rate Limiting** - Per-user API quotas
+ **Encryption at Rest** — API keys encrypted with Fernet
+ **Secure Sessions** — HTTPOnly, Secure cookies
+ **CSRF Protection** — Flask-WTF enabled
+ **Environment Variables** — No secrets in code
+ **HTTPS Enforced** — Automatic on cloud platforms
+ **Input Validation** — All user inputs sanitized
+ **Rate Limiting** — Per-user API quotas
 
 ---
 
@@ -374,7 +381,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ##  Acknowledgments
 
 - **Finnhub** for excellent market data API
-- **Alpaca** for free paper trading
 - **Google** for Gemini AI access
 - **Render** for free hosting
 - **Flask** community for amazing framework
@@ -392,27 +398,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ##  Roadmap
 
-### Current Version (v3.0)
+### Current Version (v3.1)
 -  Real-time stock analysis
 -  AI-powered Oracle scoring (15-factor system)
 -  Trading Profile (Day / Swing / Long-Term) — AI adapts everywhere
--  AI Market Intelligence with automated email alerts
+-  AI Market Intelligence with automated email alerts + macro snapshot
 -  Market Preview (pre-market) & Close Summary (post-market) emails
--  Paper trading with Alpaca
+-  **Sentinel shadow portfolio** — track positions, live P&L, allocation donut, sparklines
 -  Multi-user BYOK system
 -  Watchlists and smart alerts
--  Portfolio Sentinel monitoring with shadow positions
 -  Portfolio rebalancer with style-aware thresholds
--  Backtesting engine with style-matched defaults
--  Agent orchestration module with permission-gated tool loops — **now Gemini-planned**
+-  Agent orchestration module — Gemini-planned tool routing
 -  Simulation page: Performance History + Allocation Donut (50/50 side-by-side layout)
--  Portfolio page: Today's P&L toggle, mini sparklines, allocation donut
 -  TradingView-style UI with Lightweight Charts v4
 -  Public live demo page (no account required)
 -  Manual email-job trigger endpoint for testing
 -  Responsive design (mobile + desktop)
 
-### Coming Soon (v3.1)
+### Coming Soon (v3.2)
 - [ ] Options trading analysis
 - [ ] Crypto portfolio support
 - [ ] Multi-agent workflows
@@ -425,15 +428,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Machine learning models
 - [ ] Automated trading bots
 - [ ] API for developers
-
----
-
-##  Usage Stats
-
-- **Active Deployments**: Growing daily
-- **GitHub Stars**:  Star us if you find this useful!
-- **Contributors**: Open to contributions
-- **License**: MIT - Use freely
 
 ---
 

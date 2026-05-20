@@ -2,131 +2,391 @@
 {% block title %}Macro Intelligence — Silicon Oracle{% endblock %}
 
 {% block content %}
-<div x-data="macroPage()" x-init="init()" x-cloak class="max-w-7xl mx-auto px-4 py-8">
+<div x-data="macroPage()" x-init="init()" x-cloak class="max-w-7xl mx-auto px-4 py-6">
 
-    <!-- TOP INDICATORS ROW -->
-    <div class="mb-10">
-        <div class="flex items-center gap-3 mb-6">
-            <h1 class="text-3xl font-black tracking-tighter" style="color:#d8ecd8;">Global Pulse</h1>
+    <!-- STICKY TOP: indicator strip + tab bar -->
+    <div class="mb-6">
+        <div class="flex items-center gap-3 mb-4">
+            <h1 class="text-2xl font-black tracking-tighter" style="color:#d8ecd8;">Macro Intelligence</h1>
             <span class="w-2 h-2 rounded-full" style="background:#00C853;box-shadow:0_0_10px_#00C853;"></span>
+            <template x-if="fearGreed.label">
+                <span class="text-[11px] font-bold px-3 py-1 rounded-full"
+                      :style="`background:${fearGreed.color}22;color:${fearGreed.color};border:1px solid ${fearGreed.color}44`"
+                      x-text="`${fearGreed.label} · ${fearGreed.score}/100`">
+                </span>
+            </template>
         </div>
 
-        <!-- Risk Dashboard -->
-        <div class="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
-            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                <div class="text-[10px] font-bold uppercase tracking-widest mb-1" style="color:#787B86;">VIX</div>
-                <div class="text-xl font-bold" :class="vix.value < 20 ? 'text-gain' : 'text-loss'" x-text="vix.value.toFixed(1)"></div>
+        <!-- Indicator strip — equity-card style -->
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
+            <div class="rounded-lg p-2.5 hover:scale-105 transition-all" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <div class="text-[9px] font-bold uppercase tracking-wider truncate mb-0.5" style="color:#787B86;">VIX</div>
+                <div class="text-sm font-bold truncate" :class="vix.value < 20 ? 'text-gain' : 'text-loss'" x-text="vix.value.toFixed(1)"></div>
+                <div class="text-[9px] font-mono" :class="vix.value < 20 ? 'text-gain' : 'text-loss'" x-text="vix.value < 20 ? 'Low vol' : vix.value > 30 ? 'Extreme' : 'Elevated'"></div>
             </div>
-            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                <div class="text-[10px] font-bold uppercase tracking-widest mb-1" style="color:#787B86;">P/C Ratio</div>
-                <div class="text-xl font-bold" :class="putCallRatio < 0.8 ? 'text-gain' : 'text-text-1'" x-text="putCallRatio.toFixed(2)"></div>
+            <div class="rounded-lg p-2.5 hover:scale-105 transition-all" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <div class="text-[9px] font-bold uppercase tracking-wider truncate mb-0.5" style="color:#787B86;">P/C Ratio</div>
+                <div class="text-sm font-bold truncate" :class="putCallRatio < 0.8 ? 'text-gain' : 'text-text-1'" x-text="putCallRatio.toFixed(2)"></div>
+                <div class="text-[9px] font-mono" :class="putCallRatio < 0.8 ? 'text-gain' : 'text-text-1'" x-text="putCallRatio < 0.8 ? 'Bullish' : 'Neutral'"></div>
             </div>
-            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                <div class="text-[10px] font-bold uppercase tracking-widest mb-1" style="color:#787B86;">10Y Yield</div>
-                <div class="text-xl font-bold text-text-1" x-text="(yield10y || 4.5).toFixed(2) + '%'"></div>
+            <div class="rounded-lg p-2.5 hover:scale-105 transition-all" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <div class="text-[9px] font-bold uppercase tracking-wider truncate mb-0.5" style="color:#787B86;">10Y Yield</div>
+                <div class="text-sm font-bold truncate text-text-1"
+                     x-text="yieldCurve.yields && yieldCurve.yields['10Y'] ? yieldCurve.yields['10Y'].toFixed(2)+'%' : (yield10y||4.5).toFixed(2)+'%'"></div>
+                <div class="text-[9px] font-mono font-bold" :style="`color:${yieldCurve.signal_color||'#787B86'}`" x-text="yieldCurve.signal||'—'"></div>
             </div>
-            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                <div class="text-[10px] font-bold uppercase tracking-widest mb-1" style="color:#787B86;">DXY</div>
-                <div class="text-xl font-bold text-text-1" x-text="(dxyValue || 105.5).toFixed(1)"></div>
+            <div class="rounded-lg p-2.5 hover:scale-105 transition-all" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <div class="text-[9px] font-bold uppercase tracking-wider truncate mb-0.5" style="color:#787B86;">DXY</div>
+                <div class="text-sm font-bold truncate text-text-1" x-text="(dxyValue || 105.5).toFixed(1)"></div>
+                <div class="text-[9px] font-mono" style="color:#787B86;" x-text="dxyValue > 104 ? 'Strong USD' : 'Weak USD'"></div>
             </div>
-            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                <div class="text-[10px] font-bold uppercase tracking-widest mb-1" style="color:#787B86;">BTC</div>
-                <div class="text-xl font-bold text-gain" x-text="'$' + ((btcPrice || 67000)/1000).toFixed(1) + 'k'"></div>
+            <div class="rounded-lg p-2.5 hover:scale-105 transition-all cursor-pointer" @click="goTo('BTC-USD')" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <div class="text-[9px] font-bold uppercase tracking-wider truncate mb-0.5" style="color:#787B86;">BTC</div>
+                <div class="text-sm font-bold truncate text-gain" x-text="'$' + ((btcPrice || 67000)/1000).toFixed(1) + 'k'"></div>
+                <div class="text-[9px] font-mono" :class="(digital[0]&&digital[0].change||0) >= 0 ? 'text-gain' : 'text-loss'"
+                     x-text="digital[0] ? ((digital[0].change >= 0 ? '+' : '') + digital[0].change.toFixed(1) + '%') : '—'"></div>
             </div>
-            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                <div class="text-[10px] font-bold uppercase tracking-widest mb-1" style="color:#787B86;">Gold</div>
-                <div class="text-xl font-bold text-gold" x-text="'$' + (goldPrice || 3350).toFixed(0)"></div>
+            <div class="rounded-lg p-2.5 hover:scale-105 transition-all cursor-pointer" @click="goTo('GC=F')" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <div class="text-[9px] font-bold uppercase tracking-wider truncate mb-0.5" style="color:#787B86;">Gold</div>
+                <div class="text-sm font-bold truncate text-gold" x-text="'$' + (goldPrice || 3350).toFixed(0)"></div>
+                <div class="text-[9px] font-mono" :class="(commodities[0]&&commodities[0].change||0) >= 0 ? 'text-gain' : 'text-loss'"
+                     x-text="commodities[0] ? ((commodities[0].change >= 0 ? '+' : '') + commodities[0].change.toFixed(1) + '%') : '—'"></div>
             </div>
         </div>
 
-        <p class="text-sm" style="color:#B2B5BE;" x-text="contextMessage"></p>
+        <p class="text-xs mb-4" style="color:#B2B5BE;" x-text="contextMessage"></p>
+
+        <!-- Tab bar -->
+        <div class="flex gap-1 p-1 rounded-xl" style="background:#141414;border:1px solid #2A2E39;">
+            <button @click="activeTab='pulse'"
+                    class="flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all"
+                    :style="activeTab==='pulse' ? 'background:#2A2E39;color:#d8ecd8;' : 'color:#787B86;'">
+                Global Pulse
+            </button>
+            <button @click="switchToIntel()"
+                    class="flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2"
+                    :style="activeTab==='intel' ? 'background:#2A2E39;color:#d8ecd8;' : 'color:#787B86;'">
+                World Intelligence
+                <span x-show="intelLoading" class="w-3 h-3 rounded-full border-2 border-t-transparent animate-spin" style="border-color:#00C853;border-top-color:transparent;"></span>
+            </button>
+        </div>
     </div>
 
-    <!-- MAIN GRID - 2 COLUMNS -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- ================================================================ -->
+    <!-- TAB: GLOBAL PULSE                                                 -->
+    <!-- ================================================================ -->
+    <div x-show="activeTab==='pulse'" x-transition:enter="transition-opacity duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="space-y-6">
+                <div>
+                    <h2 class="text-sm font-bold mb-3" style="color:#d8ecd8;">Equities</h2>
+                    <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                        <template x-for="item in equities" :key="item.symbol">
+                            <div @click="goTo(item.symbol)" class="rounded-lg p-2.5 cursor-pointer hover:scale-105 transition-all" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                                <div class="text-[9px] font-bold uppercase tracking-wider truncate mb-0.5" style="color:#787B86;" x-text="item.label"></div>
+                                <div class="text-sm font-bold truncate" style="color:#d8ecd8;" x-text="item.priceDisplay"></div>
+                                <div class="text-[9px] font-mono" :class="item.change >= 0 ? 'text-gain' : 'text-loss'" x-text="(item.change >= 0 ? '+' : '') + item.change.toFixed(1) + '%'"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-sm font-bold mb-1" style="color:#d8ecd8;">Fixed Income
+                        <span class="text-[10px] font-normal ml-2"
+                              :style="`color:${yieldCurve.signal_color||'#787B86'}`"
+                              x-text="yieldCurve.note ? '· '+yieldCurve.note : ''"></span>
+                    </h2>
+                    <div class="grid grid-cols-4 gap-2 mt-3">
+                        <template x-for="item in fixedIncome" :key="item.symbol">
+                            <div class="rounded-lg p-2.5" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                                <div class="text-[9px] font-bold uppercase tracking-wider mb-0.5" style="color:#787B86;" x-text="item.label"></div>
+                                <div class="text-sm font-bold" style="color:#d8ecd8;" x-text="item.priceDisplay"></div>
+                                <div class="text-[8px]" style="color:#B2B5BE;" x-text="item.context"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                    <h2 class="text-sm font-bold mb-3" style="color:#d8ecd8;">Sector Flow</h2>
+                    {% include 'components/sector_heatmap.html' %}
+                </div>
+            </div>
+            <div class="space-y-6">
+                <div>
+                    <h2 class="text-sm font-bold mb-3" style="color:#d8ecd8;">Commodities</h2>
+                    <div class="grid grid-cols-2 gap-2">
+                        <template x-for="item in commodities" :key="item.symbol">
+                            <div @click="goTo(item.symbol)" class="rounded-lg p-2.5 cursor-pointer hover:scale-105 transition-all" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                                <div class="text-[9px] font-bold uppercase tracking-wider truncate mb-0.5" style="color:#787B86;" x-text="item.label"></div>
+                                <div class="text-sm font-bold truncate" style="color:#d8ecd8;" x-text="item.priceDisplay"></div>
+                                <div class="text-[9px] font-mono" :class="item.change >= 0 ? 'text-gain' : 'text-loss'" x-text="(item.change >= 0 ? '+' : '') + item.change.toFixed(1) + '%'"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-sm font-bold mb-3" style="color:#d8ecd8;">Crypto</h2>
+                    <div class="grid grid-cols-2 gap-2">
+                        <template x-for="item in digital" :key="item.symbol">
+                            <div @click="goTo(item.symbol)" class="rounded-lg p-2.5 cursor-pointer hover:scale-105 transition-all" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                                <div class="text-[9px] font-bold uppercase tracking-wider truncate mb-0.5" style="color:#787B86;" x-text="item.label"></div>
+                                <div class="text-sm font-bold truncate" style="color:#d8ecd8;" x-text="item.priceDisplay"></div>
+                                <div class="text-[9px] font-mono" :class="item.change >= 0 ? 'text-gain' : 'text-loss'" x-text="(item.change >= 0 ? '+' : '') + item.change.toFixed(1) + '%'"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-sm font-bold" style="color:#d8ecd8;">Earnings (48H)</h2>
+                        <button @click="fetchEarnings()" class="text-oracle-primary hover:text-blue-400">
+                            <svg class="w-4 h-4" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    {% include 'components/earnings_calendar.html' %}
+                </div>
+            </div>
+        </div>
+    </div>
 
-        <!-- LEFT COLUMN -->
-        <div class="space-y-8">
-            <!-- EQUITIES -->
-            <div>
-                <h2 class="text-base font-bold mb-4" style="color:#d8ecd8;">Equities</h2>
-                <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    <template x-for="item in equities" :key="item.symbol">
-                        <div @click="goTo(item.symbol)" class="rounded-lg p-3 cursor-pointer hover:scale-105 transition-all" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                            <div class="text-[10px] font-bold uppercase tracking-wider truncate" style="color:#787B86;" x-text="item.label"></div>
-                            <div class="text-sm font-bold truncate" style="color:#d8ecd8;" x-text="item.priceDisplay"></div>
-                            <div class="text-[9px] font-mono" :class="item.change >= 0 ? 'text-gain' : 'text-loss'" x-text="(item.change >= 0 ? '+' : '') + item.change.toFixed(1) + '%'"></div>
+    <!-- ================================================================ -->
+    <!-- TAB: WORLD INTELLIGENCE                                           -->
+    <!-- ================================================================ -->
+    <div x-show="activeTab==='intel'" x-transition:enter="transition-opacity duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded" style="background:#1C1C1C;color:#787B86;border:1px solid #2A2E39;">Live · 2 min cache</span>
+                <span x-show="intelUpdatedAt" class="text-[10px]" style="color:#4a4e69;" x-text="'Updated ' + (intelUpdatedAt||'')"></span>
+            </div>
+            <button @click="refreshIntel()" class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg hover:opacity-80 transition" style="background:#1C1C1C;color:#787B86;border:1px solid #2A2E39;">
+                <svg class="w-3.5 h-3.5" :class="{'animate-spin': intelLoading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Refresh
+            </button>
+        </div>
+
+        <!-- ROW 1: Global Markets + Sector Rotation (side by side) -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+            <!-- Global Markets -->
+            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <h3 class="text-sm font-bold mb-3" style="color:#d8ecd8;">Global Markets
+                    <span class="text-[10px] font-normal ml-1" style="color:#787B86;">Nikkei · FTSE · DAX · Hang Seng · +8</span>
+                </h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    <template x-for="m in globalMarkets" :key="m.symbol">
+                        <div class="rounded-lg px-2.5 py-2 flex justify-between items-center" style="background:#141414;border:1px solid #2A2E39;">
+                            <div>
+                                <div class="text-[10px] font-bold" style="color:#d8ecd8;" x-text="m.label"></div>
+                                <div class="text-[8px]" style="color:#4a4e69;" x-text="m.region"></div>
+                            </div>
+                            <div class="text-[11px] font-bold font-mono" :class="m.change_pct >= 0 ? 'text-gain' : 'text-loss'"
+                                 x-text="(m.change_pct >= 0 ? '+' : '') + m.change_pct.toFixed(2) + '%'"></div>
                         </div>
+                    </template>
+                    <template x-if="!globalMarkets.length && !intelLoading">
+                        <div class="col-span-3 text-center py-4 text-sm" style="color:#787B86;">Loading…</div>
                     </template>
                 </div>
             </div>
 
-            <!-- FIXED INCOME -->
-            <div>
-                <h2 class="text-base font-bold mb-4" style="color:#d8ecd8;">Fixed Income</h2>
-                <div class="grid grid-cols-4 gap-2">
-                    <template x-for="item in fixedIncome" :key="item.symbol">
-                        <div class="rounded-lg p-3" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                            <div class="text-[10px] font-bold uppercase tracking-wider" style="color:#787B86;" x-text="item.label"></div>
-                            <div class="text-sm font-bold" style="color:#d8ecd8;" x-text="item.priceDisplay"></div>
-                            <div class="text-[8px]" style="color:#B2B5BE;" x-text="item.context"></div>
+            <!-- Sector Rotation -->
+            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold" style="color:#d8ecd8;">Sector Rotation</h3>
+                    <div class="flex gap-2 text-[10px]">
+                        <span x-show="sectorRotation.top" class="font-bold px-2 py-0.5 rounded" style="background:#00C85322;color:#00C853;" x-text="sectorRotation.top ? sectorRotation.top.label : ''"></span>
+                        <span x-show="sectorRotation.bottom" class="font-bold px-2 py-0.5 rounded" style="background:#FF5C5C22;color:#FF5C5C;" x-text="sectorRotation.bottom ? sectorRotation.bottom.label : ''"></span>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <template x-for="s in (sectorRotation.sectors||[])" :key="s.symbol">
+                        <div class="flex items-center gap-2 rounded px-2 py-1.5"
+                             :style="s.in_your_holdings ? 'background:#141414;border:1px solid #2A2E3988;' : ''">
+                            <div class="text-[10px] font-bold w-9 shrink-0" style="color:#787B86;" x-text="s.symbol"></div>
+                            <div class="flex-1 relative h-1.5 rounded-full" style="background:#2A2E39;">
+                                <div class="absolute top-0 h-1.5 rounded-full"
+                                     :style="`width:${Math.min(Math.abs(s.change_pct)*10,100)}%;background:${s.change_pct>=0?'#00C853':'#FF5C5C'};${s.change_pct<0?'right:0':'left:0'}`"></div>
+                            </div>
+                            <div class="text-[10px] font-mono w-12 text-right" :class="s.change_pct >= 0 ? 'text-gain' : 'text-loss'"
+                                 x-text="(s.change_pct >= 0 ? '+' : '') + s.change_pct.toFixed(2) + '%'"></div>
+                            <div class="text-[9px] shrink-0 w-24 truncate" style="color:#787B86;" x-text="s.label"></div>
+                            <span x-show="s.in_your_holdings" class="text-[8px] font-bold px-1 py-0.5 rounded shrink-0" style="background:#00C85311;color:#00C853;">yours</span>
                         </div>
                     </template>
                 </div>
-            </div>
-
-            <!-- SECTOR HEATMAP -->
-            <div class="rounded-xl p-6" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                <h2 class="text-base font-bold mb-4" style="color:#d8ecd8;">Sector Flow</h2>
-                {% include 'components/sector_heatmap.html' %}
             </div>
         </div>
 
-        <!-- RIGHT COLUMN -->
-        <div class="space-y-8">
-            <!-- COMMODITIES -->
-            <div>
-                <h2 class="text-base font-bold mb-4" style="color:#d8ecd8;">Commodities</h2>
-                <div class="grid grid-cols-2 gap-2">
-                    <template x-for="item in commodities" :key="item.symbol">
-                        <div @click="goTo(item.symbol)" class="rounded-lg p-3 cursor-pointer hover:scale-105 transition-all" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                            <div class="text-[10px] font-bold uppercase tracking-wider truncate" style="color:#787B86;" x-text="item.label"></div>
-                            <div class="text-sm font-bold truncate" style="color:#d8ecd8;" x-text="item.priceDisplay"></div>
-                            <div class="text-[9px] font-mono" :class="item.change >= 0 ? 'text-gain' : 'text-loss'" x-text="(item.change >= 0 ? '+' : '') + item.change.toFixed(1) + '%'"></div>
+        <!-- ROW 2: Yield Curve + Fear & Greed + Peers (3-col) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <!-- Real Yield Curve -->
+            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <h3 class="text-sm font-bold mb-1" style="color:#d8ecd8;">Yield Curve</h3>
+                <div class="text-[11px] font-bold mb-3" :style="`color:${yieldCurve.signal_color||'#787B86'}`" x-text="yieldCurve.signal||'Loading…'"></div>
+                <div class="space-y-2">
+                    <template x-for="[tenor, val] in Object.entries(yieldCurve.yields||{})" :key="tenor">
+                        <div class="flex items-center gap-2">
+                            <div class="text-[10px] font-bold w-6 shrink-0" style="color:#787B86;" x-text="tenor"></div>
+                            <div class="flex-1 relative h-1.5 rounded-full" style="background:#2A2E39;">
+                                <div class="absolute left-0 top-0 h-1.5 rounded-full" :style="`width:${Math.min((val/6)*100,100)}%;background:#00C853;`"></div>
+                            </div>
+                            <div class="text-[11px] font-mono w-10 text-right" style="color:#d8ecd8;" x-text="val.toFixed(2)+'%'"></div>
                         </div>
                     </template>
                 </div>
-            </div>
-
-            <!-- DIGITAL ASSETS -->
-            <div>
-                <h2 class="text-base font-bold mb-4" style="color:#d8ecd8;">Crypto</h2>
-                <div class="grid grid-cols-2 gap-2">
-                    <template x-for="item in digital" :key="item.symbol">
-                        <div @click="goTo(item.symbol)" class="rounded-lg p-3 cursor-pointer hover:scale-105 transition-all" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                            <div class="text-[10px] font-bold uppercase tracking-wider truncate" style="color:#787B86;" x-text="item.label"></div>
-                            <div class="text-sm font-bold truncate" style="color:#d8ecd8;" x-text="item.priceDisplay"></div>
-                            <div class="text-[9px] font-mono" :class="item.change >= 0 ? 'text-gain' : 'text-loss'" x-text="(item.change >= 0 ? '+' : '') + item.change.toFixed(1) + '%'"></div>
-                        </div>
-                    </template>
+                <div x-show="yieldCurve.spread_2_10 !== undefined && yieldCurve.spread_2_10 !== null"
+                     class="mt-3 pt-3 border-t text-[10px]" style="border-color:#2A2E39;color:#787B86;">
+                    10Y–2Y:
+                    <span class="font-bold" :class="(yieldCurve.spread_2_10||0) >= 0 ? 'text-gain' : 'text-loss'"
+                          x-text="((yieldCurve.spread_2_10||0) >= 0 ? '+' : '') + (yieldCurve.spread_2_10||0).toFixed(2) + '%'"></span>
+                    <p class="mt-0.5" x-text="yieldCurve.note||''"></p>
                 </div>
             </div>
 
-            <!-- EARNINGS -->
-            <div class="rounded-xl p-6" style="background:#1C1C1C;border:1px solid #2A2E39;">
-                <div class="flex items-center justify-between mb-6">
-                <h2 class="text-base font-bold mb-4" style="color:#d8ecd8;">Earnings (48H)</h2>
-                <button @click="fetchEarnings()" class="text-oracle-primary hover:text-blue-400">
-                    <svg class="w-5 h-5" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            <!-- Fear & Greed -->
+            <div class="rounded-xl p-4 flex flex-col items-center" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <h3 class="text-sm font-bold mb-3 self-start" style="color:#d8ecd8;">Fear &amp; Greed</h3>
+                <div class="relative w-32 h-18 mb-2">
+                    <svg viewBox="0 0 120 70" class="w-full h-full">
+                        <path d="M10,60 A50,50 0 0,1 110,60" fill="none" stroke="#2A2E39" stroke-width="10" stroke-linecap="round"/>
+                        <path d="M10,60 A50,50 0 0,1 110,60" fill="none"
+                              :stroke="fearGreed.color||'#787B86'" stroke-width="10" stroke-linecap="round"
+                              :stroke-dasharray="`${(fearGreed.score||50)*1.57} 157`"/>
+                        <text x="60" y="58" text-anchor="middle" font-size="20" font-weight="bold"
+                              :fill="fearGreed.color||'#d8ecd8'" x-text="Math.round(fearGreed.score||50)"></text>
                     </svg>
-                </button>
                 </div>
-                {% include 'components/earnings_calendar.html' %}
+                <div class="text-base font-black mb-3" :style="`color:${fearGreed.color||'#d8ecd8'}`" x-text="fearGreed.label||'Loading…'"></div>
+                <div class="w-full space-y-1 text-[10px]" style="color:#787B86;">
+                    <div class="flex justify-between"><span>VIX</span><span x-text="((fearGreed.components||{}).vix||50).toFixed(0)+'/100'"></span></div>
+                    <div class="flex justify-between"><span>Credit (HYG)</span><span x-text="((fearGreed.components||{}).hyg||50).toFixed(0)+'/100'"></span></div>
+                    <div class="flex justify-between"><span>Bonds (TLT)</span><span x-text="((fearGreed.components||{}).tlt||50).toFixed(0)+'/100'"></span></div>
+                    <div class="flex justify-between"><span>Risk (ARKK)</span><span x-text="((fearGreed.components||{}).arkk||50).toFixed(0)+'/100'"></span></div>
+                </div>
+            </div>
+
+            <!-- Key Peers -->
+            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <h3 class="text-sm font-bold mb-1" style="color:#d8ecd8;">Key Peers</h3>
+                <p class="text-[10px] mb-3" style="color:#787B86;"
+                   x-text="peersBasedOn.length ? 'Holdings: ' + peersBasedOn.join(', ') : 'Top market leaders'"></p>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <template x-for="p in peers" :key="p.symbol">
+                        <div @click="goTo(p.symbol)" class="rounded-lg p-2 cursor-pointer hover:scale-105 transition-all" style="background:#141414;border:1px solid #2A2E39;">
+                            <div class="text-[10px] font-bold mb-0.5" style="color:#d8ecd8;" x-text="p.symbol"></div>
+                            <div class="text-[11px] font-mono font-bold" :class="p.change_pct >= 0 ? 'text-gain' : 'text-loss'"
+                                 x-text="(p.change_pct >= 0 ? '+' : '') + p.change_pct.toFixed(2) + '%'"></div>
+                            <div class="text-[8px] mt-0.5" style="color:#4a4e69;" x-text="p.off_high.toFixed(0)+'% off hi'"></div>
+                        </div>
+                    </template>
+                </div>
             </div>
         </div>
 
-    </div>
+        <!-- ROW 3: Dividend Screener + Swing Screener -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Dividend Screener -->
+            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <h3 class="text-sm font-bold mb-3" style="color:#d8ecd8;">Dividend Screener</h3>
+                <table class="w-full text-[11px]">
+                    <thead>
+                        <tr style="color:#787B86;border-bottom:1px solid #2A2E39;">
+                            <th class="text-left pb-2 font-bold text-[9px] uppercase tracking-wider">Ticker</th>
+                            <th class="text-left pb-2 font-bold text-[9px] uppercase tracking-wider">Type</th>
+                            <th class="text-right pb-2 font-bold text-[9px] uppercase tracking-wider">Yield</th>
+                            <th class="text-right pb-2 font-bold text-[9px] uppercase tracking-wider">Today</th>
+                            <th class="text-center pb-2 font-bold text-[9px] uppercase tracking-wider">Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="d in dividendScreen" :key="d.symbol">
+                            <tr @click="goTo(d.symbol)" class="cursor-pointer hover:opacity-80 transition border-b"
+                                :style="d.rate_sensitive ? 'border-color:#2A2E3966;' : 'border-color:#1a3025;'"">
+                                <td class="py-1.5 font-bold" style="color:#d8ecd8;" x-text="d.symbol"></td>
+                                <td class="py-1.5 text-[9px] truncate max-w-[80px]" style="color:#787B86;" x-text="d.type"></td>
+                                <td class="py-1.5 font-mono text-right" style="color:#d8ecd8;" x-text="d.gross_yield.toFixed(1)+'%'"></td>
+                                <td class="py-1.5 font-mono text-right"
+                                    :class="d.change_pct >= 0 ? 'text-gain' : 'text-loss'"
+                                    x-text="d.price ? (d.change_pct >= 0 ? '+' : '') + d.change_pct.toFixed(2)+'%' : '—'"></td>
+                                <td class="py-1.5 text-center"
+                                    x-text="d.rate_sensitive ? '⚠' : '✓'"
+                                    :style="d.rate_sensitive ? 'color:#FF6D00' : 'color:#00C853'"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+                <div class="mt-3 pt-2 border-t text-[9px]" style="border-color:#2A2E39;color:#787B86;">
+                    ✓ = Not rate-sensitive &nbsp;⚠ = Pressured when 10Y high
+                </div>
+            </div>
+
+            <!-- Swing Screener with Oracle signals -->
+            <div class="rounded-xl p-4" style="background:#1C1C1C;border:1px solid #2A2E39;">
+                <div class="flex items-center justify-between mb-1">
+                    <h3 class="text-sm font-bold" style="color:#d8ecd8;">Swing Screener</h3>
+                    <span class="text-[9px] px-2 py-0.5 rounded font-bold" style="background:#2A2E39;color:#787B86;">Verify with Oracle before entering</span>
+                </div>
+                <p class="text-[10px] mb-3" style="color:#787B86;">RSI ≤72 · 5–60% off 52wk high · price ≤$50</p>
+                <table class="w-full text-[11px]">
+                    <thead>
+                        <tr style="color:#787B86;border-bottom:1px solid #2A2E39;">
+                            <th class="text-left pb-2 font-bold text-[9px] uppercase tracking-wider">Ticker</th>
+                            <th class="text-left pb-2 font-bold text-[9px] uppercase tracking-wider">Sector</th>
+                            <th class="text-right pb-2 font-bold text-[9px] uppercase tracking-wider">Price</th>
+                            <th class="text-right pb-2 font-bold text-[9px] uppercase tracking-wider">Today</th>
+                            <th class="text-right pb-2 font-bold text-[9px] uppercase tracking-wider">Off Hi</th>
+                            <th class="text-center pb-2 font-bold text-[9px] uppercase tracking-wider" style="color:#00C853;">Oracle</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="s in swingScreen" :key="s.symbol">
+                            <tr @click="goTo(s.symbol)"
+                                class="cursor-pointer hover:opacity-80 transition border-b"
+                                :style="s.passes ? 'border-color:#1a3025;' : 'border-color:#2A2E3944;opacity:0.5;'">
+                                <td class="py-1.5">
+                                    <span class="font-bold" style="color:#d8ecd8;" x-text="s.symbol"></span>
+                                    <span x-show="s.passes" class="ml-1 text-[8px] font-bold" style="color:#00C853;">✓</span>
+                                </td>
+                                <td class="py-1.5 text-[9px] truncate max-w-[70px]" style="color:#787B86;" x-text="s.sector"></td>
+                                <td class="py-1.5 font-mono text-right" style="color:#d8ecd8;" x-text="'$'+s.price.toFixed(2)"></td>
+                                <td class="py-1.5 font-mono text-right"
+                                    :class="s.change_pct >= 0 ? 'text-gain' : 'text-loss'"
+                                    x-text="(s.change_pct >= 0 ? '+' : '') + s.change_pct.toFixed(2)+'%'"></td>
+                                <td class="py-1.5 font-mono text-right"
+                                    :class="s.off_high < -20 ? 'text-gain' : 'text-text-1'"
+                                    x-text="s.off_high.toFixed(0)+'%'"></td>
+                                <td class="py-1.5 text-center">
+                                    <template x-if="s.passes && oracleSignals[s.symbol]">
+                                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                                              :style="oracleSignalStyle(oracleSignals[s.symbol].verdict)"
+                                              x-text="oracleSignalShort(oracleSignals[s.symbol].verdict)"></span>
+                                    </template>
+                                    <template x-if="s.passes && !oracleSignals[s.symbol]">
+                                        <span class="text-[9px]" style="color:#2A2E39;">···</span>
+                                    </template>
+                                    <template x-if="!s.passes">
+                                        <span class="text-[9px]" style="color:#2A2E39;">—</span>
+                                    </template>
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-if="!swingScreen.length && !intelLoading">
+                            <tr><td colspan="6" class="text-center py-4 text-sm" style="color:#787B86;">No candidates pass screen right now</td></tr>
+                        </template>
+                    </tbody>
+                </table>
+                <div class="mt-3 pt-2 border-t text-[9px]" style="border-color:#2A2E39;color:#787B86;">
+                    Oracle column: STRONG BUY · BUY · HOLD · AVOID · SELL — fetched live from 15-factor scoring engine
+                </div>
+            </div>
+        </div>
+
+    </div><!-- end intel tab -->
+
 </div>
 
 <script>
@@ -143,10 +403,33 @@ function macroPage() {
         commodities: [],
         digital: [],
         fixedIncome: [],
+        loading: false,
+
+        activeTab: 'pulse',
+        intelLoaded: false,
+        intelLoading: false,
+        intelUpdatedAt: null,
+        globalMarkets:  [],
+        sectorRotation: {},
+        fearGreed:      {},
+        yieldCurve:     {},
+        peers:          [],
+        peersBasedOn:   [],
+        dividendScreen: [],
+        swingScreen:    [],
+        oracleSignals:  {},
 
         async init() {
-            await this.fetchData();
+            await Promise.all([this.fetchData(), this.fetchGlobalIntel()]);
             setInterval(() => this.fetchData(), 60000);
+            setInterval(() => {
+                if (this.intelLoaded) this.fetchGlobalIntel();
+            }, 120000);
+        },
+
+        async switchToIntel() {
+            this.activeTab = 'intel';
+            if (!this.intelLoaded) await this.fetchGlobalIntel();
         },
 
         async fetchData() {
@@ -156,9 +439,8 @@ function macroPage() {
                 const d = await response.json();
                 if (d.error) throw new Error(d.error);
 
-                // Safe helpers — show N/A if field missing
-                const num  = (v) => (v != null && v !== '' && !isNaN(parseFloat(v))) ? parseFloat(v) : null;
-                const fmt  = (v) => v != null ? v.toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}) : 'N/A';
+                const num = (v) => (v != null && v !== '' && !isNaN(parseFloat(v))) ? parseFloat(v) : null;
+                const fmt = (v) => v != null ? v.toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}) : 'N/A';
                 const fmtCrypto = (v) => {
                     if (v == null) return 'N/A';
                     return v >= 1000 ? '$' + (v/1000).toFixed(1) + 'k' : '$' + v.toFixed(2);
@@ -173,11 +455,9 @@ function macroPage() {
                 this.btcPrice = num(d.btc?.price) ?? 0;
                 this.goldPrice = num(d.gold?.price) ?? 0;
 
-                this.contextMessage = vixVal == null
-                    ? ''
-                    : vixVal > 25
-                        ? '! Elevated risk — defensive positioning advised.'
-                        : 'Stable macro regime — opportunistic scaling supported.';
+                this.contextMessage = vixVal == null ? '' :
+                    vixVal > 25 ? '! Elevated risk — defensive positioning advised.' :
+                    'Stable macro regime — opportunistic scaling supported.';
 
                 this.equities = [
                     {label:'SPY', symbol:'SPY', priceDisplay:fmt(num(d.spy?.price)),   change:chg(d.spy?.change)},
@@ -187,39 +467,117 @@ function macroPage() {
                     {label:'EEM', symbol:'EEM', priceDisplay:fmt(num(d.eem?.price)),   change:chg(d.eem?.change)},
                     {label:'VEU', symbol:'VEU', priceDisplay:fmt(num(d.veu?.price)),   change:chg(d.veu?.change)},
                 ];
-
                 this.commodities = [
                     {label:'Gold', symbol:'GC=F', priceDisplay:fmt(num(d.gold?.price)), change:chg(d.gold?.change)},
                     {label:'Oil',  symbol:'CL=F', priceDisplay:fmt(num(d.oil?.price)),  change:chg(d.oil?.change)},
                 ];
-
                 this.digital = [
                     {label:'BTC', symbol:'BTC-USD', priceDisplay:fmtCrypto(num(d.btc?.price)), change:chg(d.btc?.change)},
                     {label:'ETH', symbol:'ETH-USD', priceDisplay:fmtCrypto(num(d.eth?.price)), change:chg(d.eth?.change)},
                 ];
 
-                const y10 = this.yield10y;
+                const yc = (this.yieldCurve && this.yieldCurve.yields) ? this.yieldCurve.yields : {};
+                const y10 = yc['10Y'] || this.yield10y;
                 this.fixedIncome = y10 > 0 ? [
-                    {label:'2Y',  symbol:'2Y',  priceDisplay:(y10-0.3).toFixed(2)+'%', context:'Short',    change:0},
-                    {label:'10Y', symbol:'10Y', priceDisplay:y10.toFixed(2)+'%',        context:'Benchmark', change:0},
-                    {label:'30Y', symbol:'30Y', priceDisplay:(y10+0.5).toFixed(2)+'%', context:'Long',     change:0},
-                    {label:'HYG', symbol:'HYG', priceDisplay:'N/A',                     context:'Credit',   change:0},
+                    {label:'3M',  symbol:'3M',  priceDisplay:(yc['3M']  || (y10-1.0)).toFixed(2)+'%', context:'Short',     change:0},
+                    {label:'2Y',  symbol:'2Y',  priceDisplay:(yc['2Y']  || (y10-0.3)).toFixed(2)+'%', context:'Short',     change:0},
+                    {label:'10Y', symbol:'10Y', priceDisplay: y10.toFixed(2)+'%',                       context:'Benchmark', change:0},
+                    {label:'30Y', symbol:'30Y', priceDisplay:(yc['30Y'] || (y10+0.5)).toFixed(2)+'%', context:'Long',      change:0},
                 ] : [
-                    {label:'2Y',  symbol:'2Y',  priceDisplay:'N/A', context:'Short',    change:0},
+                    {label:'3M',  symbol:'3M',  priceDisplay:'N/A', context:'Short',     change:0},
+                    {label:'2Y',  symbol:'2Y',  priceDisplay:'N/A', context:'Short',     change:0},
                     {label:'10Y', symbol:'10Y', priceDisplay:'N/A', context:'Benchmark', change:0},
-                    {label:'30Y', symbol:'30Y', priceDisplay:'N/A', context:'Long',     change:0},
-                    {label:'HYG', symbol:'HYG', priceDisplay:'N/A', context:'Credit',   change:0},
+                    {label:'30Y', symbol:'30Y', priceDisplay:'N/A', context:'Long',      change:0},
                 ];
-
             } catch(e) {
                 console.error('Macro fetch failed', e);
                 this.contextMessage = 'Data unavailable.';
             }
         },
 
+        async fetchGlobalIntel() {
+            this.intelLoading = true;
+            try {
+                const res = await fetch('/api/global-intel');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const d = await res.json();
+                this.globalMarkets  = d.global_markets  || [];
+                this.sectorRotation = d.sector_rotation || {};
+                this.fearGreed      = d.fear_greed      || {};
+                this.yieldCurve     = d.yield_curve     || {};
+                this.peers          = d.peers           || [];
+                this.peersBasedOn   = d.peers_based_on  || [];
+                this.dividendScreen = d.dividend_screen || [];
+                this.swingScreen    = d.swing_screen    || [];
+                this.intelUpdatedAt = d.generated_at ? new Date(d.generated_at).toLocaleTimeString() : new Date().toLocaleTimeString();
+                this.intelLoaded = true;
+                this.fetchOracleSignals();
+            } catch(e) {
+                console.error('Global intel fetch failed', e);
+            } finally {
+                this.intelLoading = false;
+            }
+        },
+
+        async fetchOracleSignals() {
+            const passing = (this.swingScreen || []).filter(s => s.passes);
+            for (const s of passing) {
+                if (this.oracleSignals[s.symbol]) continue;
+                try {
+                    const res = await fetch(`/api/oracle/quick-signal/${s.symbol}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.oracleSignals = { ...this.oracleSignals, [s.symbol]: data };
+                    }
+                } catch(e) {
+                    console.warn(`Oracle signal failed for ${s.symbol}`, e);
+                }
+            }
+        },
+
+        oracleSignalShort(verdict) {
+            const map = { STRONG_BUY: 'S.BUY', BUY: 'BUY', HOLD: 'HOLD', AVOID: 'AVOID', STRONG_SELL: 'S.SELL' };
+            return map[verdict] || verdict || 'N/A';
+        },
+
+        oracleSignalStyle(verdict) {
+            const styles = {
+                STRONG_BUY:  'background:#00C85333;color:#00C853;border:1px solid #00C85344;',
+                BUY:         'background:#00C85322;color:#00C853;border:1px solid #00C85333;',
+                HOLD:        'background:#FFD60022;color:#FFD600;border:1px solid #FFD60033;',
+                AVOID:       'background:#FF5C5C22;color:#FF5C5C;border:1px solid #FF5C5C33;',
+                STRONG_SELL: 'background:#FF5C5C33;color:#FF5C5C;border:1px solid #FF5C5C44;',
+            };
+            return styles[verdict] || 'background:#2A2E39;color:#787B86;border:1px solid #3A3E49;';
+        },
+
+        async refreshIntel() {
+            this.intelLoading = true;
+            this.oracleSignals = {};
+            try {
+                const res = await fetch('/api/global-intel/refresh');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const d = await res.json();
+                this.globalMarkets  = d.global_markets  || [];
+                this.sectorRotation = d.sector_rotation || {};
+                this.fearGreed      = d.fear_greed      || {};
+                this.yieldCurve     = d.yield_curve     || {};
+                this.peers          = d.peers           || [];
+                this.peersBasedOn   = d.peers_based_on  || [];
+                this.dividendScreen = d.dividend_screen || [];
+                this.swingScreen    = d.swing_screen    || [];
+                this.intelUpdatedAt = new Date().toLocaleTimeString();
+                this.fetchOracleSignals();
+            } catch(e) {
+                console.error('Refresh failed', e);
+            } finally {
+                this.intelLoading = false;
+            }
+        },
+
         goTo(symbol) {
-            if(!symbol||symbol.includes('=')||symbol==='DXY')return;
-            window.location.href='/analysis/'+symbol;
+            if(!symbol||symbol.includes('=')||symbol==='DXY') return;
+            window.location.href = '/analysis/' + symbol;
         }
     }
 }

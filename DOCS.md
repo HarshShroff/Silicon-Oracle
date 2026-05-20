@@ -14,17 +14,15 @@
    - [Analysis](#42-analysis)
    - [AI Guidance](#43-ai-guidance)
    - [Scanner](#44-scanner)
-   - [Portfolio](#45-portfolio)
-   - [Trade](#46-trade)
-   - [Watchlist](#47-watchlist)
-   - [Settings](#48-settings)
-   - [Portfolio Sentinel (Simulation)](#49-portfolio-sentinel--simulation)
+   - [Watchlist](#45-watchlist)
+   - [Settings](#46-settings)
+   - [Sentinel (Simulation)](#47-sentinel--simulation)
 5. [API Endpoints](#5-api-endpoints)
    - [Stock Data](#51-stock-data)
    - [Oracle & AI](#52-oracle--ai)
    - [Scanner & Watchlists](#53-scanner--watchlists)
-   - [Trading (Alpaca)](#54-trading--alpaca)
-   - [Portfolio](#55-portfolio)
+   - [Global Intelligence](#54-global-intelligence)
+   - [Portfolio (local history)](#55-portfolio-local-history)
    - [Notifications & Email](#56-notifications--email)
    - [Settings](#57-settings)
    - [Market Intelligence](#58-market-intelligence)
@@ -43,7 +41,7 @@
 ```
 ┌────────────────────────────────────────────────────────────┐
 │                        Browser                             │
-│   Jinja2 pages  ←→  Alpine.js AJAX  ←→  Chart.js charts   │
+│   Jinja2 pages  ←→  Alpine.js AJAX  ←→  Lightweight Charts │
 └───────────────────────────┬────────────────────────────────┘
                             │ HTTP
 ┌───────────────────────────▼────────────────────────────────┐
@@ -62,11 +60,11 @@
 │    EnhancedOracleService– 15-factor score (adds 3 more)    │
 │    GeminiService        – Gemini AI deep-dive & insights   │
 │    ScannerService       – multi-ticker parallel scan       │
-│    TradingService       – Alpaca paper-trade orders        │
-│    PortfolioService     – trade history & P&L              │
-│    MarketIntelligenceService – email content generation    │
+│    PortfolioService     – trade history & P&L (local DB)   │
+│    MarketIntelligenceService – email content + macro       │
 │    AlertEngine          – threshold-based alerts           │
 │    SentinelEngine       – background position monitor      │
+│    GlobalIntelService   – global markets, F&G, sectors     │
 │    EmailService         – SMTP via user's Gmail            │
 │                                                            │
 │  APScheduler            – 5 cron jobs (see §6)            │
@@ -75,10 +73,10 @@
      ┌──────────▼──┐    ┌─────────▼─────────┐
      │  Supabase   │    │  External APIs     │
      │ PostgreSQL  │    │  Finnhub (data)    │
-     │             │    │  Alpaca (trades)   │
-     │  user data  │    │  Gemini (AI)       │
-     │  positions  │    │  yfinance (hist)   │
-     │  API keys   │    │  Gmail (email)     │
+     │             │    │  Gemini (AI)       │
+     │  user data  │    │  yfinance (hist)   │
+     │  positions  │    │  Gmail (email)     │
+     │  API keys   │    │  Google News RSS   │
      └─────────────┘    └────────────────────┘
 ```
 
@@ -86,7 +84,7 @@
 1. Alpine.js `fetch()` hits `/api/…`
 2. Flask middleware (`__init__.py`) loads `g.user` from the session cookie
 3. Route handler calls `get_config()` → pulls the user's own decrypted API keys from Supabase
-4. Service layer calls the external API (Finnhub / Gemini / Alpaca)
+4. Service layer calls the external API (Finnhub / Gemini / yfinance)
 5. JSON response returns to the browser; Alpine.js updates the DOM reactively
 
 ---
@@ -98,7 +96,6 @@ Silicon Oracle does **not** hold any shared API keys. Every user brings their ow
 | Key | Used by | Required? |
 |-----|---------|-----------|
 | **Finnhub API Key** | Stock quotes, news, company info | Yes |
-| **Alpaca API + Secret** | Paper-trading orders & positions | Optional |
 | **Gemini API Key** | All AI analysis, email content | Optional (locks AI features) |
 | **Gmail Address + App Password** | Sending alert emails | Optional (locks email features) |
 
@@ -114,9 +111,9 @@ Each user picks one of three trading styles in **Settings → Trading Profile**:
 
 | Style | Meaning | How it affects the app |
 |-------|---------|------------------------|
-| **Day Trading** | Intraday momentum, tight stops | AI deep-dive & Oracle interpretation focus on same-day catalysts. Backtest default hold = 1 day. Rebalancer reacts at 3 % drift. |
-| **Swing Trading** | 2–10 day breakouts *(default)* | Standard AI analysis. Backtest hold = 5 days. Rebalancer reacts at 5 % drift. |
-| **Long-Term Investing** | Fundamentals, multi-month holds | AI focuses on growth & moat. Backtest hold = 30 days. Rebalancer tolerates up to 8 % drift. |
+| **Day Trading** | Intraday momentum, tight stops | AI deep-dive & Oracle interpretation focus on same-day catalysts. Rebalancer reacts at 3 % drift. |
+| **Swing Trading** | 2–10 day breakouts *(default)* | Standard AI analysis. Rebalancer reacts at 5 % drift. |
+| **Long-Term Investing** | Fundamentals, multi-month holds | AI focuses on growth & moat. Rebalancer tolerates up to 8 % drift. |
 
 **Where trading_style is consumed:**
 
@@ -170,6 +167,7 @@ The main stock-analysis page. Server-renders the initial Oracle score and stock 
 | Peer stocks | Static list per sector | Links to their analysis pages |
 | Multi-Timeframe panel | `GET /api/multi-timeframe?ticker=…` | Weekly / Daily / 4H alignment; shows **Trading Profile badge** |
 | Risk Calculator panel | Client-side | Position-size calculator |
+| Floating "Add to Sentinel" button | Links to `/simulation` | Opens Sentinel dashboard to add position |
 
 ---
 
@@ -185,7 +183,7 @@ Oracle's AI-powered scanning page. The user enters a comma-separated list of tic
 3. Auto-loaded: `GET /api/oracle/ai-interpretation/<ticker>` → Gemini reads the Oracle factors and explains them in plain English — **framed for the user's trading style**
 4. On-demand: `GET /api/oracle/insight/<ticker>` → 2-sentence "Deep Dive Thesis"
 
-Results split into **Top Picks** (Strong Buy / Buy) cards and a full results table with a verdict filter.  Scan results are cached in `localStorage` for 1 hour so a page refresh doesn't lose them.
+Results split into **Top Picks** (Strong Buy / Buy) cards and a full results table with a verdict filter. Scan results are cached in `localStorage` for 1 hour so a page refresh doesn't lose them.
 
 ---
 
@@ -206,46 +204,16 @@ Uses `ScannerService.scan_watchlist()` which runs tickers in parallel via `Threa
 
 ---
 
-### 4.5 Portfolio
-
-**Route:** `GET /portfolio`
-**Blueprint:** `main_bp`
-
-Live Alpaca paper-trading portfolio.
-
-| Card | Source |
-|------|--------|
-| Portfolio Value / Buying Power / Cash / Equity | Alpaca account API |
-| Active positions with live P&L | Alpaca positions API |
-| Performance chart | `GET /api/portfolio/history` (Alpaca + local snapshots) |
-| Trade history | `GET /api/portfolio/trades` (local `trades` table) |
-| Earnings Calendar | `GET /api/earnings-calendar` (Finnhub) |
-| Correlation Matrix | `GET /api/portfolio-correlation` |
-| Portfolio Rebalancer | `GET /api/portfolio-rebalance` — thresholds depend on **Trading Profile** |
-
-> Note: The Portfolio page shows **Alpaca** paper positions. The Sentinel dashboard (§4.9) shows **shadow** positions imported from a real brokerage.
-
----
-
-### 4.6 Trade
-
-**Route:** `GET /trade/<ticker>`
-**Blueprint:** `main_bp`
-
-Paper-trade execution page for a single ticker. Shows the live quote, current Alpaca position (if any), and open orders. Buy / Sell forms POST to `/api/trading/order`.
-
----
-
-### 4.7 Watchlist
+### 4.5 Watchlist
 
 **Route:** `GET /watchlist`
 **Blueprint:** `main_bp`
 
-Manage custom watchlists. Pre-built lists (AI/Tech, Energy, Dividend, Speculative, ETFs, Magnificent 7) plus user-created ones stored in session. If Alpaca is connected, can sync local lists to Alpaca watchlists.
+Manage custom watchlists. Pre-built lists (AI/Tech, Energy, Dividend, Speculative, ETFs, Magnificent 7) plus user-created ones stored in session.
 
 ---
 
-### 4.8 Settings
+### 4.6 Settings
 
 **Route:** `GET/POST /settings`
 **Blueprint:** `main_bp`
@@ -254,31 +222,32 @@ Central configuration page with four sections:
 
 1. **Account Info** — username, email, sign-out button
 2. **Trading Profile** — Day / Swing / Long-Term selector → saved to `simulation_settings.trading_style`
-3. **API Keys (BYOK)** — Finnhub, Alpaca, Gemini. Saved encrypted to `user_profiles`
+3. **API Keys (BYOK)** — Finnhub, Gemini. Saved encrypted to `user_profiles`
 4. **Email Notifications** — Gmail address + App Password (masked after save), toggle switches for Price Alerts, News Alerts, Daily Digest
 
 All forms POST via `fetch()` with CSRF token; the server returns `{"success": true}` JSON.
 
 ---
 
-### 4.9 Portfolio Sentinel (Simulation)
+### 4.7 Sentinel (Simulation)
 
 **Route:** `GET /simulation`
 **Blueprint:** `sentinel_ui_bp`
 
-The monitoring dashboard for **shadow positions** — positions imported from a real brokerage (e.g. Robinhood) that Silicon Oracle tracks but does not trade.
+The primary portfolio dashboard — tracks shadow positions that the user imports and monitors.
 
 | Section | API | Notes |
 |---------|-----|-------|
 | Live positions with P&L | `GET /sentinel/positions/enriched` | Enriches each position with Finnhub live price + Oracle score |
 | Performance History chart | `GET /sentinel/history` | Lightweight Charts area chart; period switcher 1D/5D/1M/3M/1Y. Shows "Live" badge during market hours. |
 | Allocation Donut chart | Client-side Chart.js | 50/50 grid alongside Performance History. Top-8 positions by value; hover shows $ value + % weight. Re-renders on every data refresh. |
+| Add Position form | `POST /sentinel/add` | Inline form — ticker, quantity, entry price |
 | News for holdings | `GET /sentinel/news` | Aggregated from Finnhub |
 | Breaking news alerts | `GET /sentinel/news/breaking` | Last 24 hours |
 | Settings panel | `GET/POST /sentinel/settings` | Starting capital, alert thresholds |
 | Bulk import | `POST /sentinel/import` | JSON array of positions |
 
-Shadow positions are created via `POST /sentinel/add` (from the Analysis page "Add to Sentinel" button) or bulk-imported. They live in the `shadow_positions` table.
+Shadow positions live in the `shadow_positions` table with `quantity` and `average_entry_price` fields.
 
 **Sentinel Engine** runs every 5 minutes (Mon–Fri, market hours) as a background cron job. It checks each position for:
 - Price breaches (above/below alert thresholds)
@@ -286,6 +255,8 @@ Shadow positions are created via `POST /sentinel/add` (from the Analysis page "A
 - Oracle score changes
 
 Alerts are emailed via the user's Gmail if configured.
+
+> `/portfolio` and `/trade` URLs redirect here (302).
 
 ---
 
@@ -328,23 +299,15 @@ All endpoints under `/api/…` are served by `api_bp`. They return JSON. Most re
 | GET | `/api/scanner/volume-spikes` | Detect unusual volume across holdings |
 | GET | `/api/scanner/relative-strength` | Compare holdings' 3-month returns vs SPY |
 
-### 5.4 Trading (Alpaca)
+### 5.4 Global Intelligence
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/trading/account` | Alpaca account details |
-| GET | `/api/trading/positions` | All open Alpaca positions |
-| GET | `/api/trading/orders` | Open / filled orders |
-| POST | `/api/trading/order` | Place a market or limit order |
-| DELETE | `/api/trading/order/<order_id>` | Cancel an open order |
-| DELETE | `/api/trading/position/<ticker>` | Close (sell) an entire position |
-| GET | `/api/trading/history` | Recent filled orders |
-| GET | `/api/trading/watchlists` | Alpaca watchlists |
-| DELETE | `/api/trading/watchlists/<id>` | Delete an Alpaca watchlist |
-| POST | `/api/trading/watchlists/<id>/sync` | Sync an Alpaca watchlist from local |
-| POST | `/api/trading/watchlists/sync-local` | Push local watchlist tickers to Alpaca |
+| GET | `/api/global-intel` | All intel layers: global markets, sector rotation, yield curve, fear & greed, peers, dividend + swing screeners (90 s cache) |
+| GET | `/api/global-intel/refresh` | Bust cache and return fresh data |
+| GET | `/api/oracle/quick-signal/<ticker>` | Lightweight Oracle verdict for a single ticker (5 min cache); used by Swing Screener Oracle badges |
 
-### 5.5 Portfolio
+### 5.5 Portfolio (local history)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -367,15 +330,15 @@ All endpoints under `/api/…` are served by `api_bp`. They return JSON. Most re
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/settings/load` | Load current settings from session |
-| POST | `/api/settings/save-api-keys` | Save encrypted API keys |
+| POST | `/api/settings/save-api-keys` | Save encrypted API keys (Finnhub, Gemini) |
 | POST | `/api/settings/save-email` | Save Gmail credentials + alert toggles |
-| POST | `/api/settings/test-connections` | Test Finnhub & Alpaca connectivity |
+| POST | `/api/settings/test-connections` | Test Finnhub connectivity |
 | GET | `/api/settings/data-summary` | Count of trades, positions, watchlists |
 | GET | `/api/settings/export` | Download all user data as CSV or Excel |
 
 ### 5.8 Market Intelligence
 
-These endpoints drive the AI-powered email system. They all respect the user's **Trading Profile**.
+These endpoints drive the AI-powered email system. They all respect the user's **Trading Profile** and inject a live macro snapshot (VIX, DXY, BTC, Gold, 10Y, Fear & Greed, sector rotation) into every Gemini prompt.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -390,27 +353,15 @@ These endpoints drive the AI-powered email system. They all respect the user's *
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/macro-data` | SPY, VIX, 10Y yield, DXY, BTC, Gold, Oil |
+| GET | `/api/macro-data` | SPY, VIX, 10Y yield, DXY (`DX-Y.NYB`), BTC, Gold, Oil — feeds topbar tape + Global Pulse tab |
 | GET | `/api/earnings-calendar` | Upcoming earnings for user's holdings |
 | GET | `/api/insider-trades/<ticker>` | Recent insider transactions (Finnhub) |
 | GET | `/api/sector-rotation` | 11-sector ETF performance heatmap |
 | GET | `/api/portfolio-correlation` | Pairwise correlation of holdings |
-| POST | `/api/backtest` | Run a strategy backtest — **default hold_days from Trading Profile** |
 | GET | `/api/multi-timeframe` | Weekly / Daily / 4H analysis — **returns trading_style in response** |
 | GET | `/api/volatility-surface` | Implied & realized volatility analysis |
 | GET | `/api/portfolio-rebalance` | Drift analysis with style-aware thresholds |
-| POST | `/api/portfolio-rebalance/execute` | Execute rebalancing trades via Alpaca |
-
-#### Backtest body
-
-```json
-{
-  "ticker": "NVDA",
-  "strategy": "rsi",        // rsi | ma_crossover | breakout
-  "period": "1y",           // 1y | 6mo | 3mo | 2y
-  "hold_days": 5            // optional; defaults to style (day=1, swing=5, long=30)
-}
-```
+| POST | `/api/portfolio-rebalance/execute` | Execute rebalancing (updates shadow positions only) |
 
 #### Rebalancer drift thresholds (per Trading Profile)
 
@@ -426,7 +377,7 @@ Mounted under `/sentinel/…` by `sentinel_bp`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/sentinel/add` | Add a shadow position (ticker, quantity, avg entry price) |
+| POST | `/sentinel/add` | Add a shadow position (ticker, quantity, average_entry_price) |
 | GET | `/sentinel/dashboard` | Raw list of active shadow positions |
 | POST | `/sentinel/sync` | Manually run one Sentinel monitoring cycle |
 
@@ -461,7 +412,7 @@ All jobs run via **APScheduler** inside the Flask process. They are registered i
 |--------|---------------|----------|--------------|
 | `market_preview_job` | Mon–Fri 9:00 AM | `market_preview_job()` | Pre-market email: what to watch today, impact on holdings |
 | `sentinel_monitor` | Mon–Fri 9:00 AM – 4:00 PM, every 5 min | `sentinel_job()` | Checks each user's shadow positions for alerts |
-| `market_intelligence_job` | Mon–Fri 10:00 AM – 4:00 PM, on the hour | `market_intelligence_job()` | Hourly AI scan: broad news → personalized recommendations |
+| `market_intelligence_job` | Mon–Fri 10:00 AM – 4:00 PM, on the hour | `market_intelligence_job()` | Hourly AI scan: broad news + macro snapshot → personalized recommendations |
 | `market_close_summary_job` | Mon–Fri 5:00 PM | `market_close_summary_job()` | End-of-day recap of market + holdings performance |
 | `daily_digest_job` | Mon–Fri 5:30 PM | `daily_digest_job()` | Full portfolio summary with live P&L, top scan results |
 
@@ -510,9 +461,7 @@ All tables live in the Supabase project specified by `DATABASE_URL`. The schema 
 | email | text | |
 | username | text | |
 | finnhub_api_key_encrypted | text | Fernet-encrypted |
-| alpaca_api_key_encrypted | text | |
-| alpaca_secret_key_encrypted | text | |
-| gemini_api_key_encrypted | text | |
+| gemini_api_key_encrypted | text | Fernet-encrypted |
 | gmail_address | text | Plain text (not a secret) |
 | gmail_app_password_encrypted | text | Fernet-encrypted |
 | notifications_enabled | boolean | Master toggle |
@@ -559,8 +508,7 @@ All tables live in the Supabase project specified by `DATABASE_URL`. The schema 
 | price | numeric | |
 | total_value | numeric | shares × price |
 | reason | text | |
-| order_id | text | Alpaca order id (if any) |
-| source | text | `manual` / `alpaca` |
+| source | text | `manual` / `sentinel` |
 | timestamp | timestamp | |
 
 ### account_history
@@ -576,9 +524,8 @@ Stores past AI-generated report content for context / memory across runs.
 
 ## 9. Key Design Decisions
 
-### Shadow Positions vs Alpaca Positions
-- **Alpaca positions** are live paper-trade positions managed inside Silicon Oracle (Portfolio page, Trade page).
-- **Shadow positions** are read-only mirrors of a real brokerage portfolio. The user imports them manually or via bulk import. Silicon Oracle monitors them and sends alerts but never places orders against them.
+### Shadow Positions
+Shadow positions are user-imported portfolio positions that Silicon Oracle monitors but never trades against. They are stored in `shadow_positions` with `quantity` and `average_entry_price` fields. The Sentinel Engine enriches them with live prices, Oracle scores, and sends email alerts on significant moves.
 
 ### `is_active` can be NULL
 Older shadow positions created before the `is_active` field was added have `NULL` in that column. The query uses `.neq("is_active", False)` rather than `.eq("is_active", True)` so that both `True` and `NULL` rows are returned. New positions explicitly set `is_active = True`.
@@ -586,12 +533,15 @@ Older shadow positions created before the `is_active` field was added have `NULL
 ### Trading Style as a Cross-Cutting Concern
 Rather than forcing every page to fetch the style independently, a `get_trading_style()` helper in `api.py` centralises the lookup. Each endpoint that generates user-facing AI content or sets numeric defaults simply calls this helper. The style is stored once in `simulation_settings` and saved via the Settings page.
 
+### Macro Snapshot in Emails
+Every AI email prompt receives a pre-fetched macro context block via `_fetch_macro_intel_snapshot()` — VIX, DXY (`DX-Y.NYB`), BTC, Gold, 10Y yield from yfinance; Fear & Greed, sector rotation, yield curve from `global_intel_service`. The Gemini prompt receives this as structured text before the market analysis JSON.
+
 ### Email Cron Runs on All Users
 Each scheduled job iterates over every `user_profiles` row. This keeps the scheduler simple (one job, not one per user) and means new users get emails automatically once they enable notifications. Each iteration checks the user's individual preferences before doing any work.
 
 ### Gemini Prompt Engineering
 The AI prompts use a layered approach:
-1. **System context** — date, trading-style description
+1. **System context** — date, trading-style description, macro environment snapshot
 2. **Output format** — exact HTML template (for deep-dive) or structured JSON (for market intelligence)
 3. **Critical rules** — numbered constraints that prevent hallucination, enforce timeframe alignment, and control output length
 4. **Structured markers** — `{{SCORE:XX}}` / `{{LABEL:YY}}` for extracting metadata from free-text responses via regex

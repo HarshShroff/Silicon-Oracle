@@ -77,28 +77,6 @@
                 <a href="https://finnhub.io/register" target="_blank" class="text-[10px] text-oracle-primary hover:text-oracle-accent font-mono">Get free key →</a>
             </div>
 
-            <!-- Alpaca -->
-            <div class="rounded-lg border transition-colors" :class="alpacaEnabled ? 'border-oracle-border bg-oracle-surface' : 'border-oracle-border/40 bg-oracle-surface/40'">
-                <div class="flex items-center gap-3 p-3">
-                    <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-white">Alpaca Paper Trading</p>
-                        <p class="text-[10px] text-oracle-border-strong" x-text="alpacaEnabled ? 'Enabled — Portfolio & Trade visible' : 'Disabled — hidden from nav'"></p>
-                    </div>
-                    <span class="badge badge-hold text-[9px] mr-2">Optional</span>
-                    <button type="button" @click="toggleAlpaca()" :disabled="togglingAlpaca"
-                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 disabled:opacity-50"
-                            :class="alpacaEnabled ? 'bg-oracle-primary' : 'bg-oracle-border'">
-                        <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"
-                              :class="alpacaEnabled ? 'translate-x-4' : 'translate-x-0.5'"></span>
-                    </button>
-                </div>
-                <div x-show="alpacaEnabled" x-transition class="px-3 pb-3 space-y-2">
-                    <input type="text" x-model="apiKeys.alpaca_key" placeholder="Alpaca API Key" class="t-input w-full">
-                    <input type="password" x-model="apiKeys.alpaca_secret" placeholder="Alpaca Secret Key" class="t-input w-full">
-                    <a href="https://app.alpaca.markets/paper/dashboard/overview" target="_blank" class="text-[10px] text-oracle-primary hover:text-oracle-accent font-mono">Paper trading dashboard →</a>
-                </div>
-            </div>
-
             <!-- Gemini -->
             <div class="p-3 bg-oracle-surface rounded-lg border border-oracle-border">
                 <div class="flex items-center justify-between mb-2">
@@ -153,13 +131,9 @@ function settingsPage() {
         savingEmail: false,
         savingProfile: false,
         testingEmail: false,
-        togglingAlpaca: false,
-        alpacaEnabled: {{ 'true' if alpaca_enabled else 'false' }},
         tradingStyle: '{{ trading_style | default("swing_trading", true) }}',
         apiKeys: {
             finnhub: '{{ finnhub_key | default("", true) }}',
-            alpaca_key: '{{ alpaca_key | default("", true) }}',
-            alpaca_secret: '{{ alpaca_secret | default("", true) }}',
             gemini: '{{ gemini_key | default("", true) }}'
         },
         emailSettings: {
@@ -170,34 +144,12 @@ function settingsPage() {
             daily_digest: {{ 'true' if alert_daily_digest else 'false' }}
         },
         init() {},
-        async toggleAlpaca() {
-            this.togglingAlpaca = true;
-            const newVal = !this.alpacaEnabled;
-            try {
-                const formData = new FormData();
-                formData.append('save_alpaca_toggle', '1');
-                formData.append('alpaca_enabled', newVal ? '1' : '0');
-                const response = await fetch('{{ url_for("main.settings") }}', {
-                    method: 'POST', body: formData,
-                    headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
-                });
-                const data = await response.json();
-                if (data.success) {
-                    this.alpacaEnabled = newVal;
-                    this.$dispatch('show-toast', { message: newVal ? 'Alpaca enabled' : 'Alpaca disabled', type: 'success' });
-                }
-            } catch (e) {
-                this.$dispatch('show-toast', { message: 'Failed to update', type: 'error' });
-            } finally { this.togglingAlpaca = false; }
-        },
         async saveApiKeys() {
             this.saving = true;
             try {
                 const formData = new FormData();
                 formData.append('save_api_keys', '1');
                 formData.append('finnhub_key', this.apiKeys.finnhub);
-                formData.append('alpaca_key', this.apiKeys.alpaca_key);
-                formData.append('alpaca_secret', this.apiKeys.alpaca_secret);
                 formData.append('gemini_key', this.apiKeys.gemini);
                 const response = await fetch('{{ url_for("main.settings") }}', {
                     method: 'POST', body: formData,

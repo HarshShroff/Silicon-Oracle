@@ -175,9 +175,11 @@
             </div>
             {% endif %}
 
-            <!-- Backtesting + Insider (collapsed tools) -->
+            <!-- Insider + deprecated backtesting -->
             <div class="space-y-4 mt-2">
+                {# DEPRECATED: Backtesting Engine removed — Oracle scoring engine provides forward-looking signals.
                 {% include 'components/backtesting_engine.html' %}
+                #}
                 {% include 'components/insider_tracker.html' %}
             </div>
 
@@ -386,90 +388,17 @@
 
 </div>
 
-{% if alpaca_enabled %}
-<!-- ── Floating Trade Buttons (Alpaca only) ────────────────────── -->
-<div style="position:fixed;bottom:28px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:40;">
-    <button @click="openTrade('buy')"
-            style="width:56px;height:56px;border-radius:50%;background:#00C853;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(0,200,83,0.4);font-size:11px;font-weight:700;color:#000;font-family:'Space Grotesk',sans-serif;transition:all 0.2s;"
-            onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
-        BUY
-    </button>
-    <button @click="openTrade('sell')"
-            style="width:56px;height:56px;border-radius:50%;background:#f87171;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(248,113,113,0.35);font-size:11px;font-weight:700;color:#000;font-family:'Space Grotesk',sans-serif;transition:all 0.2s;"
-            onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
-        SELL
-    </button>
+<!-- ── Floating "Add to Portfolio" button ──────────────────────── -->
+<div style="position:fixed;bottom:28px;right:24px;z-index:40;">
+    <a href="{{ url_for('sentinel_ui.simulation') }}"
+       style="display:flex;align-items:center;gap:8px;padding:12px 18px;background:#00C853;border-radius:30px;color:#000;font-weight:700;font-size:12px;font-family:'Space Grotesk',sans-serif;text-decoration:none;box-shadow:0 4px 20px rgba(0,200,83,0.4);transition:all 0.2s;"
+       onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add to Portfolio
+    </a>
 </div>
-
-<!-- ── Trade Slide-Up Panel ────────────────────────────────────── -->
-<!-- Backdrop -->
-<div x-show="tradeOpen" x-transition:enter="transition-opacity duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-     x-transition:leave="transition-opacity duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-     @click="closeTrade()"
-     style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:50;backdrop-filter:blur(2px);"
-     x-cloak></div>
-<!-- Panel -->
-<div x-show="tradeOpen"
-     x-transition:enter="transition-transform duration-300 ease-out"
-     x-transition:enter-start="translate-y-full"
-     x-transition:enter-end="translate-y-0"
-     x-transition:leave="transition-transform duration-200 ease-in"
-     x-transition:leave-start="translate-y-0"
-     x-transition:leave-end="translate-y-full"
-     style="position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:#131722;border:1px solid #2A2E39;border-bottom:none;border-radius:16px 16px 0 0;padding:20px 20px 32px;z-index:51;"
-     x-cloak>
-    <!-- Handle bar -->
-    <div style="width:40px;height:4px;background:#2A2E39;border-radius:2px;margin:0 auto 16px;"></div>
-    <!-- Header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div style="display:flex;gap:0;">
-            <button @click="tradeAction='buy'"
-                    :style="tradeAction==='buy' ? 'background:#00C853;color:#000;' : 'background:transparent;color:#787B86;border:1px solid #2A2E39;'"
-                    style="padding:6px 20px;border-radius:6px 0 0 6px;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;transition:all 0.15s;">
-                Buy
-            </button>
-            <button @click="tradeAction='sell'"
-                    :style="tradeAction==='sell' ? 'background:#f87171;color:#000;' : 'background:transparent;color:#787B86;border:1px solid #2A2E39;'"
-                    style="padding:6px 20px;border-radius:0 6px 6px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;transition:all 0.15s;">
-                Sell
-            </button>
-        </div>
-        <button @click="closeTrade()" style="background:none;border:none;color:#787B86;cursor:pointer;font-size:18px;padding:4px;">✕</button>
-    </div>
-    <!-- Ticker + price row -->
-    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
-        <span style="font-size:20px;font-weight:700;color:#FFFFFF;font-family:\'Space Grotesk\',sans-serif;">{{ ticker }}</span>
-        <span class="mono" style="font-size:16px;color:#D1D4DC;" x-text="tradePrice ? '$' + tradePrice.toFixed(2) : '—'"></span>
-    </div>
-    <!-- Shares input -->
-    <div style="margin-bottom:12px;">
-        <label style="font-size:11px;color:#787B86;font-weight:600;display:block;margin-bottom:6px;">SHARES</label>
-        <input type="number" min="0.001" step="0.001"
-               x-model="tradeShares"
-               placeholder="0"
-               style="width:100%;background:#1C1C1C;border:1px solid #2A2E39;border-radius:8px;padding:12px 14px;font-size:20px;font-weight:600;color:#FFFFFF;font-family:\'JetBrains Mono\',monospace;outline:none;transition:border-color 0.15s;"
-               onfocus="this.style.borderColor='rgba(0,200,83,0.5)'" onblur="this.style.borderColor='#2A2E39'">
-    </div>
-    <!-- Est. total -->
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#1C1C1C;border-radius:8px;margin-bottom:16px;">
-        <span style="font-size:12px;color:#787B86;">Est. Total</span>
-        <span class="mono" style="font-size:14px;font-weight:600;color:#D1D4DC;"
-              x-text="tradeTotal ? '$' + tradeTotal : '—'"></span>
-    </div>
-    <!-- Submit -->
-    <button @click="submitTrade()" :disabled="tradeSubmitting || !tradeShares"
-            :style="tradeAction==='buy' ? 'background:#00C853;' : 'background:#f87171;'"
-            style="width:100%;padding:14px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;color:#000;transition:opacity 0.15s;"
-            :class="(tradeSubmitting || !tradeShares) ? 'opacity-50 cursor-not-allowed' : ''"
-            x-text="tradeSubmitting ? 'Placing order...' : (tradeAction === 'buy' ? 'Place Buy Order' : 'Place Sell Order')">
-    </button>
-    <p style="font-size:10px;color:#787B86;text-align:center;margin-top:8px;">Market order via Alpaca · Paper trading</p>
-</div>
-{% endif %}
 
 <script>
-    // ── Alpaca flag injected from server ──────────────────────────────
-    const _alpacaEnabled = {{ alpaca_enabled | tojson }};
     const _currentTicker = '{{ ticker }}';
 
     function analysisPage() {
@@ -488,13 +417,6 @@
             inWatchlist: false,
             watchlistMsg: '',
             _watchlistTimer: null,
-
-            // Trade panel (Alpaca only)
-            tradeOpen: false,
-            tradeAction: 'buy',
-            tradeShares: '',
-            tradePrice: null,
-            tradeSubmitting: false,
 
             // Monte Carlo
             monteCarloLoading: false,
@@ -653,49 +575,6 @@
                         this._watchlistTimer = setTimeout(() => { this.watchlistMsg = ''; }, 3000);
                     }
                 } catch(e) { console.error('Watchlist toggle error:', e); }
-            },
-
-            // ── Trade slide-up panel ──────────────────────────────────────
-            openTrade(action) {
-                if (!_alpacaEnabled) return;
-                this.tradeAction = action || 'buy';
-                this.tradeOpen = true;
-                // Fetch current price
-                const priceEl = document.getElementById('live-price');
-                if (priceEl) this.tradePrice = parseFloat(priceEl.textContent.replace('$','')) || null;
-            },
-
-            closeTrade() { this.tradeOpen = false; this.tradeShares = ''; },
-
-            get tradeTotal() {
-                const s = parseFloat(this.tradeShares) || 0;
-                const p = this.tradePrice || 0;
-                return s > 0 && p > 0 ? (s * p).toFixed(2) : null;
-            },
-
-            async submitTrade() {
-                if (!_alpacaEnabled || this.tradeSubmitting) return;
-                const shares = parseFloat(this.tradeShares);
-                if (!shares || shares <= 0) { this.$dispatch('show-toast', { message: 'Enter a valid number of shares', type: 'error' }); return; }
-                this.tradeSubmitting = true;
-                try {
-                    const resp = await fetch('/api/trading/order', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ticker: _currentTicker, action: this.tradeAction, shares, order_type: 'market' })
-                    });
-                    const data = await resp.json();
-                    if (data.success || data.order_id) {
-                        this.$dispatch('show-toast', { message: `${this.tradeAction.toUpperCase()} order placed for ${shares} shares of ${_currentTicker}`, type: 'success' });
-                        this.closeTrade();
-                    } else {
-                        this.$dispatch('show-toast', { message: data.error || 'Order failed', type: 'error' });
-                    }
-                } catch(e) {
-                    this.$dispatch('show-toast', { message: 'Order submission failed', type: 'error' });
-                } finally {
-                    this.tradeSubmitting = false;
-                }
             },
 
             async updatePrice() {

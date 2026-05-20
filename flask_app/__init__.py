@@ -160,8 +160,6 @@ def create_app(config_name=None):
                         )
                         g.user.is_authenticated = True
                         g.user.finnhub_api_key = ""
-                        g.user.alpaca_api_key = ""
-                        g.user.alpaca_secret_key = ""
                         g.user.gemini_api_key = ""
                         g.user._is_fallback = True  # Don't enforce key check on fallback
                         return  # Skip rest, using fallback
@@ -182,15 +180,13 @@ def create_app(config_name=None):
                 )
 
                 g.user.finnhub_api_key = user_api_keys.get("FINNHUB_API_KEY", "")
-                g.user.alpaca_api_key = user_api_keys.get("ALPACA_API_KEY", "")
-                g.user.alpaca_secret_key = user_api_keys.get("ALPACA_SECRET_KEY", "")
                 g.user.gemini_api_key = user_api_keys.get("GEMINI_API_KEY", "")
                 g.user.is_authenticated = True
 
                 # Debug logging
                 app.logger.debug(f"User {profile.get('email')} loaded:")
                 app.logger.debug(f"  Finnhub: {'SET' if g.user.finnhub_api_key else 'MISSING'}")
-                app.logger.debug(f"  Alpaca: {'SET' if g.user.alpaca_api_key else 'MISSING'}")
+                # DEPRECATED: app.logger.debug(f"  Alpaca: {'SET' if g.user.alpaca_api_key else 'MISSING'}")
                 app.logger.debug(f"  Gemini: {'SET' if g.user.gemini_api_key else 'MISSING'}")
 
                 # Store email in session for fallback
@@ -247,11 +243,9 @@ def create_app(config_name=None):
                 )
                 return redirect(url_for("main.settings"))
 
-            has_alpaca = bool(user_keys.get("ALPACA_API_KEY"))
+            # DEPRECATED: Alpaca removed — no longer checking has_alpaca
+            # has_alpaca = bool(user_keys.get("ALPACA_API_KEY"))
             has_gemini = bool(user_keys.get("GEMINI_API_KEY"))
-
-            if not has_alpaca and request.endpoint in ["main.portfolio", "main.trade"]:
-                flash("ℹ️ Add Alpaca API keys in Settings to enable live trading.", "info")
 
             if not has_gemini and request.endpoint == "main.analysis":
                 flash("ℹ️ Add Gemini API key in Settings to enable AI analysis.", "info")
@@ -261,29 +255,10 @@ def create_app(config_name=None):
     def inject_globals():
         user = g.user if hasattr(g, "user") and g.user else None
 
-        # Resolve alpaca_enabled: session is source of truth (instant after toggle),
-        # DB is fallback (works once column exists), default False (hidden until keys added).
-        alpaca_enabled = False
-        if user and user.is_authenticated:
-            if "alpaca_enabled" in session:
-                alpaca_enabled = bool(session["alpaca_enabled"])
-            else:
-                try:
-                    from utils import database as db
-
-                    sim = db.get_simulation_settings(user.id) or {}
-                    val = sim.get("alpaca_enabled", None)
-                    if val is not None:
-                        alpaca_enabled = bool(val)
-                        session["alpaca_enabled"] = alpaca_enabled
-                except Exception:
-                    pass
-
         return {
             "app_name": "Silicon Oracle",
             "app_version": "2.0",
             "current_user": user,
-            "alpaca_enabled": alpaca_enabled,
         }
 
     # Error handlers

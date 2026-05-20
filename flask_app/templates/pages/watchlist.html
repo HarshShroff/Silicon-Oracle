@@ -71,38 +71,15 @@
             </div>
         </div>
 
-        <!-- Alpaca Watchlists -->
+        <!-- Shadow Portfolio quick view -->
         <div class="t-card">
             <div class="flex items-center justify-between mb-3">
-                <p class="text-sm font-semibold text-white">Alpaca Watchlists</p>
-                <button @click="syncAllWithAlpaca()" :disabled="syncing"
-                        class="btn btn-ghost text-xs py-1 px-2.5 disabled:opacity-50"
-                        x-text="syncing ? 'Syncing…' : 'Sync All'"></button>
+                <p class="text-sm font-semibold text-white">Shadow Portfolio</p>
+                <a href="{{ url_for('sentinel_ui.simulation') }}" class="text-xs text-oracle-primary hover:text-oracle-accent">View all →</a>
             </div>
-
-            <div x-show="alpacaWatchlists.length > 0" class="space-y-2 max-h-72 overflow-y-auto">
-                <template x-for="list in alpacaWatchlists" :key="list.id">
-                    <div class="p-2.5 rounded bg-oracle-surface border border-oracle-border">
-                        <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-semibold text-white" x-text="list.name"></span>
-                            <div class="flex gap-1">
-                                <button @click="syncWithAlpaca(list)" :disabled="syncing" class="text-[9px] font-mono text-oracle-primary hover:text-oracle-accent">Sync</button>
-                                <button @click="deleteFromAlpaca(list)" class="text-[9px] font-mono text-oracle-loss hover:text-oracle-loss/80 ml-1">Del</button>
-                            </div>
-                        </div>
-                        <div class="flex flex-wrap gap-1">
-                            <template x-for="asset in (list.assets || [])" :key="asset">
-                                <span class="px-1.5 py-0.5 rounded bg-oracle-elevated text-[9px] font-mono text-oracle-border-strong" x-text="asset.symbol || asset"></span>
-                            </template>
-                        </div>
-                    </div>
-                </template>
-            </div>
-
-            <div x-show="alpacaWatchlists.length === 0 && !refreshing" class="py-8 text-center">
-                <p class="text-xs text-oracle-border-strong">No Alpaca watchlists</p>
-                <a href="{{ url_for('main.settings') }}" class="text-[10px] text-oracle-primary mt-1 inline-block">Connect Alpaca →</a>
-            </div>
+            <p class="text-xs text-oracle-border-strong py-4 text-center">
+                Track positions via <a href="{{ url_for('sentinel_ui.simulation') }}" class="text-oracle-primary hover:text-oracle-accent underline">Sentinel</a>.
+            </p>
         </div>
     </div>
 
@@ -160,7 +137,6 @@ function watchlistPage() {
         watchlists: [],
         selectedList: '',
         selectedListData: [],
-        alpacaWatchlists: [],
         scanResults: [],
         newListName: '',
         newListTickers: '',
@@ -176,7 +152,6 @@ function watchlistPage() {
 
         init() {
             this.loadLocalWatchlists();
-            this.loadAlpacaWatchlists();
         },
 
         async loadLocalWatchlists() {
@@ -184,15 +159,6 @@ function watchlistPage() {
                 const response = await fetch('/api/scanner/watchlists');
                 this.watchlists = await response.json();
             } catch (error) { console.error('Error loading watchlists:', error); }
-        },
-
-        async loadAlpacaWatchlists() {
-            this.refreshing = true;
-            try {
-                const response = await fetch('/api/trading/watchlists');
-                if (response.ok) this.alpacaWatchlists = await response.json();
-            } catch (error) { console.error('Error loading Alpaca watchlists:', error); }
-            finally { this.refreshing = false; }
         },
 
         async loadSelectedList() {
@@ -277,41 +243,6 @@ function watchlistPage() {
             } catch (error) { console.error('Error during scan:', error); }
             finally { this.scanning = false; }
         },
-
-        async syncWithAlpaca(list) {
-            if (this.syncing) return;
-            this.syncing = true;
-            try {
-                const response = await fetch(`/api/trading/watchlists/${list.id}/sync`, { method: 'POST' });
-                if (response.ok) { this.lastSync = new Date().toLocaleTimeString(); await this.loadAlpacaWatchlists(); }
-            } catch (error) { console.error('Error syncing:', error); }
-            finally { this.syncing = false; }
-        },
-
-        async syncAllWithAlpaca() {
-            if (this.syncing) return;
-            this.syncing = true;
-            try {
-                for (const list of this.watchlists) {
-                    try {
-                        await fetch('/api/trading/watchlists/sync-local', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: list.name, tickers: list.tickers }) });
-                    } catch (error) { console.error(`Error syncing ${list.name}:`, error); }
-                }
-                this.lastSync = new Date().toLocaleTimeString();
-                await this.loadAlpacaWatchlists();
-            } catch (error) { console.error('Error in sync all:', error); }
-            finally { this.syncing = false; }
-        },
-
-        async deleteFromAlpaca(list) {
-            if (!confirm(`Delete "${list.name}" from Alpaca?`)) return;
-            try {
-                const response = await fetch(`/api/trading/watchlists/${list.id}`, { method: 'DELETE' });
-                if (response.ok) await this.loadAlpacaWatchlists();
-            } catch (error) { console.error('Error deleting from Alpaca:', error); }
-        },
-
-        async refreshAlpacaLists() { await this.loadAlpacaWatchlists(); },
 
         getPrice(ticker) { return this.priceCache[ticker]?.current; },
         getChange(ticker) { return this.priceCache[ticker]?.percent_change; },

@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from flask_app.services import global_intel_service as _gis
 from flask_app.services.email_service import EmailService
 from flask_app.services.gemini_service import GeminiService
 from flask_app.services.oracle_service import OracleService
@@ -99,7 +100,13 @@ class MarketIntelligenceService:
         try:
             logger.info(f"Generating market intelligence for {user_email} (risk: {risk_profile})")
 
-            # Step 0: Retrieve AI memory (previous market intelligence report)
+            # Step 0a: Fetch live macro/global intel snapshot (non-blocking — errors silently)
+            macro_intel = self._fetch_macro_intel_snapshot()
+            logger.info(
+                f"Macro intel fetched: fear_greed={macro_intel.get('fear_greed_score')}, vix={macro_intel.get('vix')}"
+            )
+
+            # Step 0b: Retrieve AI memory (previous market intelligence report)
             previous_report = get_latest_market_intelligence_report(user_id)
             if previous_report:
                 logger.info(
@@ -127,6 +134,7 @@ class MarketIntelligenceService:
                     available_cash=available_cash,
                     trading_style=trading_style,
                     previous_report=previous_report,
+                    macro_intel=macro_intel,
                 )
                 market_analysis = intel["market_analysis"]
                 recommendations = intel["recommendations"]
@@ -147,14 +155,14 @@ class MarketIntelligenceService:
                 # SEQUENTIAL FALLBACK: original 4-step pipeline (unchanged)         #
                 # ------------------------------------------------------------------ #
 
-                # Step 1: Get AI-powered market analysis
-                market_analysis = self._get_comprehensive_market_analysis()
+                # Step 1: Get AI-powered market analysis (with live macro context)
+                market_analysis = self._get_comprehensive_market_analysis(macro_intel=macro_intel)
 
                 if not market_analysis or not market_analysis.get("has_important_news"):
                     logger.info(f"No significant market developments for {user_email}")
                     return False
 
-                # Step 2: Generate personalized stock recommendations (with AI memory)
+                # Step 2: Generate personalized stock recommendations (with AI memory + macro)
                 recommendations = self._generate_personalized_recommendations(
                     market_analysis=market_analysis,
                     user_holdings=user_holdings,
@@ -162,6 +170,7 @@ class MarketIntelligenceService:
                     available_cash=available_cash,
                     previous_report=previous_report,
                     trading_style=trading_style,
+                    macro_intel=macro_intel,
                 )
 
                 # Step 3: Analyze current holdings impact
@@ -260,6 +269,7 @@ class MarketIntelligenceService:
                 portfolio_health=portfolio_health,
                 stop_losses=stop_losses,
                 watchlist=watchlist,
+                macro_intel=macro_intel,
             )
 
         except Exception as e:
@@ -473,7 +483,9 @@ Powered by Silicon Oracle AI
             logger.error(f"Market preview generation failed: {e}", exc_info=True)
             return False
 
-    def _get_comprehensive_market_analysis(self) -> Dict[str, Any]:
+    def _get_comprehensive_market_analysis(
+        self, macro_intel: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Use Gemini AI with Google Search to analyze current market conditions.
         Returns comprehensive analysis of financial, geopolitical, and sector trends.
@@ -488,11 +500,15 @@ Powered by Silicon Oracle AI
             current_date = datetime.now().strftime("%B %d, %Y")
             current_time = datetime.now().strftime("%I:%M %p")
 
+            # Build live macro context string if available
+            macro_context = self._format_macro_context(macro_intel) if macro_intel else ""
+
             # Define Google Search tool for real-time news
             google_search_tool = types.Tool(google_search=types.GoogleSearch())
 
             prompt = f"""
 Today is {current_date} at {current_time}.
+{macro_context}
 
 You are a professional market analyst. Perform a comprehensive Google Search to analyze the current market environment.
 
@@ -830,6 +846,7 @@ Return ONLY valid JSON, no markdown.
         available_cash: float,
         previous_report: Optional[Dict[str, Any]] = None,
         trading_style: str = "swing_trading",
+        macro_intel: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Use AI to generate personalized stock recommendations based on:
@@ -908,12 +925,15 @@ USE THIS CONTEXT TO:
             else:
                 ai_memory_context = "\n\nAI MEMORY: This is your first analysis for this user. Provide comprehensive initial guidance."
 
+            macro_context_str = self._format_macro_context(macro_intel) if macro_intel else ""
+
             prompt = f"""
 You are a financial advisor. Generate personalized stock recommendations by combining:
 1. Market catalysts and macro conditions (provided below)
 2. Oracle technical analysis scores (15-factor system: momentum, volatility, valuation, etc.)
 3. User's risk profile and portfolio context
-
+4. Live macro dashboard data (VIX, DXY, Fear & Greed, yield curve, sector rotation)
+{macro_context_str}
 MARKET ANALYSIS:
 {json.dumps(market_analysis, indent=2)}
 
@@ -1312,6 +1332,7 @@ Return ONLY valid JSON, no markdown.
         portfolio_health: Optional[Dict[str, Any]] = None,
         stop_losses: Optional[Dict[str, Dict[str, Any]]] = None,
         watchlist: Optional[List[Dict[str, Any]]] = None,
+        macro_intel: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Send comprehensive market intelligence email with recommendations."""
 
@@ -1322,7 +1343,16 @@ Return ONLY valid JSON, no markdown.
         buy_count = len([r for r in recommendations if r.get("action") == "BUY"])
         sell_count = len([r for r in recommendations if r.get("action") == "SELL"])
 
-        subject = f"{sentiment_emoji} Market Intel: {buy_count} BUY, {sell_count} SELL - {sentiment} Market"
+        # Add macro context to subject if notable
+        fg = macro_intel.get("fear_greed_score") if macro_intel else None
+        macro_tag = ""
+        if fg is not None:
+            if fg >= 75:
+                macro_tag = " | Extreme Greed"
+            elif fg <= 25:
+                macro_tag = " | Extreme Fear"
+
+        subject = f"{sentiment_emoji} Market Intel: {buy_count} BUY, {sell_count} SELL — {sentiment}{macro_tag}"
 
         # Build HTML email
         html_body = self._build_intelligence_email_html(
@@ -1334,6 +1364,7 @@ Return ONLY valid JSON, no markdown.
             portfolio_health=portfolio_health or {},
             stop_losses=stop_losses or {},
             watchlist=watchlist or [],
+            macro_intel=macro_intel or {},
         )
 
         # Build text email
@@ -1366,6 +1397,7 @@ Return ONLY valid JSON, no markdown.
         portfolio_health: Dict[str, Any],
         stop_losses: Dict[str, Dict[str, Any]],
         watchlist: List[Dict[str, Any]],
+        macro_intel: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build HTML email for market intelligence with all enhanced features."""
 
@@ -1623,6 +1655,9 @@ Return ONLY valid JSON, no markdown.
                 <p style="color: #4b5563; font-size: 12px; margin: 0 0 24px 0;">
                     Personalized for: <span style="color: #2563eb; font-weight: 600;">{risk_profile.upper()}</span> risk profile
                 </p>
+
+                <!-- Macro Dashboard -->
+                {self._build_macro_dashboard_html(macro_intel or {})}
 
                 <!-- TL;DR Summary -->
                 {f'''
@@ -2189,4 +2224,205 @@ KEY CATALYSTS
             </div>
         </body>
         </html>
+        """
+
+    # ------------------------------------------------------------------ #
+    # Macro Intel helpers                                                  #
+    # ------------------------------------------------------------------ #
+
+    def _fetch_macro_intel_snapshot(self) -> Dict[str, Any]:
+        """
+        Fetch live macro data. Never raises — returns empty dict on failure.
+        """
+        try:
+            import yfinance as yf
+
+            result: Dict[str, Any] = {}
+            macro_tickers = {
+                "vix": "^VIX",
+                "dxy": "DX-Y.NYB",
+                "btc": "BTC-USD",
+                "gold": "GC=F",
+                "t10y": "^TNX",
+            }
+            for key, sym in macro_tickers.items():
+                try:
+                    tk = yf.Ticker(sym)
+                    hist = tk.history(period="1d", interval="1m")
+                    if not hist.empty:
+                        result[key] = round(float(hist["Close"].iloc[-1]), 2)
+                except Exception:
+                    pass
+            try:
+                fg = _gis.get_fear_greed(vix_value=result.get("vix"))
+                result["fear_greed_score"] = fg.get("score")
+                result["fear_greed_label"] = fg.get("label")
+            except Exception:
+                pass
+            try:
+                sr = _gis.get_sector_rotation()
+                result["sector_top"] = [s.get("symbol") for s in sr.get("top", [])[:3]]
+                result["sector_top_chg"] = [s.get("change_pct") for s in sr.get("top", [])[:3]]
+                result["sector_bottom"] = [s.get("symbol") for s in sr.get("bottom", [])[:3]]
+                result["sector_bottom_chg"] = [
+                    s.get("change_pct") for s in sr.get("bottom", [])[:3]
+                ]
+            except Exception:
+                pass
+            try:
+                yc = _gis.get_yield_curve()
+                result["yield_2y"] = yc.get("2y")
+                result["yield_10y"] = yc.get("10y")
+                result["yield_spread"] = yc.get("spread_10y_2y")
+                result["yield_inverted"] = yc.get("inverted", False)
+            except Exception:
+                pass
+            return result
+        except Exception as e:
+            logger.warning(f"Macro intel snapshot failed: {e}")
+            return {}
+
+    def _format_macro_context(self, macro_intel: Optional[Dict[str, Any]]) -> str:
+        """Format macro intel into a text block for Gemini prompts."""
+        if not macro_intel:
+            return ""
+        lines = ["", "LIVE MACRO DASHBOARD (ground your analysis in these real-time numbers):"]
+        if macro_intel.get("vix") is not None:
+            vix = macro_intel["vix"]
+            interp = "elevated fear" if vix > 25 else "low/complacency" if vix < 15 else "normal"
+            lines.append(f"  • VIX: {vix:.1f} ({interp})")
+        if macro_intel.get("dxy") is not None:
+            lines.append(f"  • DXY (Dollar Index): {macro_intel['dxy']:.2f}")
+        if macro_intel.get("gold") is not None:
+            lines.append(f"  • Gold: ${macro_intel['gold']:,.0f}/oz")
+        if macro_intel.get("btc") is not None:
+            lines.append(f"  • Bitcoin: ${macro_intel['btc']:,.0f}")
+        if macro_intel.get("t10y") is not None:
+            lines.append(f"  • 10Y Treasury Yield: {macro_intel['t10y']:.2f}%")
+        if macro_intel.get("fear_greed_score") is not None:
+            lines.append(
+                f"  • Fear & Greed: {macro_intel['fear_greed_score']}/100 ({macro_intel.get('fear_greed_label', '')})"
+            )
+        if macro_intel.get("yield_spread") is not None:
+            spread = macro_intel["yield_spread"]
+            inv = " — INVERTED (recession signal)" if macro_intel.get("yield_inverted") else ""
+            lines.append(f"  • Yield Curve (10Y-2Y): {spread:+.2f}%{inv}")
+        if macro_intel.get("sector_top"):
+            pairs = [
+                f"{s}({'+' if (c or 0) >= 0 else ''}{(c or 0):.1f}%)"
+                for s, c in zip(macro_intel["sector_top"], macro_intel.get("sector_top_chg", []))
+            ]
+            lines.append(f"  • Leading sectors: {', '.join(pairs)}")
+        if macro_intel.get("sector_bottom"):
+            pairs = [
+                f"{s}({(c or 0):.1f}%)"
+                for s, c in zip(
+                    macro_intel["sector_bottom"], macro_intel.get("sector_bottom_chg", [])
+                )
+            ]
+            lines.append(f"  • Lagging sectors: {', '.join(pairs)}")
+        lines.append("")
+        return "\n".join(lines)
+
+    def _build_macro_dashboard_html(self, macro_intel: Dict[str, Any]) -> str:
+        """Build HTML macro dashboard section for email."""
+        if not macro_intel:
+            return ""
+        vix = macro_intel.get("vix")
+        dxy = macro_intel.get("dxy")
+        gold = macro_intel.get("gold")
+        btc = macro_intel.get("btc")
+        t10y = macro_intel.get("t10y")
+        fg_score = macro_intel.get("fear_greed_score")
+        fg_label = macro_intel.get("fear_greed_label", "")
+        yield_spread = macro_intel.get("yield_spread")
+        yield_inverted = macro_intel.get("yield_inverted", False)
+        sector_top = macro_intel.get("sector_top", [])
+        sector_top_chg = macro_intel.get("sector_top_chg", [])
+        sector_bot = macro_intel.get("sector_bottom", [])
+        sector_bot_chg = macro_intel.get("sector_bottom_chg", [])
+
+        if fg_score is not None:
+            if fg_score >= 75:
+                fg_color, fg_txt = "#dc2626", fg_label or "Extreme Greed"
+            elif fg_score >= 55:
+                fg_color, fg_txt = "#f97316", fg_label or "Greed"
+            elif fg_score >= 45:
+                fg_color, fg_txt = "#d97706", fg_label or "Neutral"
+            elif fg_score >= 25:
+                fg_color, fg_txt = "#0891b2", fg_label or "Fear"
+            else:
+                fg_color, fg_txt = "#2563eb", fg_label or "Extreme Fear"
+        else:
+            fg_color, fg_txt = "#6b7280", "—"
+
+        vix_color = "#dc2626" if (vix or 0) > 25 else "#059669" if (vix or 0) < 15 else "#d97706"
+        yield_color = "#dc2626" if yield_inverted else "#059669"
+        fg_pct = min(max(fg_score or 50, 0), 100)
+
+        top_rows = "".join(
+            f"<tr><td style='padding:2px 6px;font-size:11px;color:#d1d5db;'>{s}</td>"
+            f"<td style='padding:2px 6px;font-size:11px;font-weight:700;color:#4ade80;text-align:right;'>+{(c or 0):.1f}%</td></tr>"
+            for s, c in zip(sector_top[:3], sector_top_chg[:3])
+        )
+        bot_rows = "".join(
+            f"<tr><td style='padding:2px 6px;font-size:11px;color:#d1d5db;'>{s}</td>"
+            f"<td style='padding:2px 6px;font-size:11px;font-weight:700;color:#f87171;text-align:right;'>{(c or 0):.1f}%</td></tr>"
+            for s, c in zip(sector_bot[:3], sector_bot_chg[:3])
+        )
+
+        return f"""
+        <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border-radius:12px;padding:20px;margin-bottom:24px;border:1px solid #334155;">
+            <h2 style="color:#f1f5f9;margin:0 0 14px 0;font-size:14px;font-weight:700;letter-spacing:1px;">📡 LIVE MACRO DASHBOARD</h2>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
+                <tr>
+                    <td style="padding:8px 10px;text-align:center;border-right:1px solid #334155;">
+                        <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;margin-bottom:2px;">VIX</div>
+                        <div style="font-size:17px;font-weight:700;color:{vix_color};font-family:monospace;">{f"{vix:.1f}" if vix else "—"}</div>
+                        <div style="font-size:9px;color:#64748b;">{"fear" if (vix or 0)>25 else "calm"}</div>
+                    </td>
+                    <td style="padding:8px 10px;text-align:center;border-right:1px solid #334155;">
+                        <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;margin-bottom:2px;">DXY</div>
+                        <div style="font-size:17px;font-weight:700;color:#d1d5db;font-family:monospace;">{f"{dxy:.2f}" if dxy else "—"}</div>
+                        <div style="font-size:9px;color:#64748b;">dollar</div>
+                    </td>
+                    <td style="padding:8px 10px;text-align:center;border-right:1px solid #334155;">
+                        <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;margin-bottom:2px;">Gold</div>
+                        <div style="font-size:17px;font-weight:700;color:#d4af37;font-family:monospace;">{f"${gold:,.0f}" if gold else "—"}</div>
+                        <div style="font-size:9px;color:#64748b;">safe haven</div>
+                    </td>
+                    <td style="padding:8px 10px;text-align:center;border-right:1px solid #334155;">
+                        <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;margin-bottom:2px;">BTC</div>
+                        <div style="font-size:17px;font-weight:700;color:#f7931a;font-family:monospace;">{f"${btc:,.0f}" if btc else "—"}</div>
+                        <div style="font-size:9px;color:#64748b;">risk appetite</div>
+                    </td>
+                    <td style="padding:8px 10px;text-align:center;">
+                        <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;margin-bottom:2px;">10Y Yield</div>
+                        <div style="font-size:17px;font-weight:700;color:#a78bfa;font-family:monospace;">{f"{t10y:.2f}%" if t10y else "—"}</div>
+                        <div style="font-size:9px;color:#64748b;">bonds</div>
+                    </td>
+                </tr>
+            </table>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr>
+                    <td style="padding:10px 12px;width:40%;border-right:1px solid #334155;vertical-align:top;">
+                        <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;margin-bottom:6px;">Fear &amp; Greed</div>
+                        <div style="background:#0f172a;border-radius:4px;height:8px;margin-bottom:6px;overflow:hidden;">
+                            <div style="background:{fg_color};height:100%;width:{fg_pct}%;border-radius:4px;"></div>
+                        </div>
+                        <div style="font-size:14px;font-weight:700;color:{fg_color};">{f"{fg_score}/100" if fg_score is not None else "—"} <span style="font-size:11px;font-weight:400;color:#94a3b8;">— {fg_txt}</span></div>
+                    </td>
+                    <td style="padding:10px 12px;width:24%;border-right:1px solid #334155;vertical-align:top;">
+                        <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;margin-bottom:6px;">Yield Curve</div>
+                        <div style="font-size:14px;font-weight:700;color:{yield_color};">{f"{yield_spread:+.2f}%" if yield_spread is not None else "—"}</div>
+                        <div style="font-size:9px;color:#64748b;">10Y − 2Y</div>
+                        {"<div style='margin-top:4px;font-size:10px;color:#f87171;font-weight:600;'>⚠️ INVERTED</div>" if yield_inverted else ""}
+                    </td>
+                    <td style="padding:10px 12px;vertical-align:top;">
+                        <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;margin-bottom:6px;">Sectors</div>
+                        <table style="width:100%;">{top_rows}{bot_rows}</table>
+                    </td>
+                </tr>
+            </table>
+        </div>
         """

@@ -1,6 +1,7 @@
 """
 Silicon Oracle - Trading Service
-Alpaca Paper Trading Integration (Streamlit-free)
+DEPRECATED: Alpaca paper trading integration has been removed.
+trading_client is always None; all methods return safe empty values.
 """
 
 import logging
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class TradingService:
-    """Service for paper trading via Alpaca API."""
+    """Stub trading service — Alpaca integration deprecated."""
 
     def __init__(self, config: Optional[Dict[str, str]] = None):
         self.config = config or {}
@@ -20,21 +21,13 @@ class TradingService:
         self._initialize()
 
     def _initialize(self):
-        """Initialize Alpaca API connection."""
-        try:
-            from alpaca.trading.client import TradingClient
-
-            api_key = self.config.get("ALPACA_API_KEY")
-            secret_key = self.config.get("ALPACA_SECRET_KEY")
-
-            if api_key and secret_key:
-                self.trading_client = TradingClient(
-                    api_key=api_key, secret_key=secret_key, paper=True
-                )
-                logger.info("Alpaca client initialized successfully")
-        except Exception as e:
-            logger.warning(f"Failed to initialize Alpaca client: {e}")
-            self.trading_client = None
+        # DEPRECATED: Alpaca removed. trading_client stays None.
+        # from alpaca.trading.client import TradingClient
+        # api_key = self.config.get("ALPACA_API_KEY")
+        # secret_key = self.config.get("ALPACA_SECRET_KEY")
+        # if api_key and secret_key:
+        #     self.trading_client = TradingClient(api_key=api_key, secret_key=secret_key, paper=True)
+        logger.debug("TradingService: Alpaca deprecated, trading_client=None")
 
     def is_connected(self) -> bool:
         """Check if Alpaca is connected."""
@@ -114,34 +107,7 @@ class TradingService:
             return {"success": False, "error": "Not connected to Alpaca"}
 
         try:
-            from alpaca.trading.enums import OrderSide, TimeInForce
-            from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest
-
-            ticker = ticker.upper()
-            side_enum = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL
-
-            if order_type.lower() == "market":
-                req = MarketOrderRequest(
-                    symbol=ticker, qty=qty, side=side_enum, time_in_force=TimeInForce.DAY
-                )
-            else:
-                req = LimitOrderRequest(
-                    symbol=ticker,
-                    qty=qty,
-                    side=side_enum,
-                    time_in_force=TimeInForce.DAY,
-                    limit_price=limit_price,
-                )
-
-            order = self.trading_client.submit_order(req)
-            return {
-                "success": True,
-                "order_id": str(order.id),
-                "status": str(order.status),
-                "symbol": order.symbol,
-                "qty": float(order.qty),
-                "side": str(order.side),
-            }
+            raise RuntimeError("Alpaca integration deprecated")
         except Exception as e:
             logger.error(f"Order submission failed: {e}")
             return {"success": False, "error": str(e)}
@@ -194,28 +160,7 @@ class TradingService:
             return []
 
         try:
-            from alpaca.trading.enums import QueryOrderStatus
-            from alpaca.trading.requests import GetOrdersRequest
-
-            q_status = QueryOrderStatus.OPEN if status == "open" else QueryOrderStatus.CLOSED
-            req = GetOrdersRequest(status=q_status, limit=limit)
-            orders = self.trading_client.get_orders(req)
-
-            return [
-                {
-                    "order_id": str(o.id),
-                    "ticker": o.symbol,
-                    "side": str(o.side).replace("OrderSide.", "").lower(),
-                    "qty": float(o.qty or 0),
-                    "filled_qty": float(o.filled_qty or 0),
-                    "status": str(o.status).replace("OrderStatus.", "").lower(),
-                    "type": str(o.type).replace("OrderType.", "").lower(),
-                    "submitted_at": str(o.submitted_at) if o.submitted_at else None,
-                    "filled_at": str(o.filled_at) if o.filled_at else None,
-                    "filled_avg_price": float(o.filled_avg_price or 0),
-                }
-                for o in orders
-            ]
+            raise RuntimeError("Alpaca integration deprecated")
         except Exception as e:
             logger.error(f"Error getting orders: {e}")
             return []
@@ -239,26 +184,8 @@ class TradingService:
             return None
 
         try:
-            from alpaca.trading.requests import GetPortfolioHistoryRequest
-
-            req = GetPortfolioHistoryRequest(
-                period=period, timeframe=timeframe, extended_hours=True
-            )
-            history = self.trading_client.get_portfolio_history(req)
-
-            df = pd.DataFrame(
-                {
-                    "timestamp": history.timestamp,
-                    "equity": history.equity,
-                    "profit_loss": history.profit_loss,
-                    "profit_loss_pct": history.profit_loss_pct,
-                }
-            )
-
-            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", utc=True)
-            df = df[df["equity"] > 0]
-
-            return df if not df.empty else None
+            # DEPRECATED: Alpaca removed
+            raise RuntimeError("Alpaca integration deprecated")
         except Exception as e:
             logger.error(f"Error getting portfolio history: {e}")
             return None
@@ -290,16 +217,7 @@ class TradingService:
             return None
 
         try:
-            from alpaca.trading.requests import CreateWatchlistRequest
-
-            req = CreateWatchlistRequest(name=name, symbols=symbols or [])
-            wl = self.trading_client.create_watchlist(req)
-
-            return {
-                "id": str(wl.id),
-                "name": wl.name,
-                "symbols": [asset.symbol for asset in (wl.assets or [])],
-            }
+            raise RuntimeError("Alpaca integration deprecated")
         except Exception as e:
             logger.error(f"Error creating watchlist: {e}")
             return None
